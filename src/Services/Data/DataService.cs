@@ -123,18 +123,28 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
 
   public Task StartAsync(CancellationToken cancellationToken)
   {
+    Stopwatch phaseTimer = Stopwatch.StartNew();
+
     _clientState.Login += Reset;
 
     ClientLanguage lang = _clientState.ClientLanguage;
+    _logger.Debug($"[DataService] Entered StartAsync, client state ready at +{phaseTimer.ElapsedMilliseconds}ms");
+
+    // First Excel access of the plugin's life. Lumina opens and parses the game's
+    // data files here, so this measures that rather than the loop itself.
+    Lumina.Excel.ExcelSheet<JournalCategory> firstSheet = _dataManager.GetExcelSheet<JournalCategory>(ClientLanguage.English);
+    _logger.Debug($"[DataService] First Excel sheet available at +{phaseTimer.ElapsedMilliseconds}ms");
 
     List<uint> sidequestCategories = [];
-    foreach (JournalCategory journalCategory in _dataManager.GetExcelSheet<JournalCategory>(ClientLanguage.English))
+    foreach (JournalCategory journalCategory in firstSheet)
     {
       if (journalCategory.Name.ToString().Contains("Sidequests"))
       {
         sidequestCategories.Add(journalCategory.RowId);
       }
     }
+
+    _logger.Debug($"[DataService] Sidequest categories scanned at +{phaseTimer.ElapsedMilliseconds}ms");
 
     Stopwatch buildTimer = Stopwatch.StartNew();
 
@@ -315,7 +325,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     QuestData = (QuestData)RawQuestData.Clone();
 
     buildTimer.Stop();
-    _logger.Debug($"[DataService] Quest tree built in {buildTimer.ElapsedMilliseconds}ms");
+    _logger.Debug($"[DataService] Quest tree built in {buildTimer.ElapsedMilliseconds}ms, StartAsync total {phaseTimer.ElapsedMilliseconds}ms");
 
     return _logger.ServiceLifecycle();
   }
