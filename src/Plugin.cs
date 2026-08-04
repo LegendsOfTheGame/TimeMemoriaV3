@@ -45,6 +45,17 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton(notificationManager);
 
         collection.AddSingleton<MainWindow>();
+
+        // Registered rather than constructed on demand so the host disposes it.
+        // A native addon registers itself with the game by InternalName, so one
+        // left undisposed collides with its replacement after a plugin reload.
+        collection.AddSingleton(sp => new Windows.Native.ProgressionAddon
+        {
+          InternalName = "TMProgression",
+          Title = "Class & Job Progression",
+          Size = new System.Numerics.Vector2(420.0f, 500.0f),
+          ProgressService = sp.GetRequiredService<IClassJobProgressService>()
+        });
         collection.AddSingleton<ILogger, Logger>();
         collection.AddSingleton<IDataService, DataService>();
         collection.AddSingleton<IClassJobProgressService, ClassJobProgressService>();

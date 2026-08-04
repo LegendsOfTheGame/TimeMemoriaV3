@@ -25,6 +25,13 @@ public unsafe class ProgressionAddon : NativeAddon
   private const float LevelWidth = 50.0f;
   private const float ExpWidth = 180.0f;
 
+  /// <summary>
+  /// Rows are pooled rather than matched to the current job count. OnSetup runs
+  /// once, and if it happened to run while no character was loaded a
+  /// state-derived count would be zero and the window would stay empty forever.
+  /// </summary>
+  private const int MaxRows = 40;
+
   /// <summary>Set at construction; the addon does not resolve its own services.</summary>
   public required IClassJobProgressService ProgressService { get; init; }
 
@@ -55,8 +62,7 @@ public unsafe class ProgressionAddon : NativeAddon
 
     _list.AddNode(BuildRow("Job", "Lv", "Experience", header: true).Container);
 
-    // One row per trackable slot, hidden until it has something to show.
-    foreach (ClassJobProgress _ in ProgressService.GetProgress())
+    for (int i = 0; i < MaxRows; i++)
     {
       (HorizontalListNode container, TextNode name, TextNode level, TextNode exp) = BuildRow("", "", "");
       _list.AddNode(container);

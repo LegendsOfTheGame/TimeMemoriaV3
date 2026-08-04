@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, Native.ProgressionAddon _nativeProgression) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -628,24 +628,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     if (ImGui.Button("Open native window (experimental)")) ToggleNativeProgression();
   }
 
-  private TimeMemoria.Windows.Native.ProgressionAddon? _nativeProgression;
-
-  /// <summary>
-  /// Opens the same data rendered as a real game window, for comparison. Created
-  /// on first use so the experiment costs nothing until asked for.
-  /// </summary>
-  private void ToggleNativeProgression()
-  {
-    _nativeProgression ??= new TimeMemoria.Windows.Native.ProgressionAddon
-    {
-      InternalName = "TimeMemoriaProgression",
-      Title = "Class & Job Progression",
-      Size = new Vector2(420.0f, 500.0f),
-      ProgressService = _classJobProgress
-    };
-
-    _nativeProgression.Toggle();
-  }
+  /// <summary>Opens the same data as a real game window, for comparison.</summary>
+  private void ToggleNativeProgression() => _nativeProgression.Toggle();
 
   private void CopyToClipboard(Func<string> build, string successMessage)
   {
