@@ -126,7 +126,7 @@ public class ClassJobProgressService(IPluginLog _pluginLog, IPlayerState _player
   /// capitalised. Only re-cases values that arrive entirely lowercase, so
   /// localisations with their own casing rules are left alone.
   /// </summary>
-  private static string ToDisplayName(string name)
+  public static string ToDisplayName(string name)
   {
     if (name.Length == 0 || name.Any(char.IsUpper)) return name;
     return System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name);

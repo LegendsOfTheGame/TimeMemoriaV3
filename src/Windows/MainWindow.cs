@@ -870,9 +870,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       return;
     }
 
-    DrawLabelled("Starting City:", _playerState.StartTown.ValueNullable?.Name.ToString() ?? "Unknown");
-    DrawLabelled("Starting Class:", _playerState.FirstClass.ValueNullable?.Name.ToString() ?? "Unknown");
-    DrawLabelled("Grand Company:", _playerState.GrandCompany.ValueNullable?.Name.ToString() ?? "None");
+    DrawLabelled("Starting City:", Name(_playerState.StartTown.ValueNullable?.Name.ToString()));
+    DrawLabelled("Starting Class:", Name(_playerState.FirstClass.ValueNullable?.Name.ToString()));
+    DrawLabelled("Grand Company:", Name(_playerState.GrandCompany.ValueNullable?.Name.ToString(), "None"));
   }
 
   /// <summary>
@@ -900,6 +900,13 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     else
       ImGui.TextDisabled($"    across {_pacing.TotalComplete} completed quests");
   }
+
+  /// <summary>
+  /// Sheet names arrive lowercase ("marauder") while the game presents them
+  /// capitalised, so they are re-cased for display.
+  /// </summary>
+  private static string Name(string? raw, string fallback = "Unknown")
+    => string.IsNullOrWhiteSpace(raw) ? fallback : ClassJobProgressService.ToDisplayName(raw);
 
   private static void DrawLabelled(string label, string value)
   {
