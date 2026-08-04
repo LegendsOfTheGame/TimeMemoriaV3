@@ -29,4 +29,10 @@
     <!-- Hand-derived patch gates, shipped beside the assembly. -->
     <None Include="data/toc.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- Native FFXIV UI. Consumed as a submodule because it is not published as a
+       package. After cloning, initialise submodules before building. -->
+  <ItemGroup>
+    <ProjectReference Include="lib/KamiToolKit/KamiToolKit.csproj" Private="True" />
+  </ItemGroup>
 </Project>
