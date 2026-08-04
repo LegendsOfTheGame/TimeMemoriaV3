@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, Native.ProgressionAddon _nativeProgression) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -623,13 +623,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
 
     ImGui.TextDisabled("Nothing is sent anywhere — the export stays on your clipboard.");
-
-    ImGui.Spacing();
-    if (ImGui.Button("Open native window (experimental)")) ToggleNativeProgression();
   }
 
-  /// <summary>Opens the same data as a real game window, for comparison.</summary>
-  private void ToggleNativeProgression() => _nativeProgression.Toggle();
 
   private void CopyToClipboard(Func<string> build, string successMessage)
   {

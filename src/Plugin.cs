@@ -21,7 +21,12 @@ public sealed class Plugin : IDalamudPlugin
     INotificationManager notificationManager
   )
   {
-    KamiToolKit.KamiToolKitLibrary.Initialize(pluginInterface, "Time Memoria");
+    // Native UI is parked. KamiToolKit's addon disposal cannot complete on the
+    // main thread -- Dispose returns before the closing animation finishes, and
+    // DisposeAsync must not run on the main thread, which is where Dalamud
+    // disposes plugins. Until that is resolved the toolkit is not initialised
+    // and no addon is created, so the plugin unloads cleanly.
+    // The submodule, ProgressionAddon and this wiring are all retained.
 
     _host = new HostBuilder()
       .UseContentRoot(pluginInterface.ConfigDirectory.FullName)
@@ -46,16 +51,6 @@ public sealed class Plugin : IDalamudPlugin
 
         collection.AddSingleton<MainWindow>();
 
-        // Registered rather than constructed on demand so the host disposes it.
-        // A native addon registers itself with the game by InternalName, so one
-        // left undisposed collides with its replacement after a plugin reload.
-        collection.AddSingleton(sp => new Windows.Native.ProgressionAddon
-        {
-          InternalName = "TMProgression",
-          Title = "Class & Job Progression",
-          Size = new System.Numerics.Vector2(420.0f, 500.0f),
-          ProgressService = sp.GetRequiredService<IClassJobProgressService>()
-        });
         collection.AddSingleton<ILogger, Logger>();
         collection.AddSingleton<IDataService, DataService>();
         collection.AddSingleton<IClassJobProgressService, ClassJobProgressService>();
@@ -91,13 +86,7 @@ public sealed class Plugin : IDalamudPlugin
 
   public void Dispose()
   {
-    // Order matters. The host owns the native addon, and disposing that addon
-    // frees game UI nodes -- so the library owning that infrastructure has to
-    // outlive it. Tearing the library down first frees the nodes out from under
-    // the addon, which takes the game process with it rather than throwing.
     _host.StopAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     _host.Dispose();
-
-    KamiToolKit.KamiToolKitLibrary.Dispose();
   }
 }
