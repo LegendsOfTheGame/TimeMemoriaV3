@@ -136,6 +136,40 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       }
     }
 
+    Stopwatch buildTimer = Stopwatch.StartNew();
+
+    // Each of the loops below filters a whole sheet by a single key. Doing that
+    // inside the loop is O(categories x rows); grouping once up front is O(rows).
+    Lumina.Excel.ExcelSheet<JournalCategory> englishCategories = _dataManager.GetExcelSheet<JournalCategory>(ClientLanguage.English);
+
+    Dictionary<uint, List<JournalGenre>> genresByCategory = [];
+    foreach (JournalGenre genre in _dataManager.GetExcelSheet<JournalGenre>(lang))
+    {
+      if (!genresByCategory.TryGetValue(genre.JournalCategory.RowId, out List<JournalGenre>? genreList))
+        genresByCategory[genre.JournalCategory.RowId] = genreList = [];
+      genreList.Add(genre);
+    }
+
+    Dictionary<uint, List<Lumina.Excel.Sheets.Quest>> questsByGenre = [];
+    foreach (Lumina.Excel.Sheets.Quest q in _dataManager.GetExcelSheet<Lumina.Excel.Sheets.Quest>(lang))
+    {
+      if (q.Name.IsEmpty) continue;
+      if (!questsByGenre.TryGetValue(q.JournalGenre.RowId, out List<Lumina.Excel.Sheets.Quest>? questList))
+        questsByGenre[q.JournalGenre.RowId] = questList = [];
+      questList.Add(q);
+    }
+
+    Dictionary<uint, List<Leve>> levesByGenre = [];
+    foreach (Leve l in _dataManager.GetExcelSheet<Leve>(lang))
+    {
+      if (l.Name.IsEmpty) continue;
+      if (!levesByGenre.TryGetValue(l.JournalGenre.RowId, out List<Leve>? leveList))
+        levesByGenre[l.JournalGenre.RowId] = leveList = [];
+      leveList.Add(l);
+    }
+
+    _logger.Debug($"[DataService] Sheets grouped in {buildTimer.ElapsedMilliseconds}ms");
+
     JournalSection otherQuests = _dataManager.GetExcelSheet<JournalSection>(ClientLanguage.English).FirstOrNull(r => r.Name == "Other Quests") ?? throw new Exception("Missing 'Other Quests'.");
     string defaultMainCategory = _dataManager.GetExcelSheet<JournalSection>(lang).First(r => r.RowId == otherQuests.RowId).Name.ToString();
     string defaultMainCategoryEnglish = otherQuests.Name.ToString();
@@ -144,19 +178,19 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     {
       bool isSidequestCategory = sidequestCategories.Contains(journalCategory.RowId);
       string mainCategory = TrimJournalSection(journalCategory.JournalSection.ValueNullable?.Name.ToString() ?? defaultMainCategory);
-      string englishMainCategory = TrimJournalSection(_dataManager.GetExcelSheet<JournalCategory>(ClientLanguage.English).GetRow(journalCategory.RowId).JournalSection.ValueNullable?.Name.ToString() ?? defaultMainCategoryEnglish);
+      string englishMainCategory = TrimJournalSection(englishCategories.GetRow(journalCategory.RowId).JournalSection.ValueNullable?.Name.ToString() ?? defaultMainCategoryEnglish);
       string subCategory = journalCategory.Name.ToString();
-      string englishSubCategory = _dataManager.GetExcelSheet<JournalCategory>(ClientLanguage.English).GetRow(journalCategory.RowId).Name.ToString();
+      string englishSubCategory = englishCategories.GetRow(journalCategory.RowId).Name.ToString();
 
       if (englishMainCategory == "Levequests") LevequestsTitle = mainCategory;
       if (englishMainCategory == "Other Quests") OtherQuestsTitle = mainCategory;
 
-      foreach (JournalGenre journalGenre in _dataManager.GetExcelSheet<JournalGenre>(lang).Where((r) => r.JournalCategory.RowId == journalCategory.RowId))
+      foreach (JournalGenre journalGenre in genresByCategory.GetValueOrDefault(journalCategory.RowId, []))
       {
         if (journalGenre.RowId == 0) subCategory = "Quasi-Quests";
         string section = journalGenre.Name.ToString();
 
-        foreach (Lumina.Excel.Sheets.Quest quest in _dataManager.GetExcelSheet<Lumina.Excel.Sheets.Quest>(lang).Where((r) => r.JournalGenre.RowId == journalGenre.RowId && !r.Name.IsEmpty))
+        foreach (Lumina.Excel.Sheets.Quest quest in questsByGenre.GetValueOrDefault(journalGenre.RowId, []))
         {
           if (isSidequestCategory) section = quest.PlaceName.Value.Name.ToString();
 
@@ -207,7 +241,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
           continue;
         }
 
-        foreach (Leve leve in _dataManager.GetExcelSheet<Leve>(lang).Where((r) => r.JournalGenre.RowId == journalGenre.RowId && !r.Name.IsEmpty))
+        foreach (Leve leve in levesByGenre.GetValueOrDefault(journalGenre.RowId, []))
         {
           section = leve.PlaceNameStart.Value.Name.ToString();
 
@@ -279,6 +313,9 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     }
 
     QuestData = (QuestData)RawQuestData.Clone();
+
+    buildTimer.Stop();
+    _logger.Debug($"[DataService] Quest tree built in {buildTimer.ElapsedMilliseconds}ms");
 
     return _logger.ServiceLifecycle();
   }
