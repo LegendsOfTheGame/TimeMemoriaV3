@@ -44,6 +44,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<ILogger, Logger>();
         collection.AddSingleton<IDataService, DataService>();
         collection.AddSingleton<IClassJobProgressService, ClassJobProgressService>();
+        collection.AddSingleton<ILedgerExportService, LedgerExportService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 

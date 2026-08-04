@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private string _searchQuery = "";
 
@@ -475,6 +475,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Separator();
     ImGui.Spacing();
 
+    DrawExportRow();
+    ImGui.Spacing();
+
     using ImRaii.TableDisposable table = ImRaii.Table("##progressionTable", 4,
       ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg,
       ImGui.GetContentRegionAvail());
@@ -504,5 +507,43 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       ImGui.TableNextColumn();
       ImGui.TextDisabled(job.IsMaxLevel ? "—" : $"{job.Experience:N0} / {job.ExperienceToNext:N0}");
     }
+  }
+
+  private string _copyFeedback = "";
+  private DateTime _copyShownAt = DateTime.MinValue;
+
+  private void DrawExportRow()
+  {
+    if (ImGui.Button("Copy progression to clipboard"))
+      CopyToClipboard(_ledgerExport.BuildProgressionJson, "Copied as JSON.");
+
+    ImGui.SameLine();
+
+    if (ImGui.Button("Copy for Adventurer's Ledger"))
+      CopyToClipboard(_ledgerExport.BuildLedgerJson, "Copied in ledger format.");
+
+    // Fade the confirmation rather than leaving it on screen forever.
+    if (_copyFeedback.Length > 0 && DateTime.UtcNow - _copyShownAt < TimeSpan.FromSeconds(4))
+    {
+      ImGui.SameLine();
+      ImGui.TextDisabled(_copyFeedback);
+    }
+
+    ImGui.TextDisabled("Nothing is sent anywhere — the export stays on your clipboard.");
+  }
+
+  private void CopyToClipboard(Func<string> build, string successMessage)
+  {
+    try
+    {
+      ImGui.SetClipboardText(build());
+      _copyFeedback = successMessage;
+    }
+    catch (Exception ex)
+    {
+      _copyFeedback = $"Copy failed: {ex.Message}";
+    }
+
+    _copyShownAt = DateTime.UtcNow;
   }
 }
