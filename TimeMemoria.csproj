@@ -1,0 +1,27 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <!-- Pre-release. This rebuild has not reached parity with the shipping
+         Time Memoria 3.0.1, so it deliberately does not share its version line. -->
+    <Version>0.1.0.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Distinct assembly name so this can be installed beside the shipping
+         plugin for side-by-side comparison. Renamed at release. -->
+    <AssemblyName>TimeMemoriaV3</AssemblyName>
+    <RootNamespace>TimeMemoria</RootNamespace>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Author>Legends of the Game</Author>
+    <Name>Time Memoria (Rebuild)</Name>
+    <Punchline>Remember every step, Warriors of Light.</Punchline>
+    <Description>Quest progression and pacing — a reflective notebook for your story journey, not a scoreboard.</Description>
+    <RepoUrl>https://github.com/LegendsOfTheGame/TimeMemoriaV3</RepoUrl>
+    <Tags>quest;quests;progression;pacing;tracker</Tags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
+  </ItemGroup>
+</Project>

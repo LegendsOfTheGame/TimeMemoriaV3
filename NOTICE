@@ -1,0 +1,62 @@
+Time Memoria
+Copyright (C) 2026 Legends of the Game
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. See LICENSE for the full text.
+
+
+DERIVED WORK
+============
+
+This program is a derivative of QuestTracker, used under AGPL-3.0.
+
+    QuestTracker
+    Copyright (C) isaiahcat
+    Copyright (C) keifufu
+    https://github.com/keifufu/QuestTracker
+
+QuestTracker was originally written by isaiahcat and is currently maintained by
+keifufu, who holds the official Dalamud plugin listing for it. Time Memoria is
+an independent plugin and is not affiliated with, endorsed by, or supported by
+either author.
+
+Seeded from keifufu/QuestTracker at commit 79b1c2c.
+
+
+CHANGES MADE TO THE DERIVED CODE
+================================
+
+As required by section 5(a) of the AGPL. This list is maintained as the work
+proceeds.
+
+  * Renamed the namespace, assembly and plugin identity from QuestTracker to
+    Time Memoria. Plugin metadata (author, description, repository, tags)
+    replaced throughout.
+
+Planned, not yet done:
+
+  * Replace the user interface with Time Memoria's own: a two-panel questline
+    tree, chain-grouped quest sections, and a suggested-next-quest panel.
+  * Add features with no counterpart upstream — playtime pacing, world-state
+    and maintenance reporting, MSQ progression gating, spoiler and free-trial
+    modes, and class/job levelling with clipboard export.
+  * Cache the generated quest tree to disk to remove the startup cost of
+    rebuilding it from game data on every load.
+  * Replace quest-ID probing for starting city, Grand Company and starting
+    class with the equivalent PlayerState fields.
+
+
+ACKNOWLEDGEMENTS
+================
+
+Not code, but the ideas came from somewhere:
+
+  * Infi and Caitlyn — BetterPlaytime
+    https://github.com/caitlyn-gg/BetterPlaytime
+    Inspiration for time-per-quest pacing.
+
+  * Haselnussbomber — LeveHelper
+    https://github.com/Haselnussbomber/LeveHelper
+    Inspiration for levequest and guildhest tracking.
