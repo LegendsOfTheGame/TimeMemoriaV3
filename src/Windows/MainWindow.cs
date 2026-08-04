@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -669,6 +669,13 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     _newsService.Poll();
 
+    DrawCharacterSection();
+    ImGui.Spacing();
+    ImGui.Spacing();
+    DrawPacingSection();
+    ImGui.Spacing();
+    ImGui.Spacing();
+
     NewsEvent? data = _newsService.Latest;
     if (data == null)
     {
@@ -844,5 +851,60 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       ? "  This account looks like a free trial account."
       : "  This account owns content beyond the free trial.");
     ImGui.TextDisabled("  Free Trial Mode cannot be overridden by Spoiler Mode.");
+  }
+
+  /// <summary>
+  /// Starting city, first class and Grand Company, read straight from player
+  /// state. The previous plugin worked these out by testing whether particular
+  /// quest ids were complete, which broke on anything unusual.
+  /// </summary>
+  private void DrawCharacterSection()
+  {
+    ImGui.TextColored(HeaderColour, "Character Information");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    if (!_playerState.IsLoaded)
+    {
+      ImGui.TextDisabled("  No character loaded.");
+      return;
+    }
+
+    DrawLabelled("Starting City:", _playerState.StartTown.ValueNullable?.Name.ToString() ?? "Unknown");
+    DrawLabelled("Starting Class:", _playerState.FirstClass.ValueNullable?.Name.ToString() ?? "Unknown");
+    DrawLabelled("Grand Company:", _playerState.GrandCompany.ValueNullable?.Name.ToString() ?? "None");
+  }
+
+  /// <summary>
+  /// Session pacing is a delta: quests finished since login over time played
+  /// since login. Overall is the character's whole history. Both are
+  /// observational -- no thresholds, no judgement.
+  /// </summary>
+  private void DrawPacingSection()
+  {
+    ImGui.TextColored(HeaderColour, "Quest Pacing");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    double? session = _pacing.SessionMinutesPerQuest;
+    DrawLabelled("Session pacing:", session.HasValue ? PacingService.Format(session.Value) : "—");
+
+    if (_pacing.SessionQuests > 0)
+      ImGui.TextDisabled($"    {_pacing.SessionQuests} quest{(_pacing.SessionQuests == 1 ? "" : "s")} this session");
+
+    double? overall = _pacing.OverallMinutesPerQuest;
+    DrawLabelled("Overall pacing:", overall.HasValue ? PacingService.Format(overall.Value) : "—");
+
+    if (!_pacing.HasLifetimePlaytime)
+      ImGui.TextDisabled("    Run /playtime once to enable overall pacing.");
+    else
+      ImGui.TextDisabled($"    across {_pacing.TotalComplete} completed quests");
+  }
+
+  private static void DrawLabelled(string label, string value)
+  {
+    ImGui.TextDisabled($"  {label}");
+    ImGui.SameLine(150.0f);
+    ImGui.Text(value);
   }
 }
