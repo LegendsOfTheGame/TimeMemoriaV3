@@ -12,6 +12,7 @@ public sealed class Plugin : IDalamudPlugin
     IGameGui gameGui,
     IToastGui toastGui,
     IPluginLog pluginLog,
+    IPlayerState playerState,
     IClientState clientState,
     IDataManager dataManager,
     ICommandManager commandManager,
@@ -32,6 +33,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton(gameGui);
         collection.AddSingleton(toastGui);
         collection.AddSingleton(pluginLog);
+        collection.AddSingleton(playerState);
         collection.AddSingleton(clientState);
         collection.AddSingleton(dataManager);
         collection.AddSingleton(commandManager);
@@ -41,6 +43,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<MainWindow>();
         collection.AddSingleton<ILogger, Logger>();
         collection.AddSingleton<IDataService, DataService>();
+        collection.AddSingleton<IClassJobProgressService, ClassJobProgressService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 

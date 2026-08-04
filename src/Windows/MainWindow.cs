@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private string _searchQuery = "";
 
@@ -28,6 +28,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Quests"))
         if (tabItem.Success) DrawQuestsTab();
+
+      using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Progression"))
+        if (tabItem.Success) DrawProgressionTab();
 
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Settings"))
         if (tabItem.Success) DrawSettingsTab();
@@ -449,6 +452,57 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       Level level = _dataManager.GetExcelSheet<Lumina.Excel.Sheets.Quest>().First(q => quest.Ids.Contains(q.RowId) && q.IssuerLocation.ValueNullable != null).IssuerLocation.Value;
       MapLinkPayload mapLink = new(level.Territory.RowId, level.Map.RowId, (int)(level.X * 1_000f), (int)(level.Z * 1_000f));
       _gameGui.OpenMapWithMapLink(mapLink);
+    }
+  }
+
+  private void DrawProgressionTab()
+  {
+    using ImRaii.ChildDisposable child = ImRaii.Child("##progressionTab", ImGuiHelpers.ScaledVector2(0), true);
+    if (!child.Success) return;
+
+    List<ClassJobProgress> progress = _classJobProgress.GetProgress();
+    List<ClassJobProgress> unlocked = [.. progress.Where(p => p.IsUnlocked)];
+
+    if (unlocked.Count == 0)
+    {
+      ImGui.TextDisabled("No character loaded.");
+      return;
+    }
+
+    ImGui.TextColored(new Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Class & Job Progression");
+    ImGui.SameLine();
+    ImGui.TextDisabled($"({unlocked.Count} of {progress.Count} unlocked)");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    using ImRaii.TableDisposable table = ImRaii.Table("##progressionTable", 4,
+      ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg,
+      ImGui.GetContentRegionAvail());
+    if (!table.Success) return;
+
+    ImGui.TableSetupScrollFreeze(0, 1);
+    ImGui.TableSetupColumn("Job", ImGuiTableColumnFlags.WidthFixed, 150f);
+    ImGui.TableSetupColumn("Level", ImGuiTableColumnFlags.WidthFixed, 50f);
+    ImGui.TableSetupColumn("Progress", ImGuiTableColumnFlags.WidthStretch);
+    ImGui.TableSetupColumn("EXP", ImGuiTableColumnFlags.WidthFixed, 170f);
+    ImGui.TableHeadersRow();
+
+    foreach (ClassJobProgress job in unlocked)
+    {
+      ImGui.TableNextRow();
+
+      ImGui.TableNextColumn();
+      ImGui.TextUnformatted(job.Name);
+
+      ImGui.TableNextColumn();
+      ImGui.TextUnformatted(job.Level.ToString());
+
+      ImGui.TableNextColumn();
+      if (job.IsMaxLevel) ImGui.TextDisabled("Max level");
+      else ImGui.ProgressBar(job.Fraction, new Vector2(-1f, 0f), string.Empty);
+
+      ImGui.TableNextColumn();
+      ImGui.TextDisabled(job.IsMaxLevel ? "—" : $"{job.Experience:N0} / {job.ExperienceToNext:N0}");
     }
   }
 }
