@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -31,6 +31,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Quests"))
         if (tabItem.Success) DrawQuestsTab();
+
+      using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("News"))
+        if (tabItem.Success) DrawNewsTab();
 
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Progression"))
         if (tabItem.Success) DrawProgressionTab();
@@ -628,5 +631,137 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
 
     _copyShownAt = DateTime.UtcNow;
+  }
+
+  private void DrawNewsTab()
+  {
+    using ImRaii.ChildDisposable child = ImRaii.Child("##newsTab", ImGuiHelpers.ScaledVector2(0), true);
+    if (!child.Success) return;
+
+    _newsService.Poll();
+
+    NewsEvent? data = _newsService.Latest;
+    if (data == null)
+    {
+      ImGui.TextDisabled(_newsService.IsLoading ? "Loading world state..." : "No world state available.");
+      if (_newsService.FetchError != null)
+      {
+        ImGui.Spacing();
+        ImGui.TextDisabled($"Last error: {_newsService.FetchError}");
+      }
+      return;
+    }
+
+    DrawMaintenanceSection(data);
+    ImGui.Spacing();
+    ImGui.Spacing();
+    DrawEventsSection(data);
+  }
+
+  private static void DrawMaintenanceSection(NewsEvent data)
+  {
+    ImGui.TextColored(HeaderColour, "Maintenance");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    if (data.Maintenance == null)
+    {
+      ImGui.TextDisabled("No upcoming maintenance.");
+    }
+    else
+    {
+      MaintenanceWindow m = data.Maintenance;
+      long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+      bool upcoming = m.Start.HasValue && m.Start.Value > now;
+      bool serversDown = m.Start.HasValue && m.Start.Value <= now && m.End.HasValue && m.End.Value > now;
+
+      // Three states, because the useful number differs in each: how long until
+      // it starts, how long until servers return, or nothing once it is over.
+      if (serversDown)
+      {
+        ImGui.TextColored(new Vector4(1.0f, 0.6f, 0.4f, 1.0f), $"[Servers down]  {m.Title ?? "Maintenance"}");
+        ImGui.TextDisabled($"  Back in {FormatSpan(TimeSpan.FromSeconds(m.End!.Value - now))}");
+      }
+      else if (upcoming)
+      {
+        ImGui.Text($"[Upcoming]  {m.Title ?? "Maintenance"}");
+        ImGui.TextDisabled($"  Starts in {FormatSpan(TimeSpan.FromSeconds(m.Start!.Value - now))}");
+      }
+      else
+      {
+        ImGui.Text($"[Completed]  {m.Title ?? "Maintenance"}");
+      }
+
+      if (m.Start.HasValue) ImGui.TextDisabled($"  Starts: {FormatUnixLocal(m.Start.Value)}");
+      if (m.End.HasValue) ImGui.TextDisabled($"  Ends:   {FormatUnixLocal(m.End.Value)}");
+      DrawLink(m.Url);
+    }
+
+    ImGui.Spacing();
+
+    if (data.LastMaintenance != null)
+    {
+      ImGui.TextDisabled($"Last:  {data.LastMaintenance.Title ?? "Maintenance"}");
+      if (data.LastMaintenance.End.HasValue)
+        ImGui.TextDisabled($"  Ended: {FormatUnixLocal(data.LastMaintenance.End.Value)}");
+      DrawLink(data.LastMaintenance.Url);
+    }
+  }
+
+  private static void DrawEventsSection(NewsEvent data)
+  {
+    ImGui.TextColored(HeaderColour, "Active Events");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    bool any = false;
+
+    foreach (GameEvent ev in data.Events)
+    {
+      bool active = ev.Start.HasValue && ev.Start.Value <= now && ev.End.HasValue && ev.End.Value > now;
+      bool upcoming = ev.Start.HasValue && ev.Start.Value > now;
+      if (!active && !upcoming) continue;
+
+      any = true;
+      ImGui.Text($"{(active ? "[Active]" : "[Upcoming]")}  {ev.Title ?? "Event"}");
+
+      if (active && ev.End.HasValue)
+        ImGui.TextDisabled($"  Ends in {FormatSpan(TimeSpan.FromSeconds(ev.End.Value - now))}");
+      else if (upcoming && ev.Start.HasValue)
+        ImGui.TextDisabled($"  Starts in {FormatSpan(TimeSpan.FromSeconds(ev.Start.Value - now))}");
+
+      DrawLink(ev.Url);
+      ImGui.Spacing();
+    }
+
+    if (!any) ImGui.TextDisabled("No active or upcoming events.");
+  }
+
+  private static void DrawLink(string? url)
+  {
+    if (string.IsNullOrWhiteSpace(url)) return;
+
+    ImGui.SameLine();
+    ImGui.TextDisabled("[read]");
+    if (ImGui.IsItemHovered())
+    {
+      ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+      ImGui.SetTooltip(url);
+    }
+    if (ImGui.IsItemClicked()) Dalamud.Utility.Util.OpenLink(url);
+  }
+
+  /// <summary>Local time with the year, so a stale feed is obvious rather than ambiguous.</summary>
+  private static string FormatUnixLocal(long unixSeconds) =>
+    DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToLocalTime().ToString("MMM d, yyyy, h:mm tt");
+
+  private static string FormatSpan(TimeSpan span)
+  {
+    if (span.TotalDays >= 1) return $"{(int)span.TotalDays}d {span.Hours}h";
+    if (span.TotalHours >= 1) return $"{(int)span.TotalHours}h {span.Minutes}m";
+    if (span.TotalMinutes >= 1) return $"{(int)span.TotalMinutes}m";
+    return "less than a minute";
   }
 }

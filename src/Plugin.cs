@@ -45,6 +45,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<IDataService, DataService>();
         collection.AddSingleton<IClassJobProgressService, ClassJobProgressService>();
         collection.AddSingleton<ILedgerExportService, LedgerExportService>();
+        collection.AddSingleton<INewsService, NewsService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
@@ -52,6 +53,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton(new WindowSystem(pluginInterface.InternalName));
 
         collection.AddHostedService(sp => sp.GetRequiredService<IDataService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<INewsService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
       }).Build();
