@@ -29,4 +29,20 @@
     <!-- Hand-derived patch gates, shipped beside the assembly. -->
     <None Include="data/toc.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- The submodule lives inside this project's directory, so the SDK's default
+       globbing would compile its sources into this assembly as well as
+       referencing them. Exclude the folder and let the project reference do it. -->
+  <ItemGroup>
+    <Compile Remove="lib/**" />
+    <None Remove="lib/**" />
+    <EmbeddedResource Remove="lib/**" />
+    <Content Remove="lib/**" />
+  </ItemGroup>
+
+  <!-- Native FFXIV UI. Consumed as a submodule because it is not published as a
+       package. After cloning, initialise submodules before building. -->
+  <ItemGroup>
+    <ProjectReference Include="lib/KamiToolKit/KamiToolKit.csproj" Private="True" />
+  </ItemGroup>
 </Project>
