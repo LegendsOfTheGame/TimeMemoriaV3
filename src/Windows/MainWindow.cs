@@ -6,8 +6,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private string _searchQuery = "";
 
-  private QuestData? _categorySelection;
-  private QuestData? _subcategorySelection;
+  private QuestData? _selectedCategory;
+  private string _selectedLabel = "";
+  private float _leftPanelWidth = 282f;
 
   public override void Draw()
   {
@@ -113,87 +114,169 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private void DrawQuestsTab()
   {
-    using ImRaii.ChildDisposable child = ImRaii.Child("##questsTab", ImGuiHelpers.ScaledVector2(0), true);
+    float totalWidth = ImGui.GetContentRegionAvail().X;
+    float splitterWidth = 4f;
+    float leftWidth = Math.Clamp(_leftPanelWidth, 200f, Math.Max(220f, totalWidth - 220f));
+    float rightWidth = totalWidth - leftWidth - splitterWidth - (ImGui.GetStyle().ItemSpacing.X * 2);
+    float panelHeight = ImGui.GetContentRegionAvail().Y;
+
+    DrawQuestTree(leftWidth, panelHeight);
+    DrawSplitter(splitterWidth, panelHeight, totalWidth);
+    DrawQuestList(rightWidth, panelHeight);
+  }
+
+  /// <summary>
+  /// Left panel: expansion, then journal section, then category. Percentages sit
+  /// on a fixed column so they line up regardless of nesting depth.
+  /// </summary>
+  private void DrawQuestTree(float width, float height)
+  {
+    using ImRaii.ChildDisposable child = ImRaii.Child("##questTree", new Vector2(width, height), true);
     if (!child.Success) return;
 
-    if (_categorySelection == null) ResetSelections();
+    float percentX = ImGui.GetWindowWidth()
+                     - ImGui.CalcTextSize("100%").X
+                     - ImGui.GetStyle().WindowPadding.X
+                     - ImGui.GetStyle().ScrollbarSize;
 
-    // If there's search text, show search results (this is global, not category-specific)
-    if (!string.IsNullOrWhiteSpace(_searchQuery))
+    foreach (QuestData expansion in _dataService.QuestData.Categories)
     {
-      ImGui.SetNextItemWidth(-1);
-      ImGui.InputTextWithHint("##search_input", "Search all quests...", ref _searchQuery, 256);
-      ImGui.Spacing();
+      bool expansionOpen = ImGui.TreeNodeEx($"{expansion.Title}##exp_{expansion.Title}", ImGuiTreeNodeFlags.SpanAvailWidth);
+      DrawPercentAt(percentX, expansion.NumComplete, expansion.Total);
+      if (!expansionOpen) continue;
 
-      DrawSearchResults();
+      foreach (QuestData section in expansion.Categories)
+      {
+        bool sectionOpen = ImGui.TreeNodeEx($"{section.Title}##sec_{expansion.Title}_{section.Title}", ImGuiTreeNodeFlags.SpanAvailWidth);
+        DrawPercentAt(percentX, section.NumComplete, section.Total);
+        if (!sectionOpen) continue;
+
+        foreach (QuestData category in section.Categories)
+        {
+          bool selected = ReferenceEquals(_selectedCategory, category);
+
+          if (ImGui.Selectable($"  {category.Title}##cat_{expansion.Title}_{section.Title}_{category.Title}",
+                               selected, ImGuiSelectableFlags.None,
+                               new Vector2(Math.Max(percentX - ImGui.GetCursorPosX() - 4f, 1f), 0)))
+          {
+            _selectedCategory = category;
+            _selectedLabel = $"{expansion.Title} — {section.Title} — {category.Title}";
+          }
+
+          DrawPercentAt(percentX, category.NumComplete, category.Total);
+        }
+
+        ImGui.TreePop();
+      }
+
+      ImGui.TreePop();
     }
-    else
+  }
+
+  private static void DrawPercentAt(float x, float complete, float total)
+  {
+    ImGui.SameLine(x);
+    ImGui.TextDisabled(total > 0 ? $"{(int)(complete / total * 100f)}%" : "—");
+  }
+
+  /// <summary>Draggable divider between the tree and the quest list.</summary>
+  private void DrawSplitter(float width, float height, float totalWidth)
+  {
+    ImGui.SameLine();
+    Vector2 pos = ImGui.GetCursorScreenPos();
+    ImGui.InvisibleButton("##splitter", new Vector2(width, height));
+
+    bool hovered = ImGui.IsItemHovered();
+    bool active = ImGui.IsItemActive();
+    if (hovered || active) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeAll);
+    if (active)
+      _leftPanelWidth = Math.Clamp(_leftPanelWidth + ImGui.GetIO().MouseDelta.X, 200f, Math.Max(220f, totalWidth - 220f));
+
+    uint colour = active ? ImGui.GetColorU32(ImGuiCol.SeparatorActive)
+                  : hovered ? ImGui.GetColorU32(ImGuiCol.SeparatorHovered)
+                  : ImGui.GetColorU32(ImGuiCol.Separator);
+
+    float midX = pos.X + (width / 2f);
+    ImGui.GetWindowDrawList().AddLine(new Vector2(midX, pos.Y), new Vector2(midX, pos.Y + height), colour, 1f);
+  }
+
+  /// <summary>
+  /// Right panel: the selected category's quests, grouped under their journal
+  /// genre or place name, which is what gives raid series and sidequest areas
+  /// their headers.
+  /// </summary>
+  private void DrawQuestList(float width, float height)
+  {
+    ImGui.SameLine();
+    using ImRaii.ChildDisposable child = ImRaii.Child("##questList", new Vector2(width, height), true);
+    if (!child.Success) return;
+
+    if (_selectedCategory == null)
     {
-      float availableWidth = ImGui.GetContentRegionAvail().X;
-      float searchBoxWidth = 400;
-      float spacing = ImGui.GetStyle().ItemSpacing.X;
-      float comboWidth = 400;
+      float centre = (ImGui.GetContentRegionAvail().Y / 2f) - ImGui.GetTextLineHeight();
+      ImGui.SetCursorPosY(ImGui.GetCursorPosY() + Math.Max(centre, 0f));
+      ImGui.TextDisabled("Select a category on the left.");
+      return;
+    }
 
-      ImGui.SetNextItemWidth(comboWidth);
-      using (ImRaii.ComboDisposable combo = ImRaii.Combo("##categoryDropdown", GetDisplayText(_categorySelection)))
+    float statsWidth = ImGui.CalcTextSize($"{_selectedCategory.NumComplete}/{_selectedCategory.Total} 100%").X;
+    ImGui.Text(_selectedLabel);
+    ImGui.SameLine(ImGui.GetContentRegionAvail().X - statsWidth);
+    ImGui.TextDisabled(_selectedCategory.Total > 0
+      ? $"{_selectedCategory.NumComplete}/{_selectedCategory.Total} {(int)(_selectedCategory.NumComplete / _selectedCategory.Total * 100f)}%"
+      : "—");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    using ImRaii.TableDisposable table = ImRaii.Table("##questTable", 4,
+      ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV, ImGui.GetContentRegionAvail());
+    if (!table.Success) return;
+
+    ImGui.TableSetupScrollFreeze(0, 1);
+    ImGui.TableSetupColumn("##check", ImGuiTableColumnFlags.WidthFixed, 22f);
+    ImGui.TableSetupColumn("##level", ImGuiTableColumnFlags.WidthFixed, 36f);
+    ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthStretch);
+    ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 140f);
+    ImGui.TableHeadersRow();
+
+    foreach (QuestData genre in _selectedCategory.Categories)
+    {
+      List<Types.Quest> visible = [.. genre.Quests.Where((q) => !q.Hide)];
+      if (visible.Count == 0) continue;
+
+      // Genre header, only when the category actually splits into several.
+      if (_selectedCategory.Categories.Count > 1)
       {
-        if (combo.Success)
-        {
-          foreach (QuestData category in _dataService.QuestData.Categories)
-          {
-            if (!category.Hide)
-            {
-              if (ImGui.Selectable(GetDisplayText(category), _categorySelection == category))
-              {
-                _categorySelection = category;
-                _subcategorySelection =
-                    _categorySelection.Categories.Find(c => !c.Hide);
-              }
-            }
-          }
-        }
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
+        ImGui.TableNextColumn();
+        ImGui.TableNextColumn();
+        ImGui.TextColored(HeaderColour, genre.Title);
+        ImGui.TableNextColumn();
       }
 
-      ImGui.SameLine();
-      ImGui.SetNextItemWidth(availableWidth - searchBoxWidth);
-      ImGui.InputTextWithHint("##search_input", "Search all quests...", ref _searchQuery, 256);
-
-      ImGui.Spacing();
-      ImGui.SetNextItemWidth(comboWidth);
-
-      using (ImRaii.ComboDisposable combo = ImRaii.Combo("##subcategoryDropdown", GetDisplayText(_subcategorySelection)))
+      foreach (Types.Quest quest in visible)
       {
-        if (combo.Success)
+        bool complete = _dataService.IsQuestComplete(quest);
+
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
+        if (complete)
         {
-          foreach (QuestData category in _categorySelection?.Categories ?? [])
-          {
-            if (!category.Hide)
-            {
-              if (ImGui.Selectable(GetDisplayText(category), _subcategorySelection == category))
-                _subcategorySelection = category;
-
-              if (_subcategorySelection == category) ImGui.SetItemDefaultFocus();
-            }
-          }
+          using (ImRaii.FontDisposable font = ImRaii.PushFont(UiBuilder.IconFont))
+            ImGui.TextUnformatted(FontAwesomeIcon.Check.ToIconString());
         }
-      }
 
-      ImGui.Spacing();
-      if (_subcategorySelection?.Categories.Count > 0)
-      {
-        foreach (QuestData subcategory in _subcategorySelection.Categories)
-        {
-          if (!subcategory.Hide)
-          {
-            ImGui.TextDisabled($"{subcategory.Title}");
-            ImGui.Separator();
-            DrawQuestTable(subcategory.Quests);
-          }
-        }
-      }
-      else
-      {
-        DrawQuestTable(_subcategorySelection?.Quests ?? []);
+        ImGui.TableNextColumn();
+        ImGui.TextDisabled(quest.Level.ToString());
+
+        ImGui.TableNextColumn();
+        string title = quest.Ids.Count > 0 ? $"{quest.Title} [{quest.Ids[0]}]" : quest.Title;
+        if (complete) ImGui.TextDisabled(title);
+        else ImGui.Text(title);
+
+        ImGui.TableNextColumn();
+        ImGui.TextDisabled(quest.Area);
       }
     }
   }
@@ -296,17 +379,10 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
   private void NavigateToCategory(QuestData topLevelCategory, QuestData directParentCategory)
   {
     _searchQuery = "";
-
-    _categorySelection = topLevelCategory;
-
-    if (directParentCategory == topLevelCategory)
-    {
-      _subcategorySelection = topLevelCategory.Categories.Find(c => !c.Hide);
-    }
-    else
-    {
-      _subcategorySelection = directParentCategory;
-    }
+    _selectedCategory = directParentCategory == topLevelCategory
+      ? topLevelCategory.Categories.Find((c) => !c.Hide)
+      : directParentCategory;
+    _selectedLabel = _selectedCategory?.Title ?? "";
   }
 
   private void GetQuests(QuestData questData, string categoryPath, List<(Types.Quest quest, string categoryPath)> allQuests)
@@ -430,15 +506,10 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private void ResetSelections(bool force = false)
   {
-    if (_categorySelection == null || _categorySelection.Hide || force)
+    if (force || _selectedCategory == null || _selectedCategory.Hide)
     {
-      _categorySelection = _dataService.QuestData.Categories.Find(c => !c.Hide);
-      _subcategorySelection = _categorySelection?.Categories.Find(c => !c.Hide);
-    }
-
-    if (_subcategorySelection == null || _subcategorySelection.Hide || force)
-    {
-      _subcategorySelection = _categorySelection?.Categories.Find(c => !c.Hide);
+      _selectedCategory = null;
+      _selectedLabel = "";
     }
   }
 

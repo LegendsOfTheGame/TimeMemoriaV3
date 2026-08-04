@@ -191,7 +191,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
             }
           }
 
-          AddQuest((mainCategory, englishMainCategory), (subCategory, englishSubCategory), section, new()
+          AddQuest(ExpansionOf(quest.Expansion.RowId, lang), (mainCategory, englishMainCategory), (subCategory, englishSubCategory), section, new()
           {
             Title = quest.Name.ToString(),
             Ids = ids,
@@ -217,7 +217,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
           if (_uldahStartLeves.Contains(leve.RowId)) start = "Ul'dah";
 
           if (_retiredLeves.Contains(leve.RowId)) continue;
-          AddQuest((mainCategory, englishMainCategory), (subCategory, englishSubCategory), section, new()
+          AddQuest(ExpansionOf(ExpansionFromLevel(leve.ClassJobLevel), lang), (mainCategory, englishMainCategory), (subCategory, englishSubCategory), section, new()
           {
             Title = leve.Name.ToString(),
             Ids = [leve.RowId],
@@ -232,41 +232,48 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       }
     }
 
+    // Expansions sit at the top of the tree now, ordered by release.
+    RawQuestData.Categories.Sort((a, b) => a.SortKey.CompareTo(b.SortKey));
+
     List<string> mainCategoryOrder = ["Main Scenario", "Chronicles of a New Era", "Sidequests", "Allied Society Quests", "Class & Job Quests", "Other Quests", "Levequests"];
-    RawQuestData.Categories.Sort((a, b) =>
-    {
-      int ia = mainCategoryOrder.IndexOf(a.EnglishTitle);
-      int ib = mainCategoryOrder.IndexOf(b.EnglishTitle);
-      if (ia < 0) ia = int.MaxValue;
-      if (ib < 0) ib = int.MaxValue;
-      if (ia != ib) return ia.CompareTo(ib);
-      return string.Compare(a.EnglishTitle, b.EnglishTitle, StringComparison.OrdinalIgnoreCase);
-    });
+    List<string> tribeOrder = [.. _dataManager.GetExcelSheet<BeastTribe>(ClientLanguage.English).Select((r) => r.NameRelation.ToString()).ToList(), "Intersocietal"];
 
-    foreach (QuestData questData in RawQuestData.Categories)
+    foreach (QuestData expansion in RawQuestData.Categories)
     {
-      if (questData.EnglishTitle == "Allied Society Quests")
+      expansion.Categories.Sort((a, b) =>
       {
-        List<string> tribeOrder = [.. _dataManager.GetExcelSheet<BeastTribe>(ClientLanguage.English).Select((r) => r.NameRelation.ToString()).ToList(), "Intersocietal"];
-        questData.Categories.Sort((a, b) =>
-        {
-          string fa = a.EnglishTitle.Split(' ')[0];
-          string fb = b.EnglishTitle.Split(' ')[0];
-          int ia = tribeOrder.FindIndex(t => t.Contains(fa, StringComparison.OrdinalIgnoreCase));
-          int ib = tribeOrder.FindIndex(t => t.Contains(fb, StringComparison.OrdinalIgnoreCase));
-          if (ia < 0) ia = int.MaxValue;
-          if (ib < 0) ib = int.MaxValue;
-          if (ia != ib) return ia.CompareTo(ib);
-          return string.Compare(a.EnglishTitle, b.EnglishTitle, StringComparison.OrdinalIgnoreCase);
-        });
-      }
+        int ia = mainCategoryOrder.IndexOf(a.EnglishTitle);
+        int ib = mainCategoryOrder.IndexOf(b.EnglishTitle);
+        if (ia < 0) ia = int.MaxValue;
+        if (ib < 0) ib = int.MaxValue;
+        if (ia != ib) return ia.CompareTo(ib);
+        return string.Compare(a.EnglishTitle, b.EnglishTitle, StringComparison.OrdinalIgnoreCase);
+      });
 
-      foreach (QuestData c1 in questData.Categories)
+      foreach (QuestData questData in expansion.Categories)
       {
-        c1.Categories.Sort((a, b) => a.SortKey.CompareTo(b.SortKey));
-        foreach (QuestData c2 in c1.Categories)
+        if (questData.EnglishTitle == "Allied Society Quests")
         {
-          c2.Quests.Sort((a, b) => a.SortKey.CompareTo(b.SortKey));
+          questData.Categories.Sort((a, b) =>
+          {
+            string fa = a.EnglishTitle.Split(' ')[0];
+            string fb = b.EnglishTitle.Split(' ')[0];
+            int ia = tribeOrder.FindIndex(t => t.Contains(fa, StringComparison.OrdinalIgnoreCase));
+            int ib = tribeOrder.FindIndex(t => t.Contains(fb, StringComparison.OrdinalIgnoreCase));
+            if (ia < 0) ia = int.MaxValue;
+            if (ib < 0) ib = int.MaxValue;
+            if (ia != ib) return ia.CompareTo(ib);
+            return string.Compare(a.EnglishTitle, b.EnglishTitle, StringComparison.OrdinalIgnoreCase);
+          });
+        }
+
+        foreach (QuestData c1 in questData.Categories)
+        {
+          c1.Categories.Sort((a, b) => a.SortKey.CompareTo(b.SortKey));
+          foreach (QuestData c2 in c1.Categories)
+          {
+            c2.Quests.Sort((a, b) => a.SortKey.CompareTo(b.SortKey));
+          }
         }
       }
     }
@@ -297,7 +304,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     return Regex.Replace(Regex.Replace(journalSection, @"\s*\([^)]*\)", ""), @"[12]\uFF08.*?\uFF09", "").Trim();
   }
 
-  private void AddQuest((string localizedCategory, string englishCategory) category, (string localizedSubCategory, string englishSubCategory) subCategory, string section, Types.Quest quest, uint sortKey = 0)
+  private void AddQuest((uint id, string name) expansion, (string localizedCategory, string englishCategory) category, (string localizedSubCategory, string englishSubCategory) subCategory, string section, Types.Quest quest, uint sortKey = 0)
   {
     QuestData FindOrCreateCategory(List<QuestData> list, (string localizedTitle, string englishTitle) title)
     {
@@ -310,7 +317,10 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       return node;
     }
 
-    QuestData categoryNode = FindOrCreateCategory(RawQuestData.Categories, category);
+    QuestData expansionNode = FindOrCreateCategory(RawQuestData.Categories, (expansion.name, expansion.name));
+    expansionNode.SortKey = expansion.id;
+
+    QuestData categoryNode = FindOrCreateCategory(expansionNode.Categories, category);
     QuestData subCategoryNode = FindOrCreateCategory(categoryNode.Categories, subCategory);
     QuestData sectionNode = FindOrCreateCategory(subCategoryNode.Categories, (section, ""));
     sectionNode.SortKey = sortKey;
@@ -364,6 +374,14 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   /// Leves have no Expansion column, so their band is taken from the level the
   /// levemete offers them at. Each expansion covers the ten levels above its cap.
   /// </summary>
+  /// <summary>Expansion id paired with its display name from the ExVersion sheet.</summary>
+  private (uint id, string name) ExpansionOf(uint id, ClientLanguage lang)
+  {
+    string name = _dataManager.GetExcelSheet<ExVersion>(lang).GetRowOrDefault(id)?.Name.ToString() ?? "";
+    if (name.Length == 0) name = id == 0 ? "A Realm Reborn" : $"Expansion {id}";
+    return (id, name);
+  }
+
   private static uint ExpansionFromLevel(uint level) => level switch
   {
     <= 50 => 0,
