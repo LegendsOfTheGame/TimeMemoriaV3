@@ -24,4 +24,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hand-derived patch gates, shipped beside the assembly. -->
+    <None Include="data/toc.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

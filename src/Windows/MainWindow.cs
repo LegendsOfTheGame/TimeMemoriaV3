@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -144,6 +144,13 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     foreach (QuestData expansion in _dataService.QuestData.Categories)
     {
+      UnlockState state = _tocService.GetUnlockState(expansion.SortKey);
+      if (state != UnlockState.Unlocked)
+      {
+        DrawLockedExpansion(expansion, state, percentX);
+        continue;
+      }
+
       bool expansionOpen = ImGui.TreeNodeEx($"{expansion.Title}##exp_{expansion.Title}", ImGuiTreeNodeFlags.SpanAvailWidth);
       DrawPercentAt(percentX, expansion.NumComplete, expansion.Total);
       if (!expansionOpen) continue;
@@ -763,5 +770,57 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     if (span.TotalHours >= 1) return $"{(int)span.TotalHours}h {span.Minutes}m";
     if (span.TotalMinutes >= 1) return $"{(int)span.TotalMinutes}m";
     return "less than a minute";
+  }
+
+  /// <summary>
+  /// A locked expansion still occupies a row, so the shape of the story stays
+  /// visible, but neither its name nor its counts give anything away.
+  /// </summary>
+  private static void DrawLockedExpansion(QuestData expansion, UnlockState state, float percentX)
+  {
+    using (ImRaii.ColorDisposable colour = ImRaii.PushColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]))
+      ImGui.TreeNodeEx($"{expansion.Title}##locked_{expansion.Title}",
+        ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen | ImGuiTreeNodeFlags.SpanAvailWidth);
+
+    if (ImGui.IsItemHovered())
+    {
+      ImGui.SetTooltip(state == UnlockState.FreeTrialLocked
+        ? "Requires the full version of FINAL FANTASY XIV.\nFree Trial Mode is on in Settings."
+        : "You have not reached this expansion yet.\nTurn on Spoiler Mode in Settings to browse it anyway.");
+    }
+
+    ImGui.SameLine(percentX);
+    ImGui.TextDisabled(state == UnlockState.FreeTrialLocked ? "trial" : "—");
+  }
+
+  private void DrawSpoilerSettings()
+  {
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Story Visibility");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    bool spoilerMode = _configuration.SpoilerMode;
+    if (ImGui.Checkbox("Spoiler Mode (show expansions you have not reached)", ref spoilerMode))
+    {
+      _configuration.SpoilerMode = spoilerMode;
+      _configuration.Save();
+      ResetSelections(true);
+    }
+
+    ImGui.Spacing();
+
+    bool freeTrialMode = _configuration.FreeTrialMode;
+    if (ImGui.Checkbox("Free Trial Mode (restrict to Stormblood and earlier)", ref freeTrialMode))
+    {
+      _configuration.FreeTrialMode = freeTrialMode;
+      _configuration.Save();
+      ResetSelections(true);
+    }
+
+    ImGui.TextDisabled(_tocService.IsTrialAccount
+      ? "  This account looks like a free trial account."
+      : "  This account owns content beyond the free trial.");
+    ImGui.TextDisabled("  Free Trial Mode cannot be overridden by Spoiler Mode.");
   }
 }

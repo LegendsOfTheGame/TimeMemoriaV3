@@ -10,6 +10,12 @@ public class Configuration : IPluginConfiguration
   public bool ExcludeOtherQuests { get; set; } = false;
   public bool ExcludeLevequests { get; set; } = false;
 
+  /// <summary>Show story the character has not reached yet.</summary>
+  public bool SpoilerMode { get; set; } = false;
+
+  /// <summary>Restrict to what a free trial account can actually play.</summary>
+  public bool FreeTrialMode { get; set; } = false;
+
   /// <summary>Keyed by "CharacterName@WorldName".</summary>
   public Dictionary<string, PlaytimeRecord> PlaytimeRecords { get; set; } = [];
 
