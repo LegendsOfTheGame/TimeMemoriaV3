@@ -91,9 +91,13 @@ public sealed class Plugin : IDalamudPlugin
 
   public void Dispose()
   {
-    KamiToolKit.KamiToolKitLibrary.Dispose();
-
+    // Order matters. The host owns the native addon, and disposing that addon
+    // frees game UI nodes -- so the library owning that infrastructure has to
+    // outlive it. Tearing the library down first frees the nodes out from under
+    // the addon, which takes the game process with it rather than throwing.
     _host.StopAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     _host.Dispose();
+
+    KamiToolKit.KamiToolKitLibrary.Dispose();
   }
 }
