@@ -623,6 +623,28 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
 
     ImGui.TextDisabled("Nothing is sent anywhere — the export stays on your clipboard.");
+
+    ImGui.Spacing();
+    if (ImGui.Button("Open native window (experimental)")) ToggleNativeProgression();
+  }
+
+  private TimeMemoria.Windows.Native.ProgressionAddon? _nativeProgression;
+
+  /// <summary>
+  /// Opens the same data rendered as a real game window, for comparison. Created
+  /// on first use so the experiment costs nothing until asked for.
+  /// </summary>
+  private void ToggleNativeProgression()
+  {
+    _nativeProgression ??= new TimeMemoria.Windows.Native.ProgressionAddon
+    {
+      InternalName = "TimeMemoriaProgression",
+      Title = "Class & Job Progression",
+      Size = new Vector2(420.0f, 500.0f),
+      ProgressService = _classJobProgress
+    };
+
+    _nativeProgression.Toggle();
   }
 
   private void CopyToClipboard(Func<string> build, string successMessage)

@@ -21,6 +21,8 @@ public sealed class Plugin : IDalamudPlugin
     INotificationManager notificationManager
   )
   {
+    KamiToolKit.KamiToolKitLibrary.Initialize(pluginInterface, "Time Memoria");
+
     _host = new HostBuilder()
       .UseContentRoot(pluginInterface.ConfigDirectory.FullName)
       .ConfigureLogging(lb =>
@@ -77,6 +79,8 @@ public sealed class Plugin : IDalamudPlugin
 
   public void Dispose()
   {
+    KamiToolKit.KamiToolKitLibrary.Dispose();
+
     _host.StopAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     _host.Dispose();
   }
