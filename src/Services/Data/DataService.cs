@@ -9,6 +9,8 @@ public interface IDataService : IHostedService
   void Reset();
   bool IsQuestComplete(Types.Quest quest);
   void UpdateQuestData();
+  IReadOnlyList<ExpansionProgress> ExpansionProgress { get; }
+  Types.Quest? FindOldestIncomplete(out string expansion, out string category);
 }
 
 public class DataService(ILogger _logger, Configuration _configuration, IDataManager _dataManager, IClientState _clientState) : IDataService
@@ -16,6 +18,15 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   public event System.Action? OnReset;
   public QuestData RawQuestData { get; private set; } = new();
   public QuestData QuestData { get; private set; } = new();
+
+  /// <summary>
+  /// Completion per expansion, refreshed by the same tree walk that updates the
+  /// categories so it costs no additional traversal.
+  /// </summary>
+  public IReadOnlyList<ExpansionProgress> ExpansionProgress => _expansionProgress;
+
+  private readonly List<ExpansionProgress> _expansionProgress = [];
+  private readonly Dictionary<uint, int[]> _expansionTally = [];
   private string _startArea = "";
   private string _grandCompany = "";
   private List<uint> _startClass = [];
@@ -189,6 +200,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
             SortKey = quest.SortKey,
             Gc = gc,
             Start = start,
+            ExpansionId = quest.Expansion.RowId,
           }, sortKey: isSidequestCategory ? quest.PlaceName.RowId : 0);
 
         SkipQuest:
@@ -213,6 +225,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
             Level = leve.ClassJobLevel,
             SortKey = leve.RowId,
             Start = start,
+            ExpansionId = ExpansionFromLevel(leve.ClassJobLevel),
             IsLeve = true
           }, leve.PlaceNameStart.RowId);
         }
@@ -317,7 +330,85 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
 
   public void UpdateQuestData()
   {
+    _expansionTally.Clear();
     UpdateQuestData(QuestData);
+    RebuildExpansionProgress();
+  }
+
+  /// <summary>
+  /// Turns the per-expansion tally into an ordered, named list. Names come from
+  /// the ExVersion sheet, so they follow the client language.
+  /// </summary>
+  private void RebuildExpansionProgress()
+  {
+    _expansionProgress.Clear();
+
+    Lumina.Excel.ExcelSheet<ExVersion> sheet = _dataManager.GetExcelSheet<ExVersion>();
+
+    foreach (KeyValuePair<uint, int[]> entry in _expansionTally.OrderBy((e) => e.Key))
+    {
+      string name = sheet.GetRowOrDefault(entry.Key)?.Name.ToString() ?? "";
+      if (name.Length == 0) name = entry.Key == 0 ? "A Realm Reborn" : $"Expansion {entry.Key}";
+
+      _expansionProgress.Add(new ExpansionProgress
+      {
+        Id = entry.Key,
+        Name = name,
+        NumComplete = entry.Value[0],
+        Total = entry.Value[1]
+      });
+    }
+  }
+
+  /// <summary>
+  /// Leves have no Expansion column, so their band is taken from the level the
+  /// levemete offers them at. Each expansion covers the ten levels above its cap.
+  /// </summary>
+  private static uint ExpansionFromLevel(uint level) => level switch
+  {
+    <= 50 => 0,
+    <= 60 => 1,
+    <= 70 => 2,
+    <= 80 => 3,
+    <= 90 => 4,
+    _ => 5
+  };
+
+  /// <summary>
+  /// The first incomplete quest in tree order, which is release order — the
+  /// natural "what should I do next" answer.
+  /// </summary>
+  public Types.Quest? FindOldestIncomplete(out string expansion, out string category)
+  {
+    expansion = category = "";
+    return FindOldestIncomplete(QuestData, "", ref expansion, ref category);
+  }
+
+  private Types.Quest? FindOldestIncomplete(QuestData node, string path, ref string expansion, ref string category)
+  {
+    foreach (Types.Quest quest in node.Quests)
+    {
+      if (IsQuestComplete(quest)) continue;
+      category = path;
+      expansion = ExpansionName(quest.ExpansionId);
+      return quest;
+    }
+
+    foreach (QuestData child in node.Categories)
+    {
+      string childPath = path.Length == 0 ? child.Title : $"{path} — {child.Title}";
+      Types.Quest? found = FindOldestIncomplete(child, childPath, ref expansion, ref category);
+      if (found != null) return found;
+    }
+
+    return null;
+  }
+
+  private string ExpansionName(uint id)
+  {
+    string name = _dataManager.GetExcelSheet<ExVersion>().GetRowOrDefault(id)?.Name.ToString() ?? "";
+    if (name.Length == 0) name = id == 0 ? "A Realm Reborn" : $"Expansion {id}";
+    return name;
   }
 
   private void UpdateQuestData(QuestData questData)
@@ -392,7 +483,13 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
           break;
         }
 
-        if (IsQuestComplete(quest)) questData.NumComplete++;
+        bool complete = IsQuestComplete(quest);
+        if (complete) questData.NumComplete++;
+
+        if (!_expansionTally.TryGetValue(quest.ExpansionId, out int[]? tally))
+          _expansionTally[quest.ExpansionId] = tally = [0, 0];
+        tally[1]++;
+        if (complete) tally[0]++;
 
         quest.Hide = (_configuration.DisplayOption == 1 && !IsQuestComplete(quest)) ||
                      (_configuration.DisplayOption == 2 && IsQuestComplete(quest));

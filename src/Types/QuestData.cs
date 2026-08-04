@@ -51,6 +51,9 @@ public class Quest : ICloneable
   public uint SortKey { get; set; }
   public bool IsLeve { get; set; }
 
+  /// <summary>ExVersion row id. 0 is A Realm Reborn.</summary>
+  public uint ExpansionId { get; set; }
+
   public object Clone()
   {
     return new Quest
@@ -63,7 +66,8 @@ public class Quest : ICloneable
       Level = Level,
       Hide = Hide,
       SortKey = SortKey,
-      IsLeve = IsLeve
+      IsLeve = IsLeve,
+      ExpansionId = ExpansionId
     };
   }
 }

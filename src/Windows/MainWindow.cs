@@ -2,6 +2,8 @@ namespace TimeMemoria.Windows;
 
 public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
+  private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
+
   private string _searchQuery = "";
 
   private QuestData? _categorySelection;
@@ -42,61 +44,71 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     using ImRaii.ChildDisposable child = ImRaii.Child("##overviewTab", ImGuiHelpers.ScaledVector2(0), true);
     if (!child.Success) return;
 
-    using ImRaii.TableDisposable table = ImRaii.Table("##overviewTable", 3, ImGuiTableFlags.SizingStretchSame);
-    if (!table.Success) return;
-
-    ImGui.TableSetupColumn("##title");
-    ImGui.TableSetupColumn("##count", ImGuiTableColumnFlags.None, 0.70f);
-    ImGui.TableSetupColumn("##percentage", ImGuiTableColumnFlags.None, 0.30f);
-
-    float otherQuestsComplete = _dataService.QuestData.Categories.Find((c) => c.Title == _dataService.OtherQuestsTitle)?.NumComplete ?? 0;
-    float otherQuestsTotal = _dataService.QuestData.Categories.Find((c) => c.Title == _dataService.OtherQuestsTitle)?.Total ?? 0;
-
-    float levequestsComplete = _dataService.QuestData.Categories.Find((c) => c.Title == _dataService.LevequestsTitle)?.NumComplete ?? 0;
-    float levequestsTotal = _dataService.QuestData.Categories.Find((c) => c.Title == _dataService.LevequestsTitle)?.Total ?? 0;
-
-    float overallComplete = _dataService.QuestData.NumComplete
-                            - (_configuration.ExcludeOtherQuests ? otherQuestsComplete : 0f)
-                            - (_configuration.ExcludeLevequests ? levequestsComplete : 0f);
-
-    float overallTotal = _dataService.QuestData.Total
-                        - (_configuration.ExcludeOtherQuests ? otherQuestsTotal : 0f)
-                        - (_configuration.ExcludeLevequests ? levequestsTotal : 0f);
-
-    ImGui.TableNextColumn();
-    ImGui.Text("Overall");
+    ImGui.TextColored(HeaderColour, "Quest Completion Progress");
+    ImGui.Spacing();
     ImGui.Separator();
-    ImGui.TableNextColumn();
-    ImGui.Text($"{overallComplete}/{overallTotal}");
-    ImGui.Separator();
-    ImGui.TableNextColumn();
-    ImGui.Text($"{overallComplete / overallTotal:P2}");
-    ImGui.Separator();
-    ImGui.TableNextRow();
+    ImGui.Spacing();
 
-    foreach (QuestData category in _dataService.QuestData.Categories)
+    IReadOnlyList<ExpansionProgress> expansions = _dataService.ExpansionProgress;
+
+    int overallComplete = expansions.Sum((e) => e.NumComplete);
+    int overallTotal = expansions.Sum((e) => e.Total);
+
+    DrawProgressRow("Overall", overallComplete, overallTotal);
+    ImGui.Spacing();
+
+    foreach (ExpansionProgress expansion in expansions)
+      DrawProgressRow(expansion.Name, expansion.NumComplete, expansion.Total);
+
+    ImGui.Spacing();
+    ImGui.Spacing();
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    DrawSuggestedQuest();
+  }
+
+  /// <summary>One aligned "name  complete/total  percent" line.</summary>
+  private static void DrawProgressRow(string label, int complete, int total)
+  {
+    float percentX = ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize("100%").X - 8f;
+    float countX = percentX - ImGui.CalcTextSize("00000/00000").X - 16f;
+
+    ImGui.Text(label);
+    ImGui.SameLine(countX);
+    ImGui.Text($"{complete}/{total}");
+    ImGui.SameLine(percentX);
+    ImGui.Text(total > 0 ? $"{(int)(complete / (float)total * 100f)}%" : "—");
+  }
+
+  /// <summary>
+  /// The next unfinished quest in release order, with where it sits and where it
+  /// starts, so the answer to "what now" is one glance rather than a search.
+  /// </summary>
+  private void DrawSuggestedQuest()
+  {
+    ImGui.TextColored(new Vector4(1.0f, 1.0f, 0.5f, 1.0f), "Suggested Quest");
+    ImGui.Spacing();
+
+    Types.Quest? quest = _dataService.FindOldestIncomplete(out string expansion, out string category);
+    if (quest == null)
     {
-      if ((category.Title == _dataService.LevequestsTitle && _configuration.ExcludeLevequests) || (category.Title == _dataService.OtherQuestsTitle && _configuration.ExcludeOtherQuests))
-      {
-        ImGui.TableNextColumn();
-        ImGui.TextDisabled(category.Title);
-        ImGui.TableNextColumn();
-        ImGui.TextDisabled($"{category.NumComplete}/{category.Total}");
-        ImGui.TableNextColumn();
-        ImGui.TextDisabled($"{category.NumComplete / category.Total:P2}");
-        ImGui.TableNextRow();
-      }
-      else
-      {
-        ImGui.TableNextColumn();
-        ImGui.Text(category.Title);
-        ImGui.TableNextColumn();
-        ImGui.Text($"{category.NumComplete}/{category.Total}");
-        ImGui.TableNextColumn();
-        ImGui.Text($"{category.NumComplete / category.Total:P2}");
-        ImGui.TableNextRow();
-      }
+      ImGui.TextDisabled("  Nothing left — every tracked quest is complete.");
+      return;
     }
+
+    if (expansion.Length > 0) ImGui.TextDisabled($"  {expansion}");
+    if (category.Length > 0) ImGui.TextDisabled($"    {category}");
+
+    ImGui.Text($"      {quest.Title}");
+    if (quest.Ids.Count > 0)
+    {
+      ImGui.SameLine();
+      ImGui.TextDisabled($"[{quest.Ids[0]}]");
+    }
+
+    string where = quest.Area.Length > 0 ? $"Level {quest.Level} • {quest.Area}" : $"Level {quest.Level}";
+    ImGui.TextDisabled($"      {where}");
   }
 
   private void DrawQuestsTab()
