@@ -12,6 +12,7 @@ public sealed class Plugin : IDalamudPlugin
     IGameGui gameGui,
     IToastGui toastGui,
     IPluginLog pluginLog,
+    IFramework framework,
     IPlayerState playerState,
     IClientState clientState,
     IDataManager dataManager,
@@ -33,6 +34,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton(gameGui);
         collection.AddSingleton(toastGui);
         collection.AddSingleton(pluginLog);
+        collection.AddSingleton(framework);
         collection.AddSingleton(playerState);
         collection.AddSingleton(clientState);
         collection.AddSingleton(dataManager);
@@ -46,6 +48,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<IClassJobProgressService, ClassJobProgressService>();
         collection.AddSingleton<ILedgerExportService, LedgerExportService>();
         collection.AddSingleton<INewsService, NewsService>();
+        collection.AddSingleton<IPlaytimeService, PlaytimeService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
@@ -54,6 +57,7 @@ public sealed class Plugin : IDalamudPlugin
 
         collection.AddHostedService(sp => sp.GetRequiredService<IDataService>());
         collection.AddHostedService(sp => sp.GetRequiredService<INewsService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IPlaytimeService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
       }).Build();

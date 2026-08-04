@@ -16,6 +16,7 @@ global using System.Threading.Tasks;
 global using Dalamud.Bindings.ImGui;
 global using Dalamud.Configuration;
 global using Dalamud.Game;
+global using Dalamud.Game.Chat;
 global using Dalamud.Game.Command;
 global using Dalamud.Game.Gui.Toast;
 global using Dalamud.Game.Text;

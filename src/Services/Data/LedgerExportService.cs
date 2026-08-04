@@ -13,7 +13,7 @@ public interface ILedgerExportService
 /// Builds the clipboard payloads. Local only — output goes to the clipboard and
 /// nowhere else; the plugin makes no outbound requests.
 /// </summary>
-public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress)
+public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService)
   : ILedgerExportService
 {
   public string BuildProgressionJson()
@@ -66,10 +66,14 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
 
       if (_playerState.IsLoaded) root["comm"] = _playerState.PlayerCommendations;
 
+      JsonObject? playtime = BuildPlaytime();
+      if (playtime != null) root["playtime"] = playtime;
+
       List<ClassJobProgress> progress = _classJobProgress.GetProgress();
       root["combat"] = BuildLevels(progress, "combat");
       root["craft"] = BuildLevels(progress, "craft");
       root["gather"] = BuildLevels(progress, "gather");
+      root["msqBreakdown"] = BuildMsqBreakdown();
 
       return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
@@ -78,6 +82,52 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       _pluginLog.Error(ex, "[LedgerExport] Failed to build ledger payload");
       return "{}";
     }
+  }
+
+  /// <summary>
+  /// Lifetime playtime with the age of the figure attached. Omitted entirely when
+  /// the player has never run /playtime, since sending zeroes would overwrite a
+  /// good value the ledger already holds.
+  /// </summary>
+  private JsonObject? BuildPlaytime()
+  {
+    PlaytimeRecord? record = _playtime.Current;
+    if (record == null || record.LifetimePlaytime <= TimeSpan.Zero) return null;
+
+    JsonObject playtime = new()
+    {
+      ["days"] = (int)record.LifetimePlaytime.TotalDays,
+      ["hours"] = record.LifetimePlaytime.Hours
+    };
+
+    if (record.LifetimePlaytimeUpdatedUtc.HasValue)
+      playtime["asOf"] = record.LifetimePlaytimeUpdatedUtc.Value.ToString("o");
+
+    return playtime;
+  }
+
+  /// <summary>
+  /// Completed MSQ per expansion. The tree is nested under expansion, so each one
+  /// carries its own Main Scenario section and no patch mapping is needed.
+  /// </summary>
+  private JsonObject BuildMsqBreakdown()
+  {
+    Dictionary<uint, string> keys = new()
+    {
+      [0] = "arr", [1] = "hw", [2] = "stb", [3] = "shb", [4] = "ew", [5] = "dt"
+    };
+
+    JsonObject breakdown = [];
+
+    foreach (QuestData expansion in _dataService.QuestData.Categories)
+    {
+      if (!keys.TryGetValue(expansion.SortKey, out string? key)) continue;
+
+      QuestData? msq = expansion.Categories.FirstOrDefault((c) => c.EnglishTitle == "Main Scenario");
+      breakdown[key] = msq != null ? (int)msq.NumComplete : 0;
+    }
+
+    return breakdown;
   }
 
   /// <summary>

@@ -10,6 +10,9 @@ public class Configuration : IPluginConfiguration
   public bool ExcludeOtherQuests { get; set; } = false;
   public bool ExcludeLevequests { get; set; } = false;
 
+  /// <summary>Keyed by "CharacterName@WorldName".</summary>
+  public Dictionary<string, PlaytimeRecord> PlaytimeRecords { get; set; } = [];
+
   [NonSerialized]
   private IDalamudPluginInterface PluginInterface = null!;
 

@@ -34,16 +34,25 @@ proceeds.
   * Renamed the namespace, assembly and plugin identity from QuestTracker to
     Time Memoria. Plugin metadata (author, description, repository, tags)
     replaced throughout.
+  * Nested the quest tree under expansion, taken from the Quest sheet's own
+    Expansion column, and moved the existing category and tribe ordering down
+    a level to suit.
+  * Replaced the Overview with a per-expansion breakdown and a suggested next
+    quest.
+  * Replaced the dropdown quest navigation with a two-panel tree, a draggable
+    divider, and a quest list showing completion, level, title and area.
+  * Added a Progression tab: class and job levels with experience, and two
+    clipboard exports.
+  * Added a News tab reporting maintenance windows and events from an external
+    feed.
+  * Added playtime tracking per character.
+  * Grouped the Excel sheets once at startup instead of filtering whole sheets
+    inside nested loops, which reduced plugin load from roughly 2,230ms to
+    roughly 220ms on a warm reload.
 
 Planned, not yet done:
 
-  * Replace the user interface with Time Memoria's own: a two-panel questline
-    tree, chain-grouped quest sections, and a suggested-next-quest panel.
-  * Add features with no counterpart upstream — playtime pacing, world-state
-    and maintenance reporting, MSQ progression gating, spoiler and free-trial
-    modes, and class/job levelling with clipboard export.
-  * Cache the generated quest tree to disk to remove the startup cost of
-    rebuilding it from game data on every load.
+  * MSQ progression gating, spoiler mode and free-trial mode.
   * Replace quest-ID probing for starting city, Grand Company and starting
     class with the equivalent PlayerState fields.
 
