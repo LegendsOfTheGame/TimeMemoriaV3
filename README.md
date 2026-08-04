@@ -40,6 +40,16 @@ reaches parity.
 
 ## Building
 
+Native UI comes from [KamiToolKit](https://github.com/MidoriKami/KamiToolKit),
+which is not published as a package — it is a submodule, and **the build will
+fail without it**:
+
+```
+git clone --recurse-submodules https://github.com/LegendsOfTheGame/TimeMemoriaV3
+```
+
+Already cloned? `git submodule update --init --recursive`, then:
+
 ```
 dotnet build TimeMemoria.csproj
 ```
