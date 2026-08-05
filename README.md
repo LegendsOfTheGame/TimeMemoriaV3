@@ -24,6 +24,34 @@ patch's content appears the day it lands and no one has to do anything. That is
 the whole point of the rebuild, and it is a direct answer to how the last one
 failed. Numbering it 1.0 would hide that.
 
+### Module state
+
+| Module | State |
+|---|---|
+| Quest UI | ✅ generated from journal tables |
+| News / Events | ✅ feed plus client-read festivals |
+| Playtime & pacing | ✅ session and lifetime |
+| Class & job progression | ✅ with clipboard export |
+| Patch attribution | ❌ data collected, not wired |
+| Native game windows | 🚧 Progression only |
+| Ocean Fishing helper | ❌ future |
+
+### Versioning
+
+Plain `MAJOR.MINOR.PATCH.BUILD`, releasing at `3.0.0.0`.
+
+Time Memoria v2 used an `AA.B.C.D` scheme where the digits encoded Dalamud API
+level, expansion band, patch band, and how many quest buckets had been
+hand-extracted. That was the right scheme for a plugin whose central problem was
+migrating quest data by hand — the version told you how far through it you were.
+
+This version has no buckets, and covers every expansion and patch the moment the
+game does. Under the old scheme it would read `15.7.5.9` on day one and never
+change again. The API level it also encoded is already in the plugin manifest as
+`DalamudApiLevel`, where Dalamud enforces it.
+
+So the scheme is retired, and the module table above carries what it used to.
+
 ### What works
 
 - Quest data generated from the game's own journal tables — no hand-maintained
