@@ -348,14 +348,25 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
         ImGui.TableNextColumn();
         ImGui.TextDisabled(quest.Area);
 
-        // Only dates actually observed are shown. Everything finished before the
-        // journal started shares one placeholder date, which would be noise.
+        // Quests finished before the journal existed all share one placeholder
+        // date, so they are labelled rather than repeating it on every row --
+        // and labelled rather than left blank, since an empty column reads as
+        // broken rather than as "no date exists for this".
         ImGui.TableNextColumn();
         if (complete && quest.Ids.Count > 0)
         {
           string? done = _journal.GetCompletionDate(quest.Ids[0]);
-          if (done is not null && !_journal.IsPriorToTracking(done))
+
+          if (_journal.IsPriorToTracking(done))
+          {
+            ImGui.TextDisabled("Pre-Plugin");
+            if (ImGui.IsItemHovered())
+              ImGui.SetTooltip("Completed before this plugin started recording dates.\nThe game does not store them, so it cannot be recovered.");
+          }
+          else if (done is not null)
+          {
             ImGui.TextDisabled(done);
+          }
         }
       }
 
