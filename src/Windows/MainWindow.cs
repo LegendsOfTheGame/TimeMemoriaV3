@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -1030,6 +1030,48 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     if (_playerState.IsReturner) standing.Add("Returner");
 
     DrawLabelled("Status:", standing.Count > 0 ? string.Join(", ", standing) : "—");
+
+    ImGui.Spacing();
+    DrawPlaytimeLine();
+  }
+
+  /// <summary>
+  /// Total playtime with the moment it was captured, in local time. The game
+  /// only reveals this through the /playtime response, so the figure is exactly
+  /// as old as the last time the player ran it -- which makes the timestamp part
+  /// of the reading rather than decoration.
+  /// </summary>
+  private void DrawPlaytimeLine()
+  {
+    PlaytimeRecord? record = _playtime.Current;
+
+    if (record is null || record.LifetimePlaytime <= TimeSpan.Zero)
+    {
+      DrawLabelled("Playtime:", "—");
+      ImGui.TextDisabled("    Run /playtime once to record it.");
+      return;
+    }
+
+    TimeSpan total = record.LifetimePlaytime;
+    DrawLabelled("Playtime:", $"{(int)total.TotalDays}d {total.Hours}h {total.Minutes}m");
+
+    if (!record.LifetimePlaytimeUpdatedUtc.HasValue)
+    {
+      ImGui.TextDisabled("    Recorded before this version; age unknown.");
+      return;
+    }
+
+    DateTime recorded = record.LifetimePlaytimeUpdatedUtc.Value.ToLocalTime();
+    ImGui.TextDisabled($"    as of {recorded:MMM d, yyyy, h:mm tt} ({Ago(DateTime.UtcNow - record.LifetimePlaytimeUpdatedUtc.Value)})");
+  }
+
+  private static string Ago(TimeSpan span)
+  {
+    if (span < TimeSpan.Zero) return "just now";
+    if (span.TotalMinutes < 1) return "just now";
+    if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+    if (span.TotalDays < 1) return $"{(int)span.TotalHours}h ago";
+    return $"{(int)span.TotalDays}d ago";
   }
 
   private static string Pick(string? masculine, string? feminine, bool useFeminine)
