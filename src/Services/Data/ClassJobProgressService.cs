@@ -10,6 +10,9 @@ public class ClassJobProgress
   public required string Name { get; init; }
   public required string Abbreviation { get; init; }
   public required string Category { get; init; }
+
+  /// <summary>Tank, Healer, DPS, Crafter or Gatherer.</summary>
+  public required string Role { get; init; }
   public int Level { get; init; }
   public int Experience { get; init; }
 
@@ -86,6 +89,7 @@ public class ClassJobProgressService(IPluginLog _pluginLog, IPlayerState _player
             Name = ToDisplayName(job.Name.ToString()),
             Abbreviation = job.Abbreviation.ToString(),
             Category = GetCategory(job),
+            Role = GetRole(job),
             Level = level,
             Experience = atCeiling ? 0 : exp,
             ExperienceToNext = toNext,
@@ -120,6 +124,19 @@ public class ClassJobProgressService(IPluginLog _pluginLog, IPlayerState _player
       _ => "combat"
     };
   }
+
+  /// <summary>
+  /// The sheet's Role column separates tanks, healers and the two DPS kinds;
+  /// melee and ranged are merged, since for levelling purposes the distinction
+  /// does not change what you would pick next.
+  /// </summary>
+  private static string GetRole(ClassJob job) => job.Role switch
+  {
+    1 => "Tank",
+    4 => "Healer",
+    2 or 3 => "DPS",
+    _ => GetCategory(job) == "gather" ? "Gatherer" : "Crafter"
+  };
 
   /// <summary>
   /// The sheet stores names lowercase ("white mage") while the game presents them

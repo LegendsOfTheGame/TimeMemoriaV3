@@ -608,13 +608,26 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
   }
 
+  /// <summary>Role colours, following the game's own tank/healer/DPS convention.</summary>
+  private static readonly Dictionary<string, Vector4> RoleColours = new()
+  {
+    ["Tank"] = new(0.34f, 0.58f, 0.92f, 1.0f),
+    ["Healer"] = new(0.35f, 0.78f, 0.47f, 1.0f),
+    ["DPS"] = new(0.85f, 0.40f, 0.38f, 1.0f),
+    ["Crafter"] = new(0.72f, 0.58f, 0.88f, 1.0f),
+    ["Gatherer"] = new(0.88f, 0.72f, 0.38f, 1.0f)
+  };
+
+  private string _copyFeedback = "";
+  private DateTime _copyShownAt = DateTime.MinValue;
+
   private void DrawProgressionTab()
   {
     using ImRaii.ChildDisposable child = ImRaii.Child("##progressionTab", ImGuiHelpers.ScaledVector2(0), true);
     if (!child.Success) return;
 
     List<ClassJobProgress> progress = _classJobProgress.GetProgress();
-    List<ClassJobProgress> unlocked = [.. progress.Where(p => p.IsUnlocked)];
+    List<ClassJobProgress> unlocked = [.. progress.Where((p) => p.IsUnlocked)];
 
     if (unlocked.Count == 0)
     {
@@ -622,13 +635,20 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       return;
     }
 
-    ImGui.TextColored(new Vector4(0.5f, 0.8f, 1.0f, 1.0f), "Class & Job Progression");
+    // The lowest level within each role, so the job most worth levelling next
+    // stands out even when several sit at the same level.
+    Dictionary<string, int> lowestByRole = unlocked
+      .GroupBy((p) => p.Role)
+      .ToDictionary((g) => g.Key, (g) => g.Min((p) => p.Level));
+
+    ImGui.TextColored(HeaderColour, "Class & Job Progression");
     ImGui.SameLine();
     ImGui.TextDisabled($"({unlocked.Count} of {progress.Count} unlocked)");
     ImGui.Separator();
     ImGui.Spacing();
 
     DrawExportRow();
+
     ImGui.Spacing();
 
     using ImRaii.TableDisposable table = ImRaii.Table("##progressionTable", 4,
@@ -637,7 +657,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     if (!table.Success) return;
 
     ImGui.TableSetupScrollFreeze(0, 1);
-    ImGui.TableSetupColumn("Job", ImGuiTableColumnFlags.WidthFixed, 150f);
+    ImGui.TableSetupColumn("Job", ImGuiTableColumnFlags.WidthFixed, 165f);
     ImGui.TableSetupColumn("Level", ImGuiTableColumnFlags.WidthFixed, 50f);
     ImGui.TableSetupColumn("Progress", ImGuiTableColumnFlags.WidthStretch);
     ImGui.TableSetupColumn("EXP", ImGuiTableColumnFlags.WidthFixed, 170f);
@@ -645,10 +665,15 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     foreach (ClassJobProgress job in unlocked)
     {
+      bool isLowest = lowestByRole.TryGetValue(job.Role, out int lowest) && job.Level == lowest;
+
       ImGui.TableNextRow();
 
       ImGui.TableNextColumn();
-      ImGui.TextUnformatted(job.Name);
+      Vector4 colour = RoleColours.GetValueOrDefault(job.Role, new Vector4(1f, 1f, 1f, 1f));
+      ImGui.TextColored(colour, isLowest ? $"▸ {job.Name}" : $"   {job.Name}");
+      if (ImGui.IsItemHovered())
+        ImGui.SetTooltip(isLowest ? $"{job.Role} — lowest of your {job.Role.ToLowerInvariant()}s" : job.Role);
 
       ImGui.TableNextColumn();
       ImGui.TextUnformatted(job.Level.ToString());
@@ -661,9 +686,6 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       ImGui.TextDisabled(job.IsMaxLevel ? "—" : $"{job.Experience:N0} / {job.ExperienceToNext:N0}");
     }
   }
-
-  private string _copyFeedback = "";
-  private DateTime _copyShownAt = DateTime.MinValue;
 
   private void DrawExportRow()
   {
