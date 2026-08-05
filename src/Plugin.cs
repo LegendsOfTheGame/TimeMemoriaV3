@@ -60,6 +60,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<ITocService, TocService>();
         collection.AddSingleton<IPacingService, PacingService>();
         collection.AddSingleton<IFestivalService, FestivalService>();
+        collection.AddSingleton<IQuestJournalService, QuestJournalService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
@@ -71,6 +72,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddHostedService(sp => sp.GetRequiredService<IPlaytimeService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ITocService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IPacingService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IQuestJournalService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
       }).Build();

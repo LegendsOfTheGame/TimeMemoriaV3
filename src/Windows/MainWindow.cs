@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -296,7 +296,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Separator();
     ImGui.Spacing();
 
-    using ImRaii.TableDisposable table = ImRaii.Table("##questTable", 4,
+    using ImRaii.TableDisposable table = ImRaii.Table("##questTable", 5,
       ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV, ImGui.GetContentRegionAvail());
     if (!table.Success) return;
 
@@ -305,6 +305,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TableSetupColumn("##level", ImGuiTableColumnFlags.WidthFixed, 36f);
     ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthStretch);
     ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 140f);
+    ImGui.TableSetupColumn("Done", ImGuiTableColumnFlags.WidthFixed, 90f);
     ImGui.TableHeadersRow();
 
     foreach (QuestData genre in _selectedCategory.Categories)
@@ -320,6 +321,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
         ImGui.TableNextColumn();
         ImGui.TableNextColumn();
         ImGui.TextColored(HeaderColour, genre.Title);
+        ImGui.TableNextColumn();
         ImGui.TableNextColumn();
       }
 
@@ -345,7 +347,20 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
         ImGui.TableNextColumn();
         ImGui.TextDisabled(quest.Area);
+
+        // Only dates actually observed are shown. Everything finished before the
+        // journal started shares one placeholder date, which would be noise.
+        ImGui.TableNextColumn();
+        if (complete && quest.Ids.Count > 0)
+        {
+          string? done = _journal.GetCompletionDate(quest.Ids[0]);
+          if (done is not null && !_journal.IsPriorToTracking(done))
+            ImGui.TextDisabled(done);
+        }
       }
+
+      // Genre headers need the extra cell now that the table has five columns.
+      _ = 0;
     }
   }
 
