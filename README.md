@@ -38,19 +38,22 @@ failed. Numbering it 1.0 would hide that.
 
 ### Versioning
 
-Plain `MAJOR.MINOR.PATCH.BUILD`, releasing at `3.0.0.0`.
+`MAJOR.MINOR.PATCH.API` — releasing at **`3.0.0.15`**.
 
-Time Memoria v2 used an `AA.B.C.D` scheme where the digits encoded Dalamud API
-level, expansion band, patch band, and how many quest buckets had been
-hand-extracted. That was the right scheme for a plugin whose central problem was
-migrating quest data by hand — the version told you how far through it you were.
+The last digit is the Dalamud API level the build targets, so you can tell which
+game version a build is for without opening the manifest. It is safe in the last
+position: API levels only ever climb, so the version stays monotonic, which
+Dalamud requires for updates to install. Putting it *first* would make a routine
+API bump look like a major release of the plugin.
+
+Time Memoria v2 used `AA.B.C.D`, where the digits encoded API level, expansion
+band, patch band, and how many quest buckets had been hand-extracted. That was
+right for a plugin whose central problem was migrating quest data by hand — the
+version told you how far through it you were.
 
 This version has no buckets, and covers every expansion and patch the moment the
 game does. Under the old scheme it would read `15.7.5.9` on day one and never
-change again. The API level it also encoded is already in the plugin manifest as
-`DalamudApiLevel`, where Dalamud enforces it.
-
-So the scheme is retired, and the module table above carries what it used to.
+move again. The module table above carries what those digits used to.
 
 ### What works
 

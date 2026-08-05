@@ -1,11 +1,16 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <!-- Releases at 3.0.0.0. Nothing before it was published, but two earlier
+    <!-- MAJOR.MINOR.PATCH.API. The fourth digit is the Dalamud API level, so
+         a build says which game version it targets without anyone opening the
+         manifest. Safe for Dalamud's monotonic-version rule because the API
+         level only ever climbs.
+
+         Releases at 3.0.0.15. Nothing before it was published, but two earlier
          versions were built and flown, and this one is shaped by what they
          taught: v2 maintained its quest data by hand and stalled on a patch,
          which is why this reads from the game's own tables. Starting at 1.0
          would hide the reason it works the way it does. -->
-    <Version>0.1.0.0</Version>
+    <Version>0.1.0.15</Version>
   </PropertyGroup>
 
   <PropertyGroup>
