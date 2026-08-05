@@ -635,11 +635,13 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       return;
     }
 
-    // The lowest level within each role, so the job most worth levelling next
-    // stands out even when several sit at the same level.
-    Dictionary<string, int> lowestByRole = unlocked
+    // The least progressed job in each role. Compared on level plus the fraction
+    // through it -- the same figure the ledger encodes -- because two jobs at the
+    // same level are not equally far along, and the one with less experience is
+    // the one actually worth levelling.
+    Dictionary<string, float> lowestByRole = unlocked
       .GroupBy((p) => p.Role)
-      .ToDictionary((g) => g.Key, (g) => g.Min((p) => p.Level));
+      .ToDictionary((g) => g.Key, (g) => g.Min(Effective));
 
     ImGui.TextColored(HeaderColour, "Class & Job Progression");
     ImGui.SameLine();
@@ -665,7 +667,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     foreach (ClassJobProgress job in unlocked)
     {
-      bool isLowest = lowestByRole.TryGetValue(job.Role, out int lowest) && job.Level == lowest;
+      bool isLowest = lowestByRole.TryGetValue(job.Role, out float lowest)
+                      && Math.Abs(Effective(job) - lowest) < 0.0005f;
 
       ImGui.TableNextRow();
 
@@ -686,6 +689,10 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       ImGui.TextDisabled(job.IsMaxLevel ? "—" : $"{job.Experience:N0} / {job.ExperienceToNext:N0}");
     }
   }
+
+  /// <summary>Level plus progress through it, rounded the way the export rounds it.</summary>
+  private static float Effective(ClassJobProgress job)
+    => job.Level + (float)Math.Round(job.Fraction, 3, MidpointRounding.AwayFromZero);
 
   private void DrawExportRow()
   {
