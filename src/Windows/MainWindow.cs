@@ -217,6 +217,25 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
   }
 
+  /// <summary>
+  /// Explains why the tree's percentages can differ from the Overview's. Only
+  /// appears when something is actually excluded -- otherwise the two agree and
+  /// there is nothing to explain.
+  /// </summary>
+  private void DrawExclusionNote()
+  {
+    List<string> excluded = [];
+    if (_configuration.ExcludeLevequests) excluded.Add("Levequests");
+    if (_configuration.ExcludeOtherQuests) excluded.Add("Other Quests");
+    if (excluded.Count == 0) return;
+
+    ImGui.Spacing();
+    ImGui.Spacing();
+    ImGui.TextDisabled($"{string.Join(" and ", excluded)} {(excluded.Count == 1 ? "is" : "are")} left out of the");
+    ImGui.TextDisabled("Overview totals, but shown here in full — so percentages");
+    ImGui.TextDisabled("in this tab will not match the Overview.");
+  }
+
   private static void DrawPercentAt(float x, float complete, float total)
   {
     ImGui.SameLine(x);
@@ -260,6 +279,11 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       float centre = (ImGui.GetContentRegionAvail().Y / 2f) - ImGui.GetTextLineHeight();
       ImGui.SetCursorPosY(ImGui.GetCursorPosY() + Math.Max(centre, 0f));
       ImGui.TextDisabled("Select a category on the left.");
+
+      // The tree deliberately shows everything, so its percentages will not match
+      // the Overview while an exclusion is on. Said once, here, rather than
+      // leaving the difference to be noticed and puzzled over.
+      DrawExclusionNote();
       return;
     }
 
