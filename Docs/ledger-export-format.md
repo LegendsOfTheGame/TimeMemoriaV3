@@ -101,10 +101,22 @@ milestones. This is how players actually describe their position — "I'm on
 | `cleared` | Last patch whose **closing** MSQ quest is complete |
 | `reached` | Last patch whose **opening** MSQ quest is complete |
 
-**Gate on `cleared`.** `reached` can be one patch ahead — a character who has
-accepted 7.3's first quest but finished nothing in it reports
-`cleared: "7.2", reached: "7.3"`. Unlocking 7.3 content off `reached` would fire
-before the story justifies it.
+Both require the quest to be **complete**, not merely accepted. `reached: "7.3"`
+means 7.3's opening quest is finished and you are inside that patch's content.
+
+`reached` can be one patch ahead of `cleared`: a character who has finished 7.3's
+opening quest but not its last one reports `cleared: "7.2", reached: "7.3"`.
+
+**Which to use depends on what the field means to you.**
+
+- If it mirrors what a player would type for "where am I in the story", use
+  `reached`. That is the natural reading, and it matches values already entered
+  by hand — switching such a field to `cleared` would roll existing users
+  backwards by up to a patch on their first import.
+- If it gates content that must not appear early, `cleared` is the strict floor.
+
+Pandora Lunar uses `reached`, because its `c.patch` field was hand-entered with
+the first meaning.
 
 Either key may be absent, and the whole object is omitted if both are. A brand
 new character sends no `msqPatch` at all. **Never store an absent value over one
@@ -156,7 +168,7 @@ splitting on the dot, or map to an ordinal.
 | `comm` | `IPlayerState.PlayerCommendations` | **Built** |
 | `playtime` | Parsed from the `/playtime` system message | **Built.** Stale by nature — see below |
 | `msqBreakdown` | Filtered MSQ bucket counts per expansion | **Built.** ARR correctly reports 240, not the 289 raw rows, so starting-city and Grand Company filtering is applied |
-| `msqPatch` | `toc.json` patch bookends vs `QuestManager.IsQuestComplete` | **Built.** Feeds the MSQ Progress field — see section above. Gate on `cleared`, not `reached` |
+| `msqPatch` | `toc.json` patch bookends vs `QuestManager.IsQuestComplete` | **Built.** Feeds the MSQ Progress field — see section above. Pandora Lunar consumes `reached` |
 | `msqBreakdownTotals` | — | **Deliberately not sent.** Static reference data the ledger already holds, and ours understates Dawntrail |
 | `quests` / `questTotals` | — | **Not sent.** See caveat |
 
