@@ -90,6 +90,40 @@ Real output for *Haurche Greystone* (Mateus).
 
 ---
 
+## `quests` — completion per journal section
+
+```json
+"quests": {
+  "overall": 901, "msq": 583, "era": 19,
+  "side": 148, "allied": 20, "class": 140, "leve": 51
+}
+```
+
+| Key | Journal section |
+|---|---|
+| `msq` | Main Scenario |
+| `era` | Chronicles of a New Era |
+| `side` | Sidequests |
+| `allied` | Allied Society Quests |
+| `class` | Class & Job Quests |
+| `leve` | Levequests |
+
+**`overall` is the sum of those six, not the plugin's own Overall.** The plugin
+has a seventh section, **Other Quests**, that the ledger has no bucket for.
+Sending our Overall would include it and break the ledger's own
+"sub-categories sum to Overall" check.
+
+Counts ignore the Settings toggles for excluding Other Quests and Levequests.
+Those change what the plugin displays; they are not a claim about what the
+character has done, and a display preference must not rewrite stored data.
+
+`questTotals` stays ledger-side. Our denominators are character-filtered — the
+starting city, class and Grand Company routes not taken are excluded — so two
+characters legitimately have different totals, and ours would not match a static
+reference set.
+
+---
+
 ## `msqPatch` — story position as a patch
 
 For the ledger's **MSQ Progress** field, and for gating routines on story
@@ -174,7 +208,8 @@ splitting on the dot, or map to an ordinal.
 | `msqBreakdown` | Filtered MSQ bucket counts per expansion | **Built.** ARR correctly reports 240, not the 289 raw rows, so starting-city and Grand Company filtering is applied |
 | `msqPatch` | `toc.json` patch bookends vs `QuestManager.IsQuestComplete` | **Built.** Feeds the MSQ Progress field — see section above. Pandora Lunar consumes `reached` |
 | `msqBreakdownTotals` | — | **Deliberately not sent.** Static reference data the ledger already holds, and ours understates Dawntrail |
-| `quests` / `questTotals` | — | **Not sent.** See caveat |
+| `quests` | Top-level journal section completion | **Built.** Six sections plus `overall` — see section below |
+| `questTotals` | — | **Deliberately not sent.** Our denominators are character-filtered and would not match the ledger's static ones |
 
 ### Not available from the plugin
 

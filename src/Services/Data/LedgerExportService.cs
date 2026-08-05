@@ -73,6 +73,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       root["combat"] = BuildLevels(progress, "combat");
       root["craft"] = BuildLevels(progress, "craft");
       root["gather"] = BuildLevels(progress, "gather");
+      root["quests"] = BuildQuests();
       root["msqBreakdown"] = BuildMsqBreakdown();
 
       JsonObject? msqPatch = BuildMsqPatch();
@@ -107,6 +108,50 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       playtime["asOf"] = record.LifetimePlaytimeUpdatedUtc.Value.ToString("o");
 
     return playtime;
+  }
+
+  /// <summary>
+  /// Completed quests per top-level journal section, in the ledger's own keys.
+  ///
+  /// These counts were previously typed in by hand off the plugin's Overview,
+  /// which meant they were only ever as fresh as the last time someone
+  /// remembered to do it.
+  ///
+  /// Counts are read from the category nodes directly, so the Settings toggles
+  /// for excluding Other Quests and Levequests do not reach this. Those change
+  /// what the plugin chooses to display; they are not a statement about what the
+  /// character has done, and a display preference must not silently rewrite
+  /// someone else's stored data.
+  /// </summary>
+  private JsonObject BuildQuests()
+  {
+    // The ledger has no bucket for Other Quests, so its Overall is the sum of
+    // the six it does track -- and its UI asserts exactly that. Sending our own
+    // Overall here would include Other Quests and break that check.
+    Dictionary<string, string> keys = new()
+    {
+      ["Main Scenario"] = "msq",
+      ["Chronicles of a New Era"] = "era",
+      ["Sidequests"] = "side",
+      ["Allied Society Quests"] = "allied",
+      ["Class & Job Quests"] = "class",
+      ["Levequests"] = "leve"
+    };
+
+    Dictionary<string, int> totals = keys.Values.ToDictionary((k) => k, (_) => 0);
+
+    // Sections live under each expansion, so a section's total is the sum of its
+    // appearances across all of them.
+    foreach (QuestData expansion in _dataService.QuestData.Categories)
+      foreach (QuestData category in expansion.Categories)
+        if (keys.TryGetValue(category.EnglishTitle, out string? key))
+          totals[key] += (int)category.NumComplete;
+
+    JsonObject quests = new() { ["overall"] = totals.Values.Sum() };
+    foreach (KeyValuePair<string, string> pair in keys)
+      quests[pair.Value] = totals[pair.Value];
+
+    return quests;
   }
 
   /// <summary>
