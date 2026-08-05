@@ -16,3 +16,21 @@ public class ExpansionProgress
 
   public float Fraction => Total > 0 ? NumComplete / (float)Total : 0f;
 }
+
+/// <summary>
+/// Completion for one journal section — Main Scenario, Sidequests, Levequests
+/// and so on. The same quests as ExpansionProgress, cut the other way.
+/// </summary>
+public class CategoryProgress
+{
+  public required string Name { get; init; }
+
+  /// <summary>English section name, used for matching regardless of client language.</summary>
+  public required string EnglishName { get; init; }
+
+  public int NumComplete { get; init; }
+  public int Total { get; init; }
+
+  /// <summary>Shown but not counted toward the totals.</summary>
+  public bool Excluded { get; init; }
+}

@@ -10,6 +10,7 @@ public interface IDataService : IHostedService
   bool IsQuestComplete(Types.Quest quest);
   void UpdateQuestData();
   IReadOnlyList<ExpansionProgress> ExpansionProgress { get; }
+  IReadOnlyList<CategoryProgress> CategoryProgress { get; }
   Types.Quest? FindOldestIncomplete(out string expansion, out string category);
 }
 
@@ -25,8 +26,26 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   /// </summary>
   public IReadOnlyList<ExpansionProgress> ExpansionProgress => _expansionProgress;
 
+  /// <summary>The same quests grouped by journal section rather than expansion.</summary>
+  public IReadOnlyList<CategoryProgress> CategoryProgress => _categoryProgress;
+
   private readonly List<ExpansionProgress> _expansionProgress = [];
   private readonly Dictionary<uint, int[]> _expansionTally = [];
+
+  private readonly List<CategoryProgress> _categoryProgress = [];
+  private readonly Dictionary<string, int[]> _categoryTally = [];
+  private readonly Dictionary<string, string> _categoryNames = [];
+
+  /// <summary>
+  /// Sections the player can choose to leave out of the totals. Kept as English
+  /// names so the setting survives a language change.
+  /// </summary>
+  private const string LevequestsSection = "Levequests";
+  private const string OtherQuestsSection = "Other Quests";
+
+  private bool IsExcluded(string englishSection)
+    => (englishSection == LevequestsSection && _configuration.ExcludeLevequests)
+    || (englishSection == OtherQuestsSection && _configuration.ExcludeOtherQuests);
   private string _startArea = "";
   private string _grandCompany = "";
   private List<uint> _startClass = [];
@@ -364,6 +383,11 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       return node;
     }
 
+    // Stamp the section onto the quest so the category tally can be taken during
+    // the leaf walk, where the ancestors are no longer in scope.
+    quest.Section = category.localizedCategory;
+    quest.EnglishSection = category.englishCategory;
+
     QuestData expansionNode = FindOrCreateCategory(RawQuestData.Categories, (expansion.name, expansion.name));
     expansionNode.SortKey = expansion.id;
 
@@ -388,8 +412,11 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   public void UpdateQuestData()
   {
     _expansionTally.Clear();
+    _categoryTally.Clear();
+    _categoryNames.Clear();
     UpdateQuestData(QuestData);
     RebuildExpansionProgress();
+    RebuildCategoryProgress();
   }
 
   /// <summary>
@@ -413,6 +440,23 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
         Name = name,
         NumComplete = entry.Value[0],
         Total = entry.Value[1]
+      });
+    }
+  }
+
+  private void RebuildCategoryProgress()
+  {
+    _categoryProgress.Clear();
+
+    foreach (KeyValuePair<string, int[]> entry in _categoryTally)
+    {
+      _categoryProgress.Add(new CategoryProgress
+      {
+        Name = _categoryNames.GetValueOrDefault(entry.Key, entry.Key),
+        EnglishName = entry.Key,
+        NumComplete = entry.Value[0],
+        Total = entry.Value[1],
+        Excluded = IsExcluded(entry.Key)
       });
     }
   }
@@ -551,10 +595,25 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
         bool complete = IsQuestComplete(quest);
         if (complete) questData.NumComplete++;
 
-        if (!_expansionTally.TryGetValue(quest.ExpansionId, out int[]? tally))
-          _expansionTally[quest.ExpansionId] = tally = [0, 0];
-        tally[1]++;
-        if (complete) tally[0]++;
+        // Section counts always include everything, so an excluded section can
+        // still show its real numbers while greyed out.
+        if (!_categoryTally.TryGetValue(quest.EnglishSection, out int[]? sectionTally))
+        {
+          _categoryTally[quest.EnglishSection] = sectionTally = [0, 0];
+          _categoryNames[quest.EnglishSection] = quest.Section;
+        }
+        sectionTally[1]++;
+        if (complete) sectionTally[0]++;
+
+        // Expansion counts honour the exclusions, so the expansion rows always
+        // sum to the overall figure.
+        if (!IsExcluded(quest.EnglishSection))
+        {
+          if (!_expansionTally.TryGetValue(quest.ExpansionId, out int[]? tally))
+            _expansionTally[quest.ExpansionId] = tally = [0, 0];
+          tally[1]++;
+          if (complete) tally[0]++;
+        }
 
         quest.Hide = (_configuration.DisplayOption == 1 && !IsQuestComplete(quest)) ||
                      (_configuration.DisplayOption == 2 && IsQuestComplete(quest));

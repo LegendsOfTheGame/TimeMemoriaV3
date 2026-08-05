@@ -54,6 +54,12 @@ public class Quest : ICloneable
   /// <summary>ExVersion row id. 0 is A Realm Reborn.</summary>
   public uint ExpansionId { get; set; }
 
+  /// <summary>Journal section, localised — "Main Scenario", "Levequests".</summary>
+  public string Section { get; set; } = "";
+
+  /// <summary>The same section in English, for matching against settings.</summary>
+  public string EnglishSection { get; set; } = "";
+
   public object Clone()
   {
     return new Quest
@@ -67,7 +73,9 @@ public class Quest : ICloneable
       Hide = Hide,
       SortKey = SortKey,
       IsLeve = IsLeve,
-      ExpansionId = ExpansionId
+      ExpansionId = ExpansionId,
+      Section = Section,
+      EnglishSection = EnglishSection
     };
   }
 }

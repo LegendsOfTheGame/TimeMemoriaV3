@@ -48,21 +48,42 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     using ImRaii.ChildDisposable child = ImRaii.Child("##overviewTab", ImGuiHelpers.ScaledVector2(0), true);
     if (!child.Success) return;
 
+    IReadOnlyList<ExpansionProgress> expansions = _dataService.ExpansionProgress;
+    IReadOnlyList<CategoryProgress> categories = _dataService.CategoryProgress;
+
+    // Expansion figures already exclude whatever the settings exclude, so these
+    // rows always sum to the overall line.
+    int overallComplete = expansions.Sum((e) => e.NumComplete);
+    int overallTotal = expansions.Sum((e) => e.Total);
+
     ImGui.TextColored(HeaderColour, "Quest Completion Progress");
     ImGui.Spacing();
     ImGui.Separator();
     ImGui.Spacing();
-
-    IReadOnlyList<ExpansionProgress> expansions = _dataService.ExpansionProgress;
-
-    int overallComplete = expansions.Sum((e) => e.NumComplete);
-    int overallTotal = expansions.Sum((e) => e.Total);
 
     DrawProgressRow("Overall", overallComplete, overallTotal);
     ImGui.Spacing();
 
     foreach (ExpansionProgress expansion in expansions)
       DrawProgressRow(expansion.Name, expansion.NumComplete, expansion.Total);
+
+    if (categories.Count > 0)
+    {
+      ImGui.Spacing();
+      ImGui.Spacing();
+      ImGui.TextColored(HeaderColour, "By Category");
+      ImGui.Spacing();
+      ImGui.Separator();
+      ImGui.Spacing();
+
+      // Excluded sections still show their real numbers, greyed, so nothing
+      // silently vanishes -- it is just visibly not counted.
+      foreach (CategoryProgress category in categories)
+        DrawProgressRow(category.Name, category.NumComplete, category.Total, category.Excluded);
+
+      if (categories.Any((c) => c.Excluded))
+        ImGui.TextDisabled("  Greyed categories are shown but not counted in the totals above.");
+    }
 
     ImGui.Spacing();
     ImGui.Spacing();
@@ -73,16 +94,29 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
   }
 
   /// <summary>One aligned "name  complete/total  percent" line.</summary>
-  private static void DrawProgressRow(string label, int complete, int total)
+  private static void DrawProgressRow(string label, int complete, int total, bool dimmed = false)
   {
     float percentX = ImGui.GetContentRegionAvail().X - ImGui.CalcTextSize("100%").X - 8f;
     float countX = percentX - ImGui.CalcTextSize("00000/00000").X - 16f;
 
+    string count = $"{complete}/{total}";
+    string percent = total > 0 ? $"{(int)(complete / (float)total * 100f)}%" : "—";
+
+    if (dimmed)
+    {
+      ImGui.TextDisabled(label);
+      ImGui.SameLine(countX);
+      ImGui.TextDisabled(count);
+      ImGui.SameLine(percentX);
+      ImGui.TextDisabled(percent);
+      return;
+    }
+
     ImGui.Text(label);
     ImGui.SameLine(countX);
-    ImGui.Text($"{complete}/{total}");
+    ImGui.Text(count);
     ImGui.SameLine(percentX);
-    ImGui.Text(total > 0 ? $"{(int)(complete / (float)total * 100f)}%" : "—");
+    ImGui.Text(percent);
   }
 
   /// <summary>
@@ -499,6 +533,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     {
       _configuration.ExcludeOtherQuests = excludeOtherQuests;
       _configuration.Save();
+      _dataService.UpdateQuestData();
     }
 
     bool excludeLevequests = _configuration.ExcludeLevequests;
@@ -506,6 +541,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     {
       _configuration.ExcludeLevequests = excludeLevequests;
       _configuration.Save();
+      _dataService.UpdateQuestData();
     }
   }
 
