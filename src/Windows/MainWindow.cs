@@ -151,6 +151,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private void DrawQuestsTab()
   {
+    DrawSearchBar();
+
     float totalWidth = ImGui.GetContentRegionAvail().X;
     float splitterWidth = 4f;
     float leftWidth = Math.Clamp(_leftPanelWidth, 200f, Math.Max(220f, totalWidth - 220f));
@@ -159,7 +161,84 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     DrawQuestTree(leftWidth, panelHeight);
     DrawSplitter(splitterWidth, panelHeight, totalWidth);
-    DrawQuestList(rightWidth, panelHeight);
+
+    // Searching replaces the selection view. A tree is the right way to browse
+    // seven thousand quests and the wrong way to find one you can already name.
+    if (IsSearching) DrawSearchResults(rightWidth, panelHeight);
+    else DrawQuestList(rightWidth, panelHeight);
+  }
+
+  private bool IsSearching => _searchQuery.Trim().Length >= 2;
+
+  private void DrawSearchBar()
+  {
+    ImGui.SetNextItemWidth(-90.0f * ImGuiHelpers.GlobalScale);
+    ImGui.InputTextWithHint("##questSearch", "Search quests...", ref _searchQuery, 128);
+
+    ImGui.SameLine();
+    using (ImRaii.DisabledDisposable disabled = ImRaii.Disabled(_searchQuery.Length == 0))
+      if (ImGui.Button("Clear")) _searchQuery = "";
+
+    ImGui.Spacing();
+  }
+
+  private void DrawSearchResults(float width, float height)
+  {
+    ImGui.SameLine();
+    using ImRaii.ChildDisposable child = ImRaii.Child("##searchResults", new Vector2(width, height), true);
+    if (!child.Success) return;
+
+    List<(Types.Quest Quest, string Path)> results = _dataService.Search(_searchQuery);
+
+    ImGui.Text($"\"{_searchQuery.Trim()}\"");
+    ImGui.SameLine();
+    ImGui.TextDisabled($"— {results.Count} result{(results.Count == 1 ? "" : "s")}{(results.Count >= 200 ? " (capped)" : "")}");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    if (results.Count == 0)
+    {
+      ImGui.TextDisabled("Nothing matched.");
+      return;
+    }
+
+    using ImRaii.TableDisposable table = ImRaii.Table("##searchTable", 4,
+      ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV, ImGui.GetContentRegionAvail());
+    if (!table.Success) return;
+
+    ImGui.TableSetupScrollFreeze(0, 1);
+    ImGui.TableSetupColumn("##check", ImGuiTableColumnFlags.WidthFixed, 22f);
+    ImGui.TableSetupColumn("##level", ImGuiTableColumnFlags.WidthFixed, 36f);
+    ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthStretch);
+    ImGui.TableSetupColumn("Where", ImGuiTableColumnFlags.WidthFixed, 260f);
+    ImGui.TableHeadersRow();
+
+    foreach ((Types.Quest quest, string path) in results)
+    {
+      bool complete = _dataService.IsQuestComplete(quest);
+
+      ImGui.TableNextRow();
+      ImGui.TableNextColumn();
+      if (complete)
+      {
+        using (ImRaii.FontDisposable font = ImRaii.PushFont(UiBuilder.IconFont))
+          ImGui.TextUnformatted(FontAwesomeIcon.Check.ToIconString());
+      }
+
+      ImGui.TableNextColumn();
+      ImGui.TextDisabled(quest.Level.ToString());
+
+      ImGui.TableNextColumn();
+      string title = quest.Ids.Count > 0 ? $"{quest.Title} [{quest.Ids[0]}]" : quest.Title;
+      if (complete) ImGui.TextDisabled(title);
+      else ImGui.Text(title);
+
+      // The path is what makes a flat result usable -- otherwise you find the
+      // quest but still have no idea where it lives.
+      ImGui.TableNextColumn();
+      ImGui.TextDisabled(path);
+      if (ImGui.IsItemHovered()) ImGui.SetTooltip(path);
+    }
   }
 
   /// <summary>

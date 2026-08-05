@@ -12,6 +12,7 @@ public interface IDataService : IHostedService
   IReadOnlyList<ExpansionProgress> ExpansionProgress { get; }
   IReadOnlyList<CategoryProgress> CategoryProgress { get; }
   IReadOnlyList<ExpansionProgress> MsqProgress { get; }
+  List<(Types.Quest Quest, string Path)> Search(string query, int limit = 200);
   Types.Quest? FindOldestIncomplete(out string expansion, out string category);
 }
 
@@ -512,6 +513,39 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     <= 90 => 4,
     _ => 5
   };
+
+  /// <summary>
+  /// Matches quest titles anywhere in the tree, returning each with the path it
+  /// sits under so a flat result still says where it belongs. Capped, because a
+  /// two-letter query would otherwise match thousands.
+  /// </summary>
+  public List<(Types.Quest Quest, string Path)> Search(string query, int limit = 200)
+  {
+    List<(Types.Quest, string)> results = [];
+    if (query.Trim().Length < 2) return results;
+
+    SearchNode(QuestData, "", query.Trim(), results, limit);
+    return results;
+  }
+
+  private void SearchNode(QuestData node, string path, string query,
+                          List<(Types.Quest, string)> results, int limit)
+  {
+    if (results.Count >= limit) return;
+
+    foreach (Types.Quest quest in node.Quests)
+    {
+      if (results.Count >= limit) return;
+      if (quest.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
+        results.Add((quest, path));
+    }
+
+    foreach (QuestData child in node.Categories)
+    {
+      string childPath = path.Length == 0 ? child.Title : $"{path} › {child.Title}";
+      SearchNode(child, childPath, query, results, limit);
+    }
+  }
 
   /// <summary>
   /// The first incomplete quest in tree order, which is release order — the
