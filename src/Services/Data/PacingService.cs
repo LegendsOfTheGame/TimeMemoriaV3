@@ -16,6 +16,14 @@ public interface IPacingService : IHostedService
 
   /// <summary>Total quests the tree currently reports as complete.</summary>
   int TotalComplete { get; }
+
+  /// <summary>
+  /// Minutes of play per Main Scenario quest completed. Deliberately divides all
+  /// playtime by MSQ alone: nobody does the story in isolation, so the levelling,
+  /// crafting and side content along the way is genuinely part of what it costs
+  /// to get through it.
+  /// </summary>
+  double? MsqMinutesPerQuest { get; }
 }
 
 /// <summary>
@@ -108,6 +116,20 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
       if (played <= TimeSpan.Zero) return null;
 
       return played.TotalMinutes / quests;
+    }
+  }
+
+  public double? MsqMinutesPerQuest
+  {
+    get
+    {
+      TimeSpan lifetime = _playtime.Current?.LifetimePlaytime ?? TimeSpan.Zero;
+      if (lifetime <= TimeSpan.Zero) return null;
+
+      int msq = _dataService.MsqProgress.Sum((e) => e.NumComplete);
+      if (msq <= 0) return null;
+
+      return lifetime.TotalMinutes / msq;
     }
   }
 

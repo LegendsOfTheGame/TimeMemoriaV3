@@ -11,6 +11,7 @@ public interface IDataService : IHostedService
   void UpdateQuestData();
   IReadOnlyList<ExpansionProgress> ExpansionProgress { get; }
   IReadOnlyList<CategoryProgress> CategoryProgress { get; }
+  IReadOnlyList<ExpansionProgress> MsqProgress { get; }
   Types.Quest? FindOldestIncomplete(out string expansion, out string category);
 }
 
@@ -28,6 +29,35 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
 
   /// <summary>The same quests grouped by journal section rather than expansion.</summary>
   public IReadOnlyList<CategoryProgress> CategoryProgress => _categoryProgress;
+
+  /// <summary>
+  /// Main Scenario completion per expansion. Read off the tree rather than
+  /// tallied separately -- the tree is already nested under expansion, so each
+  /// one carries its own Main Scenario section with counts on it.
+  /// </summary>
+  public IReadOnlyList<ExpansionProgress> MsqProgress
+  {
+    get
+    {
+      List<ExpansionProgress> result = [];
+
+      foreach (QuestData expansion in QuestData.Categories)
+      {
+        QuestData? msq = expansion.Categories.FirstOrDefault((c) => c.EnglishTitle == "Main Scenario");
+        if (msq is null) continue;
+
+        result.Add(new ExpansionProgress
+        {
+          Id = expansion.SortKey,
+          Name = expansion.Title,
+          NumComplete = (int)msq.NumComplete,
+          Total = (int)msq.Total
+        });
+      }
+
+      return result;
+    }
+  }
 
   private readonly List<ExpansionProgress> _expansionProgress = [];
   private readonly Dictionary<uint, int[]> _expansionTally = [];

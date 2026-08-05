@@ -1126,6 +1126,77 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       ImGui.TextDisabled("    Run /playtime once to enable overall pacing.");
     else
       ImGui.TextDisabled($"    across {_pacing.TotalComplete} completed quests");
+
+    ImGui.Spacing();
+    ImGui.Spacing();
+    DrawStoryEstimates();
+  }
+
+  /// <summary>
+  /// How much Main Scenario is left, and what that has historically cost in
+  /// hours. Descriptive only -- it reports the rate this character has actually
+  /// managed, and makes no claim about how fast anyone ought to be.
+  /// </summary>
+  private void DrawStoryEstimates()
+  {
+    ImGui.TextColored(HeaderColour, "Story Remaining");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    IReadOnlyList<ExpansionProgress> msq = _dataService.MsqProgress;
+    List<ExpansionProgress> remaining = [.. msq.Where((e) => e.NumComplete < e.Total)];
+
+    if (remaining.Count == 0)
+    {
+      ImGui.TextDisabled("  Every Main Scenario quest is complete.");
+      return;
+    }
+
+    double? rate = _pacing.MsqMinutesPerQuest;
+
+    // The expansion currently in progress is the gate to the next one, so its
+    // remaining count doubles as the countdown to whatever comes after.
+    ExpansionProgress current = remaining[0];
+    int toGate = current.Total - current.NumComplete;
+    ExpansionProgress? next = msq.FirstOrDefault((e) => e.Id == current.Id + 1);
+
+    if (next is not null)
+      ImGui.TextDisabled($"  {toGate} Main Scenario quest{(toGate == 1 ? "" : "s")} until {next.Name} opens.");
+
+    ImGui.Spacing();
+
+    foreach (ExpansionProgress expansion in remaining)
+    {
+      int left = expansion.Total - expansion.NumComplete;
+      string estimate = rate.HasValue ? $"~{FormatHours(left * rate.Value)}" : "—";
+
+      ImGui.TextDisabled($"  {expansion.Name}");
+      ImGui.SameLine(170.0f);
+      ImGui.Text($"{left} left");
+      ImGui.SameLine(250.0f);
+      ImGui.TextDisabled(estimate);
+    }
+
+    ImGui.Spacing();
+
+    if (rate.HasValue)
+    {
+      int totalLeft = remaining.Sum((e) => e.Total - e.NumComplete);
+      ImGui.TextDisabled($"  {totalLeft} remaining at your rate of {PacingService.Format(rate.Value)}");
+      ImGui.TextDisabled($"  — roughly {FormatHours(totalLeft * rate.Value)} of play.");
+    }
+    else
+    {
+      ImGui.TextDisabled("  Run /playtime once to enable estimates.");
+    }
+  }
+
+  private static string FormatHours(double minutes)
+  {
+    if (minutes < 60) return $"{(int)minutes}m";
+    double hours = minutes / 60.0;
+    if (hours < 24) return $"{hours:F1}h";
+    return $"{hours / 24.0:F1} days";
   }
 
   /// <summary>
