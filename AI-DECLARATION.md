@@ -39,7 +39,9 @@ this repository, and because the policy asks that AI output be verified rather
 than trusted:
 
 - Disposed a native UI library before the host that owned it, crashing the game
-  on plugin unload. Backed out entirely rather than shipped.
+  on plugin unload. Backed out rather than shipped, and only reinstated once the
+  toolkit's actual threading contract had been read and the fix confirmed
+  against two plugins by the toolkit's own author.
 - Compared class levels without comparing experience within the level, so the
   lowest-levelled job was reported wrongly.
 - Proposed resolving multi-ID quests by lowest ID. Wrong: *Way of the Gladiator*

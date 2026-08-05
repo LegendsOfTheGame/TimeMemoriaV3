@@ -25,16 +25,29 @@ reaches parity.
 
 ### What works
 
-- Quest browsing, generated from game data — no hand-maintained quest files
-
-### What is coming across from the shipping plugin
-
-- Two-panel questline tree with chain-grouped sections
-- Suggested next quest
-- Playtime pacing, session and lifetime
-- World state: maintenance windows, patch status, seasonal events
+- Quest data generated from the game's own journal tables — no hand-maintained
+  quest files, so a patch's content appears the day it lands
+- Two-panel questline tree, chain-grouped, with search across every expansion
+  including ones the tree is hiding
+- Suggested next quest, and per-expansion and per-category progress
 - MSQ progression gating, spoiler mode, free-trial mode
-- Class and job levelling with clipboard export
+- Class and job levelling, role-coloured, with clipboard export
+- Playtime pacing, session and lifetime
+- World state: maintenance windows, patch status, and active events read from
+  the client rather than only from the news feed
+- What's New — quests added since the baseline snapshot, with the build they
+  arrived in
+- Per-character completion dates from first install onwards
+- Help and Credits
+
+### Not finished
+
+- **Patch attribution.** `data/quest-patches.json` maps 5,326 quest ids to the
+  patch that introduced them, and nothing reads it yet.
+- **Native UI.** One tab — Progression — exists as a real game window and
+  unloads cleanly. The rest is still ImGui.
+- **Screenshots.** Those in `assets/` are the original QuestTracker's and must
+  be retaken.
 
 ---
 
