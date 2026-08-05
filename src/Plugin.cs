@@ -1,11 +1,19 @@
+using KamiToolKit;
 using Microsoft.Extensions.Logging;
 using ILogger = TimeMemoria.Services.ILogger;
 
 namespace TimeMemoria;
 
-public sealed class Plugin : IDalamudPlugin
+/// <summary>
+/// Implemented as <see cref="IAsyncDalamudPlugin"/> rather than
+/// <see cref="IDalamudPlugin"/> because native windows cannot be disposed
+/// synchronously. See <see cref="DisposeAsync"/>.
+/// </summary>
+public sealed class Plugin : IAsyncDalamudPlugin
 {
   private readonly IHost _host;
+  private readonly IFramework _framework;
+  private readonly IDalamudPluginInterface _pluginInterface;
 
   public Plugin(
     IChatGui chatGui,
@@ -21,12 +29,8 @@ public sealed class Plugin : IDalamudPlugin
     INotificationManager notificationManager
   )
   {
-    // Native UI is parked. KamiToolKit's addon disposal cannot complete on the
-    // main thread -- Dispose returns before the closing animation finishes, and
-    // DisposeAsync must not run on the main thread, which is where Dalamud
-    // disposes plugins. Until that is resolved the toolkit is not initialised
-    // and no addon is created, so the plugin unloads cleanly.
-    // The submodule, ProgressionAddon and this wiring are all retained.
+    _framework = framework;
+    _pluginInterface = pluginInterface;
 
     _host = new HostBuilder()
       .UseContentRoot(pluginInterface.ConfigDirectory.FullName)
@@ -65,6 +69,10 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
+        // Not registered as a hosted service on purpose -- its disposal has to
+        // be awaited, and the host cannot do that. Plugin owns it instead.
+        collection.AddSingleton<INativeUiService, NativeUiService>();
+
         collection.AddSingleton(InitializeConfiguration);
         collection.AddSingleton(new WindowSystem(pluginInterface.InternalName));
 
@@ -78,8 +86,20 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
       }).Build();
+  }
 
-    _host.StartAsync();
+  /// <summary>
+  /// Dalamud calls this after construction. KamiToolKit has to be initialised
+  /// before any addon exists, so that ordering is explicit here rather than
+  /// left to whenever the container happens to resolve something.
+  /// </summary>
+  public async Task LoadAsync(CancellationToken cancellationToken)
+  {
+    KamiToolKitLibrary.Initialize(_pluginInterface, "Time Memoria");
+
+    await _host.StartAsync(cancellationToken);
+
+    _host.Services.GetRequiredService<INativeUiService>().Create();
   }
 
   private Configuration InitializeConfiguration(IServiceProvider s)
@@ -90,9 +110,24 @@ public sealed class Plugin : IDalamudPlugin
     return configuration;
   }
 
-  public void Dispose()
+  /// <summary>
+  /// Order here is not a preference, it is KamiToolKit's contract, and getting
+  /// it wrong crashed the game during an earlier attempt:
+  ///
+  /// 1. Await each addon. Closing one plays an animation lasting several
+  ///    frames, so the synchronous Dispose returns while the addon is still
+  ///    alive. This await must not happen on the main thread — it waits on
+  ///    frames, and the main thread is what advances them.
+  /// 2. Then the library's own cleanup, which is the opposite: it silently
+  ///    does nothing off the main thread, hence RunOnFrameworkThread.
+  /// 3. Then the host, last, because it owns the services the addons read.
+  /// </summary>
+  public async ValueTask DisposeAsync()
   {
-    _host.StopAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+    await _host.Services.GetRequiredService<INativeUiService>().DisposeAsync();
+    await _framework.RunOnFrameworkThread(KamiToolKitLibrary.Dispose);
+
+    await _host.StopAsync();
     _host.Dispose();
   }
 }

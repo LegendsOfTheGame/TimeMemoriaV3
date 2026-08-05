@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -1020,6 +1020,17 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     ImGui.SameLine();
     ImGui.TextDisabled("Paste the ledger export there. It keeps everything in your browser.");
+
+    ImGui.Spacing();
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    // Experimental. This same panel drawn with the game's own widgets rather
+    // than ImGui -- the first piece of a native interface, and the thing that
+    // has to survive a plugin unload before any more of it gets built.
+    if (ImGui.Button("Open as a game window")) _nativeUi.ToggleProgression();
+    ImGui.SameLine();
+    ImGui.TextDisabled("Experimental native version of this tab.");
   }
 
 
