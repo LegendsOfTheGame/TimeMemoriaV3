@@ -43,6 +43,12 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Settings"))
         if (tabItem.Success) DrawSettingsTab();
+
+      using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Help"))
+        if (tabItem.Success) DrawHelpTab();
+
+      using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Credits"))
+        if (tabItem.Success) DrawCreditsTab();
     }
   }
 
@@ -675,6 +681,183 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       _configuration.Save();
       _dataService.UpdateQuestData();
     }
+
+    DrawSpoilerSettings();
+  }
+
+  private const string RepoUrl = "https://github.com/LegendsOfTheGame/TimeMemoriaV3";
+  private const string IssuesUrl = RepoUrl + "/issues";
+
+  /// <summary>
+  /// The things people ask about. Everything here is behaviour that is either
+  /// deliberate and looks like a bug, or a control that is not where you would
+  /// first look for it.
+  /// </summary>
+  private void DrawHelpTab()
+  {
+    using ImRaii.ChildDisposable child = ImRaii.Child("##helpTab", ImGuiHelpers.ScaledVector2(0), true);
+    if (!child.Success) return;
+
+    DrawHelpEntry("Why is a whole expansion greyed out?",
+      "You have not reached it yet, so its name and counts are hidden.",
+      "Settings > Story Visibility > Spoiler Mode shows them anyway.",
+      "Free Trial Mode is separate and cannot be overridden — there is",
+      "genuinely nothing there to reveal.");
+
+    DrawHelpEntry("Why does a quest say \"Pre-Plugin\" instead of a date?",
+      "It was already complete when this plugin was first installed, so",
+      "there is no record of when you did it. Anything completed from",
+      "then on is dated properly.");
+
+    DrawHelpEntry("Why is my playtime blank or out of date?",
+      "The game only reveals total playtime in the reply to /playtime,",
+      "and this plugin will not run commands for you. Type /playtime",
+      "yourself and the figure is captured from the response. The",
+      "timestamp beside it is when that happened, not right now.");
+
+    DrawHelpEntry("Why is session pacing empty?",
+      "It measures quests completed since you logged in. Until you",
+      "finish one this session there is nothing to average.");
+
+    DrawHelpEntry("Where do the percentages come from?",
+      "Quests your character can never take — the starting city and",
+      "class routes you did not pick, the Grand Company you did not",
+      "join — are left out of the total. Two characters can legitimately",
+      "show different denominators.",
+      "",
+      "Settings also lets you drop Other Quests and Levequests from the",
+      "overall figure, which many people prefer.");
+
+    DrawHelpEntry("An event is running in game but not listed. Or the reverse.",
+      "Active Events reads the client, so anything switched on shows up",
+      "even if no article announced it. End dates come from the Lodestone",
+      "feed, so an event the feed missed appears without one.");
+
+    DrawHelpEntry("What does the Quests tab do that is not obvious?",
+      "Drag the divider between the two panes to resize them. Clicking a",
+      "quest opens its map marker. Search covers every expansion at once,",
+      "including ones the tree is hiding.");
+
+    DrawHelpEntry("Where does my exported data go?",
+      "Onto your clipboard, and nowhere else. Nothing is uploaded, and",
+      "this plugin makes no network requests except fetching the public",
+      "Lodestone news feed.");
+
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "What this plugin will never do");
+    ImGui.Separator();
+    ImGui.Spacing();
+    ImGui.TextDisabled("  No damage meters, combat logs or duty results.");
+    ImGui.TextDisabled("  No automation, and no commands issued on your behalf.");
+    ImGui.TextDisabled("  No toasts or overlays interrupting your play.");
+    ImGui.TextDisabled("  No reading of other characters' data.");
+    ImGui.Spacing();
+    ImGui.TextDisabled("  It is a notebook, not a scoreboard. If a feature request");
+    ImGui.TextDisabled("  needs any of the above, it will be declined.");
+
+    ImGui.Spacing();
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Something wrong, or missing?");
+    ImGui.Separator();
+    ImGui.Spacing();
+    ImGui.TextDisabled("  Miscounts and missing quests are worth reporting — quest data");
+    ImGui.TextDisabled("  changes with every patch and this cannot all be tested by hand.");
+    ImGui.Spacing();
+
+    if (ImGui.Button("Open the issue tracker")) Dalamud.Utility.Util.OpenLink(IssuesUrl);
+    DrawUrlTooltip(IssuesUrl);
+  }
+
+  /// <summary>One question and its answer, laid out so the question scans first.</summary>
+  private static void DrawHelpEntry(string question, params string[] answer)
+  {
+    ImGui.TextColored(HeaderColour, question);
+    foreach (string line in answer) ImGui.TextDisabled(line.Length > 0 ? $"  {line}" : "");
+    ImGui.Spacing();
+    ImGui.Spacing();
+  }
+
+  /// <summary>
+  /// This plugin is other people's work with a different front end on it. The
+  /// data layer, the festival names and the patch numbers each came from
+  /// somewhere, and none of it was owed.
+  /// </summary>
+  private void DrawCreditsTab()
+  {
+    using ImRaii.ChildDisposable child = ImRaii.Child("##creditsTab", ImGuiHelpers.ScaledVector2(0), true);
+    if (!child.Success) return;
+
+    ImGui.TextColored(HeaderColour, "Built on");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    DrawCredit("isaiahcat", "QuestTracker, the plugin this one descends from.",
+      "https://github.com/isaiahcat/QuestTracker");
+    DrawCredit("keifufu", "Rebuilt QuestTracker's quest data from the game's own",
+      "https://github.com/keifufu/QuestTracker", "journal tables. That work is this plugin's data layer.");
+    DrawCredit("maxiin", "Kept QuestTracker current through Dawntrail.",
+      "https://github.com/maxiin/QuestTracker");
+
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Data that the game does not provide");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    DrawCredit("Critical-Impact", "LuminaSupplemental, whose crowd-sourced festival",
+      "https://github.com/Critical-Impact/LuminaSupplemental", "list names the events the game leaves blank. GPL-3.0.");
+    DrawCredit("Garland Tools", "Which patch introduced which quest — nowhere in the",
+      "https://garlandtools.org", "game files, and derived here from XIVAPI dumps.");
+
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Framework");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    DrawCredit("goatcorp", "Dalamud, and FFXIVClientStructs.",
+      "https://github.com/goatcorp/Dalamud");
+    DrawCredit("MidoriKami", "KamiToolKit, for native game windows.",
+      "https://github.com/MidoriKami/KamiToolKit");
+
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "This plugin");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    ImGui.TextDisabled("  Licensed AGPL-3.0. The source, including the data files, is");
+    ImGui.TextDisabled("  public — nothing needed to rebuild it is held back.");
+    ImGui.Spacing();
+
+    if (ImGui.Button("Open the repository")) Dalamud.Utility.Util.OpenLink(RepoUrl);
+    DrawUrlTooltip(RepoUrl);
+
+    ImGui.Spacing();
+    ImGui.Spacing();
+    ImGui.TextDisabled("  FINAL FANTASY XIV © SQUARE ENIX CO., LTD. This plugin is");
+    ImGui.TextDisabled("  unaffiliated with and unendorsed by Square Enix.");
+  }
+
+  /// <summary>A clickable name, with what it is owed for underneath.</summary>
+  private static void DrawCredit(string who, string what, string url, string? more = null)
+  {
+    ImGui.Text(who);
+    if (ImGui.IsItemHovered())
+    {
+      ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+      ImGui.SetTooltip(url);
+    }
+    if (ImGui.IsItemClicked()) Dalamud.Utility.Util.OpenLink(url);
+
+    ImGui.TextDisabled($"  {what}");
+    if (more is not null) ImGui.TextDisabled($"  {more}");
+    ImGui.Spacing();
+  }
+
+  /// <summary>Shows where a control leads before it is clicked.</summary>
+  private static void DrawUrlTooltip(string url)
+  {
+    if (!ImGui.IsItemHovered()) return;
+    ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+    ImGui.SetTooltip(url);
   }
 
   public void Reset()
