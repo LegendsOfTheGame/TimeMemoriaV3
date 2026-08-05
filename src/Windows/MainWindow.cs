@@ -668,9 +668,13 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
 
     DrawMaintenanceSection(data);
-    ImGui.Spacing();
-    ImGui.Spacing();
-    DrawEventsSection(data);
+
+    // Active Events is hidden for now. The feed's event list is empty because
+    // its keyword filter drops anything outside eleven known seasonal names,
+    // and the festivals read from the client have no names to show -- the
+    // Festival sheet's Name column is empty for all 264 rows. Restore the call
+    // once the feed is producing events again.
+    // DrawEventsSection(data);
   }
 
   private static void DrawMaintenanceSection(NewsEvent data)

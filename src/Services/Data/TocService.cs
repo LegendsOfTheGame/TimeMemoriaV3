@@ -30,7 +30,7 @@ public interface ITocService : IHostedService
 /// codebase. The game's tables describe journal structure but not patch
 /// boundaries, so there is nothing to generate this from.
 /// </summary>
-public class TocService(ILogger _logger, Configuration _configuration, IDalamudPluginInterface _pluginInterface, IPlayerState _playerState)
+public class TocService(ILogger _logger, Configuration _configuration, IDalamudPluginInterface _pluginInterface)
   : ITocService
 {
   /// <summary>toc.json's expansion codes, in ExVersion row order.</summary>
