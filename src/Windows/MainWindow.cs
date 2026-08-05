@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -34,6 +34,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("News"))
         if (tabItem.Success) DrawNewsTab();
+
+      using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("What's New"))
+        if (tabItem.Success) DrawWhatsNewTab();
 
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Progression"))
         if (tabItem.Success) DrawProgressionTab();
@@ -1316,5 +1319,77 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TextDisabled($"  {label}");
     ImGui.SameLine(150.0f);
     ImGui.Text(value);
+  }
+
+  /// <summary>
+  /// Quests that have appeared since the plugin first looked. Nothing in the
+  /// game files says which patch a quest belongs to, so the only way to know
+  /// something is new is to have seen what came before.
+  /// </summary>
+  private void DrawWhatsNewTab()
+  {
+    using ImRaii.ChildDisposable child = ImRaii.Child("##whatsNewTab", ImGuiHelpers.ScaledVector2(0), true);
+    if (!child.Success) return;
+
+    ImGui.TextColored(HeaderColour, "New Quests");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    IReadOnlyList<NewQuest> additions = _snapshot.Additions;
+
+    if (additions.Count == 0)
+    {
+      ImGui.TextDisabled("  Nothing new since this plugin started watching.");
+      ImGui.Spacing();
+      ImGui.TextDisabled($"  Baseline: {_snapshot.KnownQuests} quests, taken {_snapshot.BaselineDate}");
+      ImGui.TextDisabled($"  Game build: {_snapshot.GameVersion}");
+      ImGui.Spacing();
+      ImGui.TextDisabled("  Anything a patch adds from here will be listed, with the");
+      ImGui.TextDisabled("  build it arrived in and whether you have done it.");
+      return;
+    }
+
+    ImGui.TextDisabled($"  {additions.Count} quest{(additions.Count == 1 ? "" : "s")} added since {_snapshot.BaselineDate}");
+    ImGui.Spacing();
+
+    using ImRaii.TableDisposable table = ImRaii.Table("##whatsNewTable", 5,
+      ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg,
+      ImGui.GetContentRegionAvail());
+    if (!table.Success) return;
+
+    ImGui.TableSetupScrollFreeze(0, 1);
+    ImGui.TableSetupColumn("##check", ImGuiTableColumnFlags.WidthFixed, 22f);
+    ImGui.TableSetupColumn("##level", ImGuiTableColumnFlags.WidthFixed, 36f);
+    ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthStretch);
+    ImGui.TableSetupColumn("Where", ImGuiTableColumnFlags.WidthFixed, 200f);
+    ImGui.TableSetupColumn("Seen", ImGuiTableColumnFlags.WidthFixed, 90f);
+    ImGui.TableHeadersRow();
+
+    foreach (NewQuest quest in additions)
+    {
+      bool complete = QuestManager.IsQuestComplete(quest.Id);
+
+      ImGui.TableNextRow();
+      ImGui.TableNextColumn();
+      if (complete)
+      {
+        using (ImRaii.FontDisposable font = ImRaii.PushFont(UiBuilder.IconFont))
+          ImGui.TextUnformatted(FontAwesomeIcon.Check.ToIconString());
+      }
+
+      ImGui.TableNextColumn();
+      ImGui.TextDisabled(quest.Level.ToString());
+
+      ImGui.TableNextColumn();
+      if (complete) ImGui.TextDisabled($"{quest.Title} [{quest.Id}]");
+      else ImGui.Text($"{quest.Title} [{quest.Id}]");
+
+      ImGui.TableNextColumn();
+      ImGui.TextDisabled($"{quest.Expansion} › {quest.Section}");
+
+      ImGui.TableNextColumn();
+      ImGui.TextDisabled(quest.SeenOn);
+      if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Game build {quest.GameVersion}");
+    }
   }
 }
