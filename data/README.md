@@ -14,10 +14,27 @@ raid series.
 ```
 
 Needed for progression gating — deciding whether a player has reached a given
-patch, so unreached content can be hidden unless spoiler mode is on. The game's
-own tables express journal structure but not patch boundaries, so there is no
-generated equivalent. This was worked out by hand and is the reason the old
-repository must not simply be deleted.
+patch, so unreached content can be hidden unless spoiler mode is on. It also
+drives `msqPatch` in the ledger export, which reports story position as a patch
+number. The game's own tables express journal structure but not patch
+boundaries, so there is no generated equivalent. This was worked out by hand and
+is the reason the old repository must not simply be deleted.
+
+### Keeping it current
+
+Every patch from 2.0 to 7.5 has both a `Start` and a `Final` Main Scenario
+quest. **When a patch adds Main Scenario, add its bookends here or story
+position silently reports the previous patch.**
+
+To find them: the Dawntrail MSQ lives in `JournalGenre` 14 (through 7.3) and 15
+(7.4 onward), ordered by `sort`. The wiki names each journal section after its
+closing quest, which is a useful cross-check — "Post-Dawntrail Main Scenario
+Quests II" has 14 quests and ends on *Into the Mist*, matching genre 15 exactly.
+
+Patches use the collapsed `x.y` form, so an `x.yz` patch extends the `x.y` row
+rather than gaining one of its own. **7.56 is expected to continue *Trail to the
+Heavens* — when it ships, move 7.5's `Final` to that arc's last quest instead of
+adding a `7.56` entry.**
 
 ## `festival-names.json` — 129 entries — **read by `FestivalService`**
 

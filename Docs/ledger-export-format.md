@@ -124,10 +124,14 @@ you already hold** — same rule as `playtime`.
 
 ### Known ceiling
 
-The patch boundaries come from hand-curated data that stops at **7.3**. A
-character past that still reports `7.3`. It is a floor, never an overstatement,
-and it lifts when the boundary data is extended. Treat a value of `7.3` as
-"7.3 or later" rather than exactly 7.3.
+The patch boundaries stop at the last patch recorded in `toc.json`, currently
+**7.5** — which is also the newest patch to add any Main Scenario, since 7.55
+added none. So there is no gap at present.
+
+The ceiling still matters on the day a patch lands: until the new bookends are
+added, a character who has finished it reports the previous patch. **It is always
+a floor, never an overstatement** — so an importer should never write a lower
+value over a higher stored one. Take the greater of the two.
 
 Values are strings, not numbers — `"7.2"`, not `7.2` — because `7.10` will
 eventually exist and would sort and compare wrongly as a float. Compare by
