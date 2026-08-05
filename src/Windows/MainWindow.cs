@@ -688,6 +688,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
   private const string RepoUrl = "https://github.com/LegendsOfTheGame/TimeMemoriaV3";
   private const string IssuesUrl = RepoUrl + "/issues";
 
+  /// <summary>Where the ledger export is meant to be pasted.</summary>
+  private const string LedgerUrl = "https://legendsofthegame.github.io/pandora-lunar/";
+
   /// <summary>
   /// The things people ask about. Everything here is behaviour that is either
   /// deliberate and looks like a bug, or a control that is not where you would
@@ -741,7 +744,12 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     DrawHelpEntry("Where does my exported data go?",
       "Onto your clipboard, and nowhere else. Nothing is uploaded, and",
       "this plugin makes no network requests except fetching the public",
-      "Lodestone news feed.");
+      "Lodestone news feed.",
+      "",
+      "\"Copy for Adventurer's Ledger\" on the Progression tab is meant to",
+      "be pasted into the Ledger, a separate web tracker for routines and",
+      "Ocean Fishing windows. It stores what you paste in your browser and",
+      "nowhere else. There is a button beside the export to open it.");
 
     ImGui.Spacing();
     ImGui.TextColored(HeaderColour, "What this plugin will never do");
@@ -1003,6 +1011,15 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
 
     ImGui.TextDisabled("Nothing is sent anywhere — the export stays on your clipboard.");
+    ImGui.Spacing();
+
+    // The ledger is where the second button's output is meant to go, so the
+    // way there belongs beside it rather than buried in Help.
+    if (ImGui.Button("Open Adventurer's Ledger")) Dalamud.Utility.Util.OpenLink(LedgerUrl);
+    DrawUrlTooltip(LedgerUrl);
+
+    ImGui.SameLine();
+    ImGui.TextDisabled("Paste the ledger export there. It keeps everything in your browser.");
   }
 
 
