@@ -28,6 +28,8 @@
   <ItemGroup>
     <!-- Hand-derived patch gates, shipped beside the assembly. -->
     <None Include="data/toc.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Festival names, which the game's own sheet leaves blank. -->
+    <None Include="data/festival-names.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The submodule lives inside this project's directory, so the SDK's default
