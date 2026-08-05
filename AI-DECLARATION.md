@@ -51,7 +51,19 @@ Each was caught by the human and corrected before it reached anyone.
 
 ## Assets
 
-`assets/icon.png` and the screenshots in `assets/` are **not** AI-generated.
+Nothing in `assets/` is AI-generated, but nothing in it is this plugin's own
+work either. All of it is inherited from QuestTracker and none of it currently
+ships:
+
+- `icon.png` — hand-drawn, and a stylised **Q** for QuestTracker rather than
+  anything to do with Time Memoria.
+- `overview.png`, `quests.png`, `settings.png` — screenshots of the original
+  QuestTracker, from a time when the game had around 4,360 quests in total.
+  They show three tabs; this plugin has eight.
+
+Both must be replaced before submission. Whatever replaces them will be declared
+here — the policy asks for asset disclosure to be more visible than code
+disclosure, since assets are what users actually see.
 
 ## Derived code
 
@@ -66,9 +78,11 @@ it:
 
 > **AI disclosure:** Copilot level. AI wrote most of the C# under my direction; I
 > planned the architecture, tested every change in game, and reviewed and
-> corrected the output. The icon and screenshots are not AI-generated. Full
-> declaration, including the mistakes AI made and how they were caught, is in
+> corrected the output. No assets are AI-generated. Full declaration, including
+> the mistakes AI made and how they were caught, is in
 > [AI-DECLARATION.md](AI-DECLARATION.md) in the plugin repository.
+
+Update the asset sentence if that stops being true before submission.
 
 ## Standard the maintainer holds to
 

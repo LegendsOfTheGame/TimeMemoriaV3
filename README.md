@@ -97,8 +97,7 @@ combat log.
 
 Development was AI-assisted at the **Copilot** level as defined by Dalamud's
 [AI Usage Policy](https://dalamud.dev/plugin-publishing/ai-policy/) — AI
-implements, the maintainer plans, tests and reviews. The icon and screenshots
-are not AI-generated.
+implements, the maintainer plans, tests and reviews. No assets are AI-generated.
 
 [AI-DECLARATION.md](AI-DECLARATION.md) records this in full, including what AI
 got wrong and how it was caught.
