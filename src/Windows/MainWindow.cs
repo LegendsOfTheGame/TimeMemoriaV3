@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -724,13 +724,20 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
   }
 
-  private static void DrawEventsSection(NewsEvent data)
+  /// <summary>
+  /// Events from the feed, plus anything the client says is running that the
+  /// feed does not carry. The feed only recognises events whose titles match a
+  /// known list, so collaborations and one-offs fall through it; the client has
+  /// no such blind spot, but also has no end dates.
+  /// </summary>
+  private void DrawEventsSection(NewsEvent data)
   {
     ImGui.TextColored(HeaderColour, "Active Events");
     ImGui.Separator();
     ImGui.Spacing();
 
     long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    List<string> shown = [];
     bool any = false;
 
     foreach (GameEvent ev in data.Events)
@@ -740,6 +747,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       if (!active && !upcoming) continue;
 
       any = true;
+      if (ev.Title is not null) shown.Add(ev.Title);
+
       ImGui.Text($"{(active ? "[Active]" : "[Upcoming]")}  {ev.Title ?? "Event"}");
 
       if (active && ev.End.HasValue)
@@ -751,7 +760,35 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       ImGui.Spacing();
     }
 
+    // Anything the client has switched on that the feed did not mention.
+    List<ActiveFestival> missing = [.. _festivals.GetActive()
+      .Where((f) => !shown.Any((t) => Overlaps(t, f.DisplayName)))];
+
+    foreach (ActiveFestival festival in missing)
+    {
+      any = true;
+      ImGui.Text($"[Active]  {festival.DisplayName}");
+      ImGui.TextDisabled("  Running now — end date not published to the feed.");
+      ImGui.Spacing();
+    }
+
     if (!any) ImGui.TextDisabled("No active or upcoming events.");
+
+    if (missing.Count > 0)
+    {
+      ImGui.Spacing();
+      ImGui.TextDisabled($"  {missing.Count} event{(missing.Count == 1 ? " is" : "s are")} live in game but absent from the news feed.");
+      if (ImGui.IsItemHovered())
+        ImGui.SetTooltip("The feed only recognises events whose titles match a known list.\nThese were read from the game instead.");
+    }
+  }
+
+  /// <summary>Loose title match, since feed titles are prose and sheet names are short.</summary>
+  private static bool Overlaps(string feedTitle, string festivalName)
+  {
+    if (festivalName.Length < 4) return false;
+    return feedTitle.Contains(festivalName, StringComparison.OrdinalIgnoreCase)
+        || festivalName.Contains(feedTitle, StringComparison.OrdinalIgnoreCase);
   }
 
   private static void DrawLink(string? url)

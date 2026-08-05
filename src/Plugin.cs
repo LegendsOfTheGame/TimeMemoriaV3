@@ -59,6 +59,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddSingleton<IPlaytimeService, PlaytimeService>();
         collection.AddSingleton<ITocService, TocService>();
         collection.AddSingleton<IPacingService, PacingService>();
+        collection.AddSingleton<IFestivalService, FestivalService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
