@@ -74,9 +74,21 @@ $started = Get-Date
 
 foreach ($id in $todo) {
     try {
-        $url = "https://www.garlandtools.org/db/doc/quest/en/2/$id.json"
+        # No www. The www host has a broken database fallback: for records with
+        # no pre-generated static file it answers HTTP 200 with a MySQL error as
+        # the body, which parses to nothing and looks like a missing patch.
+        $url = "https://garlandtools.org/db/doc/quest/en/2/$id.json"
         $res = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec 20 `
                                  -Headers @{ 'User-Agent' = 'TimeMemoria-patch-map/1.0' }
+
+        # Garland stores patch as a JSON number, so 2.0 arrives as 2 and 7.55 as
+        # 7.55. Kept numeric: bucketing x.yz into x.y is then arithmetic rather
+        # than string surgery, and "2" vs "2.0" stops being a distinction.
+        # A 200 carrying an error string still reaches here, so check we were
+        # actually given a quest rather than trusting the status code.
+        if ($null -eq $res.quest) {
+            throw "no quest object in response"
+        }
 
         # Garland stores patch as a JSON number, so 2.0 arrives as 2 and 7.55 as
         # 7.55. Kept numeric: bucketing x.yz into x.y is then arithmetic rather
@@ -85,10 +97,11 @@ foreach ($id in $todo) {
         $map["$id"] = if ($null -ne $patch) { [double]$patch } else { $null }
     }
     catch {
-        # 404 means Garland has no record of it, which is itself an answer:
-        # usually a quest too new for them, or one they never indexed.
+        # Counted rather than silently recorded, so a run that hits trouble says
+        # so instead of quietly producing blanks.
         $failed++
         $map["$id"] = $null
+        Write-Verbose "$id : $($_.Exception.Message)"
     }
 
     $done++
