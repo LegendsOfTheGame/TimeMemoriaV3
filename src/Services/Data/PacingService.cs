@@ -1,6 +1,6 @@
 namespace TimeMemoria.Services;
 
-public interface IPacingService
+public interface IPacingService : IHostedService
 {
   /// <summary>Quests completed since this session's baseline was taken.</summary>
   int SessionQuests { get; }
@@ -31,9 +31,58 @@ public interface IPacingService
 /// identical to a player finishing quests. Nothing here counts events; both
 /// figures are subtractions between values read live.
 /// </summary>
-public class PacingService(ILogger _logger, IClientState _clientState, IDataService _dataService, IPlaytimeService _playtime)
+public class PacingService(ILogger _logger, IFramework _framework, IClientState _clientState, IDataService _dataService, IPlaytimeService _playtime)
   : IPacingService
 {
+  /// <summary>
+  /// Grace period after login before anchoring. The quest tree reads zero until
+  /// it has been walked, and the game is still settling immediately after login.
+  /// </summary>
+  private static readonly TimeSpan AnchorDelay = TimeSpan.FromSeconds(5);
+
+  private DateTime? _anchorDueAt = DateTime.UtcNow + AnchorDelay;
+
+  public Task StartAsync(CancellationToken cancellationToken)
+  {
+    _framework.Update += OnFrameworkUpdate;
+    _clientState.Login += OnLogin;
+    return _logger.ServiceLifecycle();
+  }
+
+  public Task StopAsync(CancellationToken cancellationToken)
+  {
+    _framework.Update -= OnFrameworkUpdate;
+    _clientState.Login -= OnLogin;
+    return _logger.ServiceLifecycle();
+  }
+
+  private void OnLogin()
+  {
+    ResetSession();
+    _anchorDueAt = DateTime.UtcNow + AnchorDelay;
+  }
+
+  /// <summary>
+  /// Anchors the session shortly after login rather than waiting for the window
+  /// to be opened. Costs one quest tree walk, once per login -- without it the
+  /// baseline is whatever the total happened to be when the user first looked,
+  /// so quests completed before that never counted.
+  /// </summary>
+  private void OnFrameworkUpdate(IFramework framework)
+  {
+    if (_sessionBaseline is not null || _anchorDueAt is null) return;
+    if (!_clientState.IsLoggedIn || DateTime.UtcNow < _anchorDueAt.Value) return;
+
+    _dataService.UpdateQuestData();
+
+    int total = TotalComplete;
+    if (total <= 0) return;
+
+    _sessionBaseline = total;
+    _anchorDueAt = null;
+    _logger.Debug($"[Pacing] Session anchored at {total} completed.");
+  }
+
   /// <summary>
   /// Completion total when this session's clock started. Null until the quest
   /// tree has actually been populated — taking it at login would read zero and
@@ -46,27 +95,7 @@ public class PacingService(ILogger _logger, IClientState _clientState, IDataServ
   public bool HasLifetimePlaytime => _playtime.Current?.LifetimePlaytime > TimeSpan.Zero;
 
   public int SessionQuests
-  {
-    get
-    {
-      int total = TotalComplete;
-
-      // The tree reports zero until it has been walked at least once, so wait
-      // for a real number before anchoring the session.
-      if (_sessionBaseline is null)
-      {
-        if (total > 0 && _clientState.IsLoggedIn)
-        {
-          _sessionBaseline = total;
-          _logger.Debug($"[Pacing] Session baseline set at {total} completed.");
-        }
-
-        return 0;
-      }
-
-      return Math.Max(total - _sessionBaseline.Value, 0);
-    }
-  }
+    => _sessionBaseline is null ? 0 : Math.Max(TotalComplete - _sessionBaseline.Value, 0);
 
   public double? SessionMinutesPerQuest
   {

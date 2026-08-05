@@ -69,6 +69,7 @@ public sealed class Plugin : IDalamudPlugin
         collection.AddHostedService(sp => sp.GetRequiredService<INewsService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IPlaytimeService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ITocService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IPacingService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
       }).Build();
