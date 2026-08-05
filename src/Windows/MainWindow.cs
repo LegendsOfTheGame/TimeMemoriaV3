@@ -866,12 +866,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     DrawMaintenanceSection(data);
 
-    // Active Events is hidden for now. The feed's event list is empty because
-    // its keyword filter drops anything outside eleven known seasonal names,
-    // and the festivals read from the client have no names to show -- the
-    // Festival sheet's Name column is empty for all 264 rows. Restore the call
-    // once the feed is producing events again.
-    // DrawEventsSection(data);
+    DrawEventsSection(data);
   }
 
   private static void DrawMaintenanceSection(NewsEvent data)
@@ -984,9 +979,14 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
   }
 
-  /// <summary>Loose title match, since feed titles are prose and sheet names are short.</summary>
+  /// <summary>Loose title match, since feed titles are prose and festival names are short.</summary>
   private static bool Overlaps(string feedTitle, string festivalName)
   {
+    // Mapped names are disambiguated by year -- "All Saint's Wake (2026)" --
+    // which no feed title carries. Match on the name alone.
+    int bracket = festivalName.IndexOf('(');
+    if (bracket > 0) festivalName = festivalName[..bracket].TrimEnd();
+
     if (festivalName.Length < 4) return false;
     return feedTitle.Contains(festivalName, StringComparison.OrdinalIgnoreCase)
         || festivalName.Contains(feedTitle, StringComparison.OrdinalIgnoreCase);
