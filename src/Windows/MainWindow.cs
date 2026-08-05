@@ -934,11 +934,11 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
   }
 
   /// <summary>
-  /// Starting city, first class and Grand Company, read straight from player
-  /// state. The previous plugin worked these out by testing whether particular
-  /// quest ids were complete, which broke on anything unusual.
+  /// Who this character is, read straight from player state. The previous plugin
+  /// worked some of this out by testing whether particular quest ids were
+  /// complete, which broke on anything unusual.
   /// </summary>
-  private void DrawCharacterSection()
+  private unsafe void DrawCharacterSection()
   {
     ImGui.TextColored(HeaderColour, "Character Information");
     ImGui.Separator();
@@ -950,9 +950,85 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       return;
     }
 
+    FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState* state =
+      FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState.Instance();
+
+    // PlayerState documents Sex as 0 = male, 1 = female.
+    bool feminine = state is not null && state->Sex == 1;
+
+    string race = Pick(_playerState.Race.ValueNullable?.Masculine.ToString(),
+                       _playerState.Race.ValueNullable?.Feminine.ToString(), feminine);
+    string tribe = Pick(_playerState.Tribe.ValueNullable?.Masculine.ToString(),
+                        _playerState.Tribe.ValueNullable?.Feminine.ToString(), feminine);
+
+    DrawLabelled("Race:", race.Length > 0 && tribe.Length > 0 ? $"{race} — {tribe}" : Name(race));
+    DrawLabelled("Guardian:", Name(_playerState.GuardianDeity.ValueNullable?.Name.ToString()));
+    DrawLabelled("Nameday:", Nameday(_playerState.BirthMonth, _playerState.BirthDay));
+
+    ImGui.Spacing();
+
     DrawLabelled("Starting City:", Name(_playerState.StartTown.ValueNullable?.Name.ToString()));
     DrawLabelled("Starting Class:", Name(_playerState.FirstClass.ValueNullable?.Name.ToString()));
-    DrawLabelled("Grand Company:", Name(_playerState.GrandCompany.ValueNullable?.Name.ToString(), "None"));
+
+    string company = Name(_playerState.GrandCompany.ValueNullable?.Name.ToString(), "None");
+    if (state is not null && _playerState.GrandCompany.RowId != 0)
+    {
+      byte rank = _playerState.GetGrandCompanyRank(_playerState.GrandCompany.ValueNullable!.Value);
+      if (rank > 0) company += $"  (rank {rank})";
+    }
+    DrawLabelled("Grand Company:", company);
+
+    // Two flags worth keeping: one marks a 1.0 veteran, the other a returning
+    // player's mentor. Neither exists anywhere else in the plugin.
+    List<string> marks = [];
+    if (state is not null && state->IsLegacy) marks.Add("Legacy");
+    if (state is not null && state->IsWarriorOfLight) marks.Add("Warrior of Light");
+    if (marks.Count > 0) DrawLabelled("Standing:", string.Join(", ", marks));
+
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Social");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    DrawLabelled("Commendations:", _playerState.PlayerCommendations.ToString());
+    DrawLabelled("Custom Deliveries:", $"rank {_playerState.DeliveryLevel}");
+
+    List<string> standing = [];
+    if (_playerState.IsBattleMentor) standing.Add("Battle Mentor");
+    if (_playerState.IsTradeMentor) standing.Add("Trade Mentor");
+    if (_playerState.IsMentor && standing.Count == 0) standing.Add("Mentor");
+    if (_playerState.IsNovice) standing.Add("Novice");
+    if (_playerState.IsReturner) standing.Add("Returner");
+
+    DrawLabelled("Status:", standing.Count > 0 ? string.Join(", ", standing) : "—");
+  }
+
+  private static string Pick(string? masculine, string? feminine, bool useFeminine)
+  {
+    string chosen = useFeminine ? feminine ?? "" : masculine ?? "";
+    if (chosen.Length == 0) chosen = masculine ?? feminine ?? "";
+    return ClassJobProgressService.ToDisplayName(chosen);
+  }
+
+  /// <summary>
+  /// Eorzean namedays alternate Astral and Umbral moons, so month 1 is the 1st
+  /// Astral Moon, month 2 the 1st Umbral, and so on.
+  /// </summary>
+  private static string Nameday(byte month, byte day)
+  {
+    if (month is 0 or > 12 || day is 0 or > 31) return "—";
+
+    string moon = month % 2 == 1 ? "Astral" : "Umbral";
+    int index = (month + 1) / 2;
+    return $"{Ordinal(day)} Sun of the {Ordinal(index)} {moon} Moon";
+  }
+
+  private static string Ordinal(int n)
+  {
+    string suffix = (n % 100) is >= 11 and <= 13
+      ? "th"
+      : (n % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" };
+    return $"{n}{suffix}";
   }
 
   /// <summary>
