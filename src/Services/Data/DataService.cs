@@ -3,6 +3,9 @@ namespace TimeMemoria.Services;
 public interface IDataService : IHostedService
 {
   QuestData QuestData { get; }
+
+  /// <summary>The tree before per-character filtering. Same for every character.</summary>
+  QuestData RawQuestData { get; }
   string LevequestsTitle { get; }
   string OtherQuestsTitle { get; }
   event System.Action? OnReset;

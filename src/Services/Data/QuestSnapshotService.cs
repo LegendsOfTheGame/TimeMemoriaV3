@@ -80,8 +80,13 @@ public class QuestSnapshotService(
   {
     if (_reconciled) return;
 
+    // The raw tree, not the filtered one. QuestData has this character's
+    // unavailable quests stripped out of it -- other starting cities, other
+    // Grand Companies -- so reconciling against it would make the set depend on
+    // who is logged in, and a later read of the unfiltered tree would then
+    // report those quests as newly added.
     List<uint> current = [];
-    Collect(_dataService.QuestData, current);
+    Collect(_dataService.RawQuestData, current);
     if (current.Count == 0) return;
 
     _reconciled = true;
@@ -165,7 +170,7 @@ public class QuestSnapshotService(
         Walk(child, expansion.Length == 0 ? child.Title : expansion, section);
     }
 
-    foreach (QuestData expansion in _dataService.QuestData.Categories)
+    foreach (QuestData expansion in _dataService.RawQuestData.Categories)
       Walk(expansion, expansion.Title, "");
 
     return found;
