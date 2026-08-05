@@ -80,9 +80,46 @@ Real output for *Haurche Greystone* (Mateus).
     "shb": 157,
     "ew": 155,
     "dt": 125
+  },
+  "msqPatch": {
+    "cleared": "7.2",
+    "reached": "7.3"
   }
 }
 ```
+
+---
+
+## `msqPatch` — story position as a patch
+
+For the ledger's **MSQ Progress** field, and for gating routines on story
+milestones. This is how players actually describe their position — "I'm on
+6.3" — rather than a quest count.
+
+| Key | Meaning |
+|---|---|
+| `cleared` | Last patch whose **closing** MSQ quest is complete |
+| `reached` | Last patch whose **opening** MSQ quest is complete |
+
+**Gate on `cleared`.** `reached` can be one patch ahead — a character who has
+accepted 7.3's first quest but finished nothing in it reports
+`cleared: "7.2", reached: "7.3"`. Unlocking 7.3 content off `reached` would fire
+before the story justifies it.
+
+Either key may be absent, and the whole object is omitted if both are. A brand
+new character sends no `msqPatch` at all. **Never store an absent value over one
+you already hold** — same rule as `playtime`.
+
+### Known ceiling
+
+The patch boundaries come from hand-curated data that stops at **7.3**. A
+character past that still reports `7.3`. It is a floor, never an overstatement,
+and it lifts when the boundary data is extended. Treat a value of `7.3` as
+"7.3 or later" rather than exactly 7.3.
+
+Values are strings, not numbers — `"7.2"`, not `7.2` — because `7.10` will
+eventually exist and would sort and compare wrongly as a float. Compare by
+splitting on the dot, or map to an ordinal.
 
 ---
 
@@ -119,6 +156,7 @@ Real output for *Haurche Greystone* (Mateus).
 | `comm` | `IPlayerState.PlayerCommendations` | **Built** |
 | `playtime` | Parsed from the `/playtime` system message | **Built.** Stale by nature — see below |
 | `msqBreakdown` | Filtered MSQ bucket counts per expansion | **Built.** ARR correctly reports 240, not the 289 raw rows, so starting-city and Grand Company filtering is applied |
+| `msqPatch` | `toc.json` patch bookends vs `QuestManager.IsQuestComplete` | **Built.** Feeds the MSQ Progress field — see section above. Gate on `cleared`, not `reached` |
 | `msqBreakdownTotals` | — | **Deliberately not sent.** Static reference data the ledger already holds, and ours understates Dawntrail |
 | `quests` / `questTotals` | — | **Not sent.** See caveat |
 

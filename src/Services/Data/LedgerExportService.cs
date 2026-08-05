@@ -13,7 +13,7 @@ public interface ILedgerExportService
 /// Builds the clipboard payloads. Local only — output goes to the clipboard and
 /// nowhere else; the plugin makes no outbound requests.
 /// </summary>
-public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService)
+public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService)
   : ILedgerExportService
 {
   public string BuildProgressionJson()
@@ -75,6 +75,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       root["gather"] = BuildLevels(progress, "gather");
       root["msqBreakdown"] = BuildMsqBreakdown();
 
+      JsonObject? msqPatch = BuildMsqPatch();
+      if (msqPatch != null) root["msqPatch"] = msqPatch;
+
       return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
     catch (Exception ex)
@@ -104,6 +107,29 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       playtime["asOf"] = record.LifetimePlaytimeUpdatedUtc.Value.ToString("o");
 
     return playtime;
+  }
+
+  /// <summary>
+  /// Story position as a patch number, which is how people describe it to each
+  /// other — "I'm on 6.3", not "I have done 812 Main Scenario quests".
+  ///
+  /// Two values, because they answer different questions. <c>cleared</c> is the
+  /// last patch finished and is the safe one to gate on. <c>reached</c> is the
+  /// patch being played now, and can be one ahead.
+  ///
+  /// Omitted entirely when neither is known, rather than sent as nulls that a
+  /// consumer might store over a good value.
+  /// </summary>
+  private JsonObject? BuildMsqPatch()
+  {
+    MsqPatchProgress progress = _tocService.GetMsqPatchProgress();
+    if (progress.Cleared is null && progress.Reached is null) return null;
+
+    JsonObject patch = [];
+    if (progress.Cleared is not null) patch["cleared"] = progress.Cleared;
+    if (progress.Reached is not null) patch["reached"] = progress.Reached;
+
+    return patch;
   }
 
   /// <summary>

@@ -16,10 +16,26 @@ public enum UnlockState
   FreeTrialLocked
 }
 
+/// <summary>
+/// How far through the Main Scenario a character is, expressed as a patch.
+/// </summary>
+/// <param name="Cleared">
+/// Highest patch whose closing quest is done. The MSQ is a single line, so
+/// finishing a patch's last quest means everything before it is finished too.
+/// </param>
+/// <param name="Reached">
+/// Highest patch whose opening quest is done — the patch currently being played,
+/// which is at most one ahead of <paramref name="Cleared"/>.
+/// </param>
+public record MsqPatchProgress(string? Cleared, string? Reached);
+
 public interface ITocService : IHostedService
 {
   UnlockState GetUnlockState(uint expansionId);
   bool IsTrialAccount { get; }
+
+  /// <summary>Main Scenario position as a patch number rather than a quest count.</summary>
+  MsqPatchProgress GetMsqPatchProgress();
 }
 
 /// <summary>
@@ -44,6 +60,15 @@ public class TocService(ILogger _logger, Configuration _configuration, IDalamudP
 
   /// <summary>Expansion row id to the quest ids that open it.</summary>
   private readonly Dictionary<uint, List<uint>> _gates = [];
+
+  /// <summary>Every Main Scenario patch, in release order, with its bookend quests.</summary>
+  private readonly List<MsqPatch> _msqPatches = [];
+
+  private sealed record MsqPatch(string Patch, float Order)
+  {
+    public List<uint> StartIds { get; init; } = [];
+    public List<uint> FinalIds { get; init; } = [];
+  }
 
   /// <summary>
   /// True when the account cannot reach past the trial's ceiling. Read from the
@@ -85,7 +110,10 @@ public class TocService(ILogger _logger, Configuration _configuration, IDalamudP
         if (!_gates.ContainsKey((uint)index)) _gates[(uint)index] = entry.Ids;
       }
 
-      _logger.Debug($"[Toc] Loaded {entries.Count} entries, {_gates.Count} expansion gates.");
+      BuildMsqPatches(entries);
+
+      _logger.Debug($"[Toc] Loaded {entries.Count} entries, {_gates.Count} expansion gates, " +
+                    $"{_msqPatches.Count} MSQ patches ({_msqPatches.FirstOrDefault()?.Patch} to {_msqPatches.LastOrDefault()?.Patch}).");
     }
     catch (Exception ex)
     {
@@ -107,6 +135,55 @@ public class TocService(ILogger _logger, Configuration _configuration, IDalamudP
     if (IsReached(expansionId)) return UnlockState.Unlocked;
 
     return _configuration.SpoilerMode ? UnlockState.Unlocked : UnlockState.SpoilerLocked;
+  }
+
+  /// <summary>
+  /// Collects the Main Scenario Start and Final rows per patch.
+  ///
+  /// Ordering is numeric, not alphabetical: "7.3" sorts after "7.10" as text but
+  /// before it as a number, and the game will eventually ship an x.10.
+  /// </summary>
+  private void BuildMsqPatches(List<TocEntry> entries)
+  {
+    Dictionary<string, MsqPatch> byPatch = [];
+
+    foreach (TocEntry entry in entries)
+    {
+      if (entry.Role is not ("Start" or "Final") || entry.Ids.Count == 0) continue;
+      if (!float.TryParse(entry.Patch, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out float order)) continue;
+
+      if (!byPatch.TryGetValue(entry.Patch, out MsqPatch? patch))
+        byPatch[entry.Patch] = patch = new MsqPatch(entry.Patch, order);
+
+      (entry.Role == "Start" ? patch.StartIds : patch.FinalIds).AddRange(entry.Ids);
+    }
+
+    _msqPatches.AddRange(byPatch.Values.OrderBy((p) => p.Order));
+  }
+
+  /// <summary>
+  /// Walks the patch list in order and reports the furthest point reached.
+  ///
+  /// The data stops at the last patch the previous codebase recorded, so a
+  /// character further along than that reads as being at the end of it. That is
+  /// a floor, never a wrong answer in the other direction.
+  /// </summary>
+  public MsqPatchProgress GetMsqPatchProgress()
+  {
+    string? cleared = null;
+    string? reached = null;
+
+    foreach (MsqPatch patch in _msqPatches)
+    {
+      if (patch.StartIds.Any(QuestManager.IsQuestComplete)) reached = patch.Patch;
+
+      // The final patch on record has no closing quest, because it was the
+      // current one when this data was written.
+      if (patch.FinalIds.Count > 0 && patch.FinalIds.Any(QuestManager.IsQuestComplete)) cleared = patch.Patch;
+    }
+
+    return new MsqPatchProgress(cleared, reached);
   }
 
   /// <summary>A Realm Reborn is always reachable; the rest need their opening quest.</summary>
