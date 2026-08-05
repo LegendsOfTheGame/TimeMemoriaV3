@@ -51,19 +51,21 @@ Each was caught by the human and corrected before it reached anyone.
 
 ## Assets
 
-Nothing in `assets/` is AI-generated, but nothing in it is this plugin's own
-work either. All of it is inherited from QuestTracker and none of it currently
-ships:
+No asset here is AI-generated.
 
-- `icon.png` — hand-drawn, and a stylised **Q** for QuestTracker rather than
-  anything to do with Time Memoria.
-- `overview.png`, `quests.png`, `settings.png` — screenshots of the original
-  QuestTracker, from a time when the game had around 4,360 quests in total.
-  They show three tabs; this plugin has eight.
+- `icon.png` — **drawn by hand by the maintainer in MS Paint**, after the
+  Tomestone of Poetics. `icon-source-1024.png` is the original; the shipped copy
+  is that file resampled to 512x512 with Pillow's Lanczos filter to meet
+  Dalamud's size cap. That is arithmetic on pixels, not a generative or
+  ML-upscaling step — no detail was invented that the maintainer did not draw.
+- `overview.png`, `quests.png`, `settings.png` — **stale, and not this plugin.**
+  They are screenshots of the original QuestTracker from when the game held
+  around 4,360 quests, showing three tabs where this plugin has eight. They must
+  be retaken before submission.
 
-Both must be replaced before submission. Whatever replaces them will be declared
-here — the policy asks for asset disclosure to be more visible than code
-disclosure, since assets are what users actually see.
+If any of this changes, this section changes with it — the policy asks for asset
+disclosure to be more visible than code disclosure, since assets are what users
+actually see.
 
 ## Derived code
 
