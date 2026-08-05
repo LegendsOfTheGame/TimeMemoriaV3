@@ -1,13 +1,14 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <!-- Pre-release. This rebuild has not reached parity with the shipping
-         Time Memoria 3.0.1, so it deliberately does not share its version line. -->
+    <!-- Time Memoria has never been released. This becomes 1.0.0.0 when it is. -->
     <Version>0.1.0.0</Version>
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- Distinct assembly name so this can be installed beside the shipping
-         plugin for side-by-side comparison. Renamed at release. -->
+    <!-- Distinct assembly name only so the earlier attempt can stay installed
+         alongside this one while its numbers are still worth comparing against.
+         Nobody else has either plugin, so this is a one-line change to
+         TimeMemoria whenever that stops being useful. -->
     <AssemblyName>TimeMemoriaV3</AssemblyName>
     <RootNamespace>TimeMemoria</RootNamespace>
   </PropertyGroup>

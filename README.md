@@ -8,20 +8,19 @@ for your story journey, not a scoreboard.
 
 ---
 
-## Status: pre-release rebuild
+## Status: unreleased
 
-This repository is a **ground-up rebuild** and is not yet the shipping plugin.
-The released Time Memoria lives at
-[TimeMemoriaV2](https://github.com/LegendsOfTheGame/TimeMemoriaV2).
+**Time Memoria has never been released.** Nothing has been published and nobody
+has installed it. When this repository ships, it will be version 1.0.
 
-It exists because the previous version maintained its quest data by hand — 288
-JSON files that had to be updated every patch. That did not survive contact with
-a release schedule: patch 7.5 shipped in April 2026 and the data was never
-added. This rebuild reads quest data from the game's own tables instead, so new
-content appears the day a patch lands and no one has to do anything.
+An earlier attempt exists at
+[TimeMemoriaV2](https://github.com/LegendsOfTheGame/TimeMemoriaV2). It is kept
+for reference, not as a released version. It maintained its quest data by hand —
+288 JSON files needing an update every patch — and that is why it stalled:
+patch 7.5 landed in April 2026 and the data was never added.
 
-Versioned from `0.1.0.0` and deliberately off the shipping version line until it
-reaches parity.
+This rebuild reads quest data from the game's own journal tables instead, so a
+patch's content appears the day it lands and no one has to do anything.
 
 ### What works
 
