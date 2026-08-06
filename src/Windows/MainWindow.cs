@@ -104,18 +104,11 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Spacing();
     ImGui.Separator();
     ImGui.Spacing();
-    DrawNativeButton("Open the game window", _nativeUi.Toggle);
-  }
-
-  /// <summary>
-  /// Opens the native counterpart of this window — the same tabs drawn with the
-  /// game's own widgets rather than ImGui.
-  /// </summary>
-  private static void DrawNativeButton(string label, System.Action toggle)
-  {
-    if (ImGui.Button(label)) toggle();
+    // Passing this window's size across is how the native window gets resized:
+    // it has no handle of its own, but this one does.
+    if (ImGui.Button("Open the game window")) _nativeUi.Toggle(ImGui.GetWindowSize());
     ImGui.SameLine();
-    ImGui.TextDisabled("Experimental native version of this window.");
+    ImGui.TextDisabled("Opens at this window's current size.");
   }
 
   /// <summary>One aligned "name  complete/total  percent" line.</summary>
