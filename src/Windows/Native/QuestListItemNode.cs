@@ -8,12 +8,12 @@ namespace TimeMemoria.Windows.Native;
 /// One quest in the native browser's list: title on top, the details that
 /// distinguish it underneath.
 ///
-/// The tree node owns the pooling, scrolling and expansion state, so this type
+/// <see cref="ListNode{T,TU}"/> owns the pooling and scrolling, so this type
 /// only has to describe a single row and fill it from a quest. Rows are reused
 /// as the list scrolls, which is why <see cref="SetNodeData"/> must set every
 /// field on every call rather than assuming an empty starting state.
 /// </summary>
-public class QuestListItemNode : TreeListItemNode<Types.Quest>, ITreeListItemNode
+public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNode
 {
   public static float ItemHeight => 38.0f;
 
