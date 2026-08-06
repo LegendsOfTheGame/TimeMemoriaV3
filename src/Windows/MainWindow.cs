@@ -832,6 +832,16 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       "Settings also lets you drop Other Quests and Levequests from the",
       "overall figure, which many people prefer.");
 
+    DrawHelpEntry("Why do collectables say \"open Achievements once\"?",
+      "The game keeps no running count. The number lives in an achievement and",
+      "the client only fetches it for whichever one you are looking at, so the",
+      "plugin waits until you open the Achievements window rather than asking",
+      "the server itself.",
+      "",
+      "A figure with a + is a floor, not a count: a tier you have already",
+      "finished reports its own requirement instead of your total. Look at a",
+      "later tier for the exact number.");
+
     DrawHelpEntry("The Wiki button beside the quest search",
       "Sends whatever you have typed to the FFXIV wiki's own search, which",
       "jumps straight to a page when the text matches one exactly. That makes",

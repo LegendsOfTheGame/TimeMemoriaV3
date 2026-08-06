@@ -17,11 +17,15 @@ namespace TimeMemoria.Windows.Native;
 public unsafe class CompanionAddon : NativeAddon
 {
   private const float RowHeight = 20.0f;
-  private const float LabelWidth = 150.0f;
-  private const float ValueWidth = 110.0f;
+  private const float LabelWidth = 132.0f;
+  private const float ValueWidth = 150.0f;
 
-  /// <summary>Enough for the headings, the pacing lines and the job list.</summary>
-  private const int MaxRows = 16;
+  /// <summary>
+  /// Enough for every heading and row with a little headroom. Rows past this
+  /// are silently dropped, which is how the job list fell off the bottom when
+  /// collectables were added.
+  /// </summary>
+  private const int MaxRows = 22;
 
   /// <summary>Beyond a handful this stops being "what should I level next".</summary>
   private const int LowestJobCount = 5;
@@ -33,6 +37,7 @@ public unsafe class CompanionAddon : NativeAddon
   public required IClassJobProgressService ProgressService { get; init; }
   public required IPlaytimeService Playtime { get; init; }
   public required IPacingService Pacing { get; init; }
+  public required IAchievementService Achievements { get; init; }
 
   private VerticalListNode? _list;
   private readonly List<(TextNode Label, TextNode Value)> _rows = [];
@@ -102,6 +107,10 @@ public unsafe class CompanionAddon : NativeAddon
     {
       SetRow(ref row, "Lifetime", "run /playtime", muted: true);
     }
+
+    SetHeading(ref row, "Collectables");
+    SetCollectables(ref row, "Gathered", Achievements.Gathered);
+    SetCollectables(ref row, "Crafted", Achievements.Crafted);
 
     SetHeading(ref row, "Pacing");
     SetRow(ref row, $"This session ({Pacing.SessionQuests})", FormatPace(Pacing.SessionMinutesPerQuest));
@@ -173,6 +182,29 @@ public unsafe class CompanionAddon : NativeAddon
     value.String = text;
 
     label.TextColor = value.TextColor = muted ? Muted : Normal;
+  }
+
+  /// <summary>
+  /// A collectable count, said as precisely as it can honestly be said.
+  ///
+  /// The game only reveals these when the Achievements window is open, so
+  /// before that there is nothing to show and the row says so rather than
+  /// showing a zero. When the tier that was looked at is already complete its
+  /// number is that tier's requirement rather than a running total, so it is
+  /// reported as a floor with a nudge toward a later tier.
+  /// </summary>
+  private void SetCollectables(ref int row, string label, AchievementReading? reading)
+  {
+    if (reading is null)
+    {
+      SetRow(ref row, label, "open Achievements once", muted: true);
+      return;
+    }
+
+    // Age goes on the same line rather than its own. This window is small, and
+    // two rows per figure pushed the job list off the bottom of it.
+    string count = reading.IsExact ? $"{reading.Value:N0}" : $"{reading.Value:N0}+";
+    SetRow(ref row, label, $"{count}   {Ago(DateTime.UtcNow - reading.TakenUtc)}");
   }
 
   private static string Ago(TimeSpan span)

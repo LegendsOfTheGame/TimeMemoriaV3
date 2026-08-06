@@ -35,7 +35,7 @@ public interface INativeUiService : IAsyncDisposable
 public class NativeUiService(ILogger _logger, IClassJobProgressService _classJobProgress, IDataService _dataService,
   Configuration _configuration, IQuestPatchService _questPatch, IPlaytimeService _playtime, IPacingService _pacing,
   IQuestSnapshotService _snapshot, IFestivalService _festivals, INewsService _news, IPlayerState _playerState,
-  ILedgerExportService _ledgerExport)
+  ILedgerExportService _ledgerExport, IAchievementService _achievements)
   : INativeUiService
 {
   private MainAddon? _window;
@@ -51,10 +51,11 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     {
       InternalName = "TimeMemoriaGlance",
       Title = "Time Memoria",
-      Size = new Vector2(300.0f, 380.0f),
+      Size = new Vector2(310.0f, 400.0f),
       ProgressService = _classJobProgress,
       Playtime = _playtime,
-      Pacing = _pacing
+      Pacing = _pacing,
+      Achievements = _achievements
     };
 
     _window = new MainAddon

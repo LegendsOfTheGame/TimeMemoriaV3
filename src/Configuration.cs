@@ -19,6 +19,15 @@ public class Configuration : IPluginConfiguration
   /// <summary>Keyed by "CharacterName@WorldName".</summary>
   public Dictionary<string, PlaytimeRecord> PlaytimeRecords { get; set; } = [];
 
+  /// <summary>
+  /// Collectable counts per character, keyed the same way playtime is.
+  ///
+  /// Persisted because the number only appears when the Achievements window is
+  /// opened. Forgetting it on logout would mean the display is blank far more
+  /// often than not.
+  /// </summary>
+  public Dictionary<string, StoredReadings> AchievementReadings { get; set; } = [];
+
   /// <summary>Open the game-styled window rather than the ImGui one.</summary>
   public bool UseNativeUi { get; set; } = false;
 
