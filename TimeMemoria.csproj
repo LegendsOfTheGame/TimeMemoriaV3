@@ -58,5 +58,6 @@
        package. After cloning, initialise submodules before building. -->
   <ItemGroup>
     <ProjectReference Include="lib/KamiToolKit/KamiToolKit.csproj" Private="True" />
+    <ProjectReference Include="lib/KamiToolKit.Components/KamiToolKit.Components.csproj" Private="True" />
   </ItemGroup>
 </Project>

@@ -100,6 +100,22 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Spacing();
 
     DrawSuggestedQuest();
+
+    ImGui.Spacing();
+    ImGui.Separator();
+    ImGui.Spacing();
+    DrawNativeButton("Open as a game window", _nativeUi.ToggleOverview);
+  }
+
+  /// <summary>
+  /// Opens this tab's native counterpart. Each tab gets its own, added one at a
+  /// time so a broken one is obvious rather than buried among six others.
+  /// </summary>
+  private static void DrawNativeButton(string label, System.Action toggle)
+  {
+    if (ImGui.Button(label)) toggle();
+    ImGui.SameLine();
+    ImGui.TextDisabled("Experimental native version of this tab.");
   }
 
   /// <summary>One aligned "name  complete/total  percent" line.</summary>
@@ -1055,12 +1071,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Separator();
     ImGui.Spacing();
 
-    // Experimental. This same panel drawn with the game's own widgets rather
-    // than ImGui -- the first piece of a native interface, and the thing that
-    // has to survive a plugin unload before any more of it gets built.
-    if (ImGui.Button("Open as a game window")) _nativeUi.ToggleProgression();
-    ImGui.SameLine();
-    ImGui.TextDisabled("Experimental native version of this tab.");
+    DrawNativeButton("Open as a game window", _nativeUi.ToggleProgression);
   }
 
 

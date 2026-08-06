@@ -1,4 +1,5 @@
 using KamiToolKit;
+using KamiToolKit.BaseTypes;
 using TimeMemoria.Windows.Native;
 
 namespace TimeMemoria.Services;
@@ -10,6 +11,9 @@ public interface INativeUiService : IAsyncDisposable
 
   /// <summary>Shows or hides the native Progression window.</summary>
   void ToggleProgression();
+
+  /// <summary>Shows or hides the native Overview window.</summary>
+  void ToggleOverview();
 
   /// <summary>False until <see cref="Create"/> has run.</summary>
   bool IsReady { get; }
@@ -29,9 +33,11 @@ public interface INativeUiService : IAsyncDisposable
 /// KamiToolKit requires: every addon awaited first, then the library's own
 /// cleanup, which conversely *must* be back on the main thread.
 /// </summary>
-public class NativeUiService(ILogger _logger, IClassJobProgressService _classJobProgress) : INativeUiService
+public class NativeUiService(ILogger _logger, IClassJobProgressService _classJobProgress, IDataService _dataService)
+  : INativeUiService
 {
   private ProgressionAddon? _progression;
+  private OverviewAddon? _overview;
 
   public bool IsReady => _progression is not null;
 
@@ -47,28 +53,53 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       ProgressService = _classJobProgress
     };
 
+    _overview = new OverviewAddon
+    {
+      InternalName = "TimeMemoriaOverview",
+      Title = "Time Memoria — Overview",
+      Size = new Vector2(440.0f, 500.0f),
+      DataService = _dataService
+    };
+
     _logger.Debug("[NativeUi] Addons created.");
   }
 
-  public void ToggleProgression()
+  public void ToggleProgression() => Toggle(_progression, "Progression");
+
+  public void ToggleOverview() => Toggle(_overview, "Overview");
+
+  private void Toggle(NativeAddon? addon, string name)
   {
-    if (_progression is null)
+    if (addon is null)
     {
-      _logger.Error("[NativeUi] Toggle requested before the addons were created.");
+      _logger.Error($"[NativeUi] {name} toggled before the addons were created.");
       return;
     }
 
-    _progression.Toggle();
+    addon.Toggle();
   }
 
+  /// <summary>
+  /// Every addon is awaited individually. Closing one plays an animation over
+  /// several frames, so a synchronous Dispose would return while it is still
+  /// alive -- and the library cleanup that follows would then be tearing down
+  /// nodes still in use.
+  /// </summary>
   public async ValueTask DisposeAsync()
   {
     GC.SuppressFinalize(this);
 
-    if (_progression is null) return;
+    if (_overview is not null)
+    {
+      await _overview.DisposeAsync();
+      _overview = null;
+    }
 
-    await _progression.DisposeAsync();
-    _progression = null;
+    if (_progression is not null)
+    {
+      await _progression.DisposeAsync();
+      _progression = null;
+    }
 
     _logger.Debug("[NativeUi] Addons disposed.");
   }
