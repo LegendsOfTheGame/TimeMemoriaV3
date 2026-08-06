@@ -10,6 +10,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Creating a release needs write access to repository contents. The default
+    # token is read-only, so the build succeeds and only the release step fails.
+    permissions:
+      contents: write
+
     steps:
       # KamiToolKit and KamiToolKit.Components are submodules and the project
       # references them directly, so a checkout without them cannot build.
