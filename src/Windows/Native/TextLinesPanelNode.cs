@@ -23,8 +23,8 @@ public abstract class TextLinesPanelNode : TabPanelNode
     _list = new ListNode<string, StringListItemNode>
     {
       IsVisible = true,
-      OptionsList = [],
-      ShowNoResultsPlaceholder = false
+      ShowNoResultsPlaceholder = false,
+      OptionsList = []
     };
 
     _list.AttachNode(this);

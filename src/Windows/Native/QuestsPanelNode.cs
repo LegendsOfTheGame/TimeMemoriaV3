@@ -26,6 +26,8 @@ public class QuestsPanelNode : TabPanelNode
   public required ILogger Logger { get; init; }
 
   private readonly TextInputNode _search;
+  private readonly TextButtonNode _wiki;
+  private readonly TextButtonNode _clear;
   private readonly TabBarNode _filterTabs;
   private readonly NestableTreeListNode<QuestData, CategoryTreeItemNode> _tree;
   private readonly TextNode _heading;
@@ -47,6 +49,26 @@ public class QuestsPanelNode : TabPanelNode
       OnInputReceived = OnSearchChanged
     };
     _search.AttachNode(this);
+
+    // The plugin says what is left; the wiki says how to do it. Passing the
+    // same words across saves typing them twice.
+    _wiki = new TextButtonNode
+    {
+      String = "Wiki",
+      IsVisible = true,
+      TextTooltip = "Search the FFXIV wiki. Shorthand works too — A8S, TEA, DRS.",
+      OnClick = () => Windows.MainWindow.OpenWikiSearch(_query)
+    };
+    _wiki.AttachNode(this);
+
+    _clear = new TextButtonNode
+    {
+      String = "Clear",
+      IsVisible = true,
+      TextTooltip = "Clear the search.",
+      OnClick = ClearSearch
+    };
+    _clear.AttachNode(this);
 
     _filterTabs = new TabBarNode
     {
@@ -83,8 +105,8 @@ public class QuestsPanelNode : TabPanelNode
     _list = new ListNode<Types.Quest, QuestListItemNode>
     {
       IsVisible = true,
-      OptionsList = [],
-      ShowNoResultsPlaceholder = false
+      ShowNoResultsPlaceholder = false,
+      OptionsList = []
     };
     _list.AttachNode(this);
   }
@@ -120,6 +142,18 @@ public class QuestsPanelNode : TabPanelNode
   private void OnSearchChanged(ReadOnlySeString input)
   {
     _query = input.ToString();
+    ShowQuests();
+  }
+
+  /// <summary>
+  /// Empties the box as well as the query. Clearing only the query would leave
+  /// the text sitting there looking as though it were still filtering.
+  /// </summary>
+  private void ClearSearch()
+  {
+    _search.String = string.Empty;
+    _query = string.Empty;
+
     ShowQuests();
   }
 
@@ -198,8 +232,16 @@ public class QuestsPanelNode : TabPanelNode
     float rightWidth = Width - leftWidth - Gap;
     float bodyHeight = Height - BarHeight * 2.0f - Gap;
 
-    _search.Size = new Vector2(Width, BarHeight);
+    const float buttonWidth = 70.0f;
+
+    _search.Size = new Vector2(Width - (buttonWidth + Gap) * 2.0f, BarHeight);
     _search.Position = new Vector2(0.0f, 0.0f);
+
+    _wiki.Size = new Vector2(buttonWidth, BarHeight);
+    _wiki.Position = new Vector2(Width - (buttonWidth + Gap) - buttonWidth, 0.0f);
+
+    _clear.Size = new Vector2(buttonWidth, BarHeight);
+    _clear.Position = new Vector2(Width - buttonWidth, 0.0f);
 
     _filterTabs.Size = new Vector2(leftWidth, BarHeight);
     _filterTabs.Position = new Vector2(0.0f, BarHeight);
@@ -236,13 +278,14 @@ public class QuestsPanelNode : TabPanelNode
     // Only jobs the character has actually unlocked. An unlocked job is one with
     // a level, which is what IsUnlocked means — so jobs never touched do not
     // appear and suggest work that cannot be started.
-    List<Types.Quest> jobQuests =
-    [
-      .. ProgressService.GetProgress()
-        .Where((p) => p.IsUnlocked)
-        .Select(FirstIncompleteForJob)
-        .OfType<Types.Quest>()
-    ];
+    // Labelled with the job, since a list of fourteen quest names says nothing
+    // about which job each belongs to. The label goes on a clone: the quest in
+    // the tree is shared, and renaming it there would rename it everywhere.
+    List<Types.Quest> jobQuests = [];
+
+    foreach (ClassJobProgress job in ProgressService.GetProgress().Where((p) => p.IsUnlocked))
+      if (FirstIncompleteForJob(job) is { } next)
+        jobQuests.Add(LabelledFor(next, job.Name));
 
     if (jobQuests.Count > 0) section.Entries.Add(Bundle($"Job Quests  ({jobQuests.Count})", jobQuests));
     else LogJobLineShape();
@@ -272,6 +315,19 @@ public class QuestsPanelNode : TabPanelNode
           Logger.Debug($"[Quests]       genre '{genre.Title}' hide={genre.Hide} " +
                        $"children={genre.Categories.Count} quests={genre.Quests.Count}");
       }
+  }
+
+  /// <summary>
+  /// A copy of a quest with the job appended to its title. Everything else —
+  /// ids, level, area — is carried over, so completion and patch still resolve
+  /// against the real quest.
+  /// </summary>
+  private static Types.Quest LabelledFor(Types.Quest quest, string jobName)
+  {
+    Types.Quest copy = (Types.Quest)quest.Clone();
+    copy.Title = $"{quest.Title}  ({jobName})";
+
+    return copy;
   }
 
   /// <summary>

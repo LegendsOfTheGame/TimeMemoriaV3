@@ -15,7 +15,10 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     _dataService.UpdateQuestData();
 
     Flags = ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
-    ImGui.SetNextWindowSize(new Vector2(475, 375), ImGuiCond.FirstUseEver);
+    // Matches the native window's default. The native one borrows its size from
+    // here, so starting them the same means a first run looks right either way
+    // rather than the native window clamping up from a smaller classic default.
+    ImGui.SetNextWindowSize(new Vector2(956, 689), ImGuiCond.FirstUseEver);
     SizeConstraints = new()
     {
       MinimumSize = new Vector2(475, 240),
@@ -219,14 +222,37 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private bool IsSearching => _searchQuery.Trim().Length >= 2;
 
+  /// <summary>
+  /// Opens the wiki's own search rather than guessing an article URL — a quest
+  /// name does not reliably map to a page title, and a search that finds
+  /// nothing beats a link that 404s.
+  /// </summary>
+  internal static void OpenWikiSearch(string term)
+  {
+    string query = Uri.EscapeDataString(term.Trim());
+    if (query.Length == 0) return;
+
+    Dalamud.Utility.Util.OpenLink(
+      $"https://ffxiv.consolegameswiki.com/mediawiki/index.php?search={query}&title=Special%3ASearch&go=Go");
+  }
+
   private void DrawSearchBar()
   {
-    ImGui.SetNextItemWidth(-90.0f * ImGuiHelpers.GlobalScale);
+    ImGui.SetNextItemWidth(-150.0f * ImGuiHelpers.GlobalScale);
     ImGui.InputTextWithHint("##questSearch", "Search quests...", ref _searchQuery, 128);
 
-    ImGui.SameLine();
-    using (ImRaii.DisabledDisposable disabled = ImRaii.Disabled(_searchQuery.Length == 0))
+    using (ImRaii.DisabledDisposable disabled = ImRaii.Disabled(_searchQuery.Trim().Length == 0))
+    {
+      // This plugin answers "what is left"; the wiki answers "how do I do it".
+      // Handing the same words straight across saves retyping them.
+      ImGui.SameLine();
+      if (ImGui.Button("Wiki")) OpenWikiSearch(_searchQuery);
+      if (ImGui.IsItemHovered())
+        ImGui.SetTooltip("Search the FFXIV wiki. Shorthand works too — A8S, TEA, DRS.");
+
+      ImGui.SameLine();
       if (ImGui.Button("Clear")) _searchQuery = "";
+    }
 
     ImGui.Spacing();
   }
@@ -805,6 +831,19 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       "",
       "Settings also lets you drop Other Quests and Levequests from the",
       "overall figure, which many people prefer.");
+
+    DrawHelpEntry("The Wiki button beside the quest search",
+      "Sends whatever you have typed to the FFXIV wiki's own search, which",
+      "jumps straight to a page when the text matches one exactly. That makes",
+      "community shorthand work — A8S, TEA, DRS and the like are wiki",
+      "redirects, so they land on the right page even though none of them is",
+      "a quest name and searching quests for them finds nothing.");
+
+    DrawHelpEntry("Why does Overview show a smaller total than the Quests tree?",
+      "Overview honours the exclusion settings — an excluded category is shown",
+      "greyed and left out of the totals. The tree never excludes anything,",
+      "because it is how you reach a quest, and dropping a category from a",
+      "total should not put its quests out of reach.");
 
     DrawHelpEntry("An event is running in game but not listed. Or the reverse.",
       "Active Events reads the client, so anything switched on shows up",

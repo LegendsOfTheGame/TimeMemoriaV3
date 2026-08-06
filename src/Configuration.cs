@@ -26,11 +26,15 @@ public class Configuration : IPluginConfiguration
   /// Size for the native window, which has no resize handle of its own. Tracked
   /// from the ImGui window, which does, and persisted so the native window does
   /// not depend on the other having been opened this session.
+  ///
+  /// The default is a size actually settled on in use rather than a guess: the
+  /// quest tree and its list both fit without scrolling sideways, and the eight
+  /// tabs fit on one row.
   /// </summary>
-  public float NativeWindowWidth { get; set; } = 900f;
+  public float NativeWindowWidth { get; set; } = 956f;
 
   /// <inheritdoc cref="NativeWindowWidth"/>
-  public float NativeWindowHeight { get; set; } = 640f;
+  public float NativeWindowHeight { get; set; } = 689f;
 
   [NonSerialized]
   private IDalamudPluginInterface PluginInterface = null!;

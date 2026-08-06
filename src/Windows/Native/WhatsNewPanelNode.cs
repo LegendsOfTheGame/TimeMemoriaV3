@@ -83,8 +83,8 @@ public class WhatsNewPanelNode : TabPanelNode
     _list = new ListNode<NewQuest, NewQuestListItemNode>
     {
       IsVisible = true,
-      OptionsList = [],
-      ShowNoResultsPlaceholder = false
+      ShowNoResultsPlaceholder = false,
+      OptionsList = []
     };
     _list.AttachNode(this);
   }
