@@ -15,6 +15,12 @@ public interface INativeUiService : IAsyncDisposable
   /// <summary>Shows or hides the native Overview window.</summary>
   void ToggleOverview();
 
+  /// <summary>Shows or hides the native Settings window.</summary>
+  void ToggleSettings();
+
+  /// <summary>Shows or hides the native quest browser.</summary>
+  void ToggleQuests();
+
   /// <summary>False until <see cref="Create"/> has run.</summary>
   bool IsReady { get; }
 }
@@ -33,11 +39,13 @@ public interface INativeUiService : IAsyncDisposable
 /// KamiToolKit requires: every addon awaited first, then the library's own
 /// cleanup, which conversely *must* be back on the main thread.
 /// </summary>
-public class NativeUiService(ILogger _logger, IClassJobProgressService _classJobProgress, IDataService _dataService)
-  : INativeUiService
+public class NativeUiService(ILogger _logger, IClassJobProgressService _classJobProgress, IDataService _dataService,
+  Configuration _configuration, IQuestPatchService _questPatch) : INativeUiService
 {
   private ProgressionAddon? _progression;
   private OverviewAddon? _overview;
+  private SettingsAddon? _settings;
+  private QuestBrowserAddon? _quests;
 
   public bool IsReady => _progression is not null;
 
@@ -61,12 +69,34 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       DataService = _dataService
     };
 
+    _settings = new SettingsAddon
+    {
+      InternalName = "TimeMemoriaSettings",
+      Title = "Time Memoria — Settings",
+      Size = new Vector2(420.0f, 340.0f),
+      Config = _configuration,
+      DataService = _dataService
+    };
+
+    _quests = new QuestBrowserAddon
+    {
+      InternalName = "TimeMemoriaQuests",
+      Title = "Time Memoria — Quests",
+      Size = new Vector2(830.0f, 620.0f),
+      DataService = _dataService,
+      PatchService = _questPatch
+    };
+
     _logger.Debug("[NativeUi] Addons created.");
   }
+
+  public void ToggleQuests() => Toggle(_quests, "Quests");
 
   public void ToggleProgression() => Toggle(_progression, "Progression");
 
   public void ToggleOverview() => Toggle(_overview, "Overview");
+
+  public void ToggleSettings() => Toggle(_settings, "Settings");
 
   private void Toggle(NativeAddon? addon, string name)
   {
@@ -88,6 +118,18 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   public async ValueTask DisposeAsync()
   {
     GC.SuppressFinalize(this);
+
+    if (_quests is not null)
+    {
+      await _quests.DisposeAsync();
+      _quests = null;
+    }
+
+    if (_settings is not null)
+    {
+      await _settings.DisposeAsync();
+      _settings = null;
+    }
 
     if (_overview is not null)
     {

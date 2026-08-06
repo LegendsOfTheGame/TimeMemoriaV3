@@ -69,6 +69,20 @@ public unsafe class OverviewAddon : NativeAddon
     }
   }
 
+  /// <summary>
+  /// Closing an addon tears its nodes down, and opening it again runs OnSetup
+  /// afresh. Without this the row list would keep the previous run's entries and
+  /// grow by <see cref="MaxRows"/> every time the window was reopened, holding
+  /// references to nodes that no longer exist.
+  /// </summary>
+  protected override void OnFinalize(AtkUnitBase* addon)
+  {
+    _rows.Clear();
+    _list = null;
+
+    base.OnFinalize(addon);
+  }
+
   protected override void OnUpdate(AtkUnitBase* addon)
   {
     IReadOnlyList<ExpansionProgress> expansions = DataService.ExpansionProgress;

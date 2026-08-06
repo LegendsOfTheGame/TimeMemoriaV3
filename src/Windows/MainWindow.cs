@@ -176,7 +176,20 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private void DrawQuestsTab()
   {
+    // Settings can now be changed from the native window too, which can hide
+    // whatever is currently selected here. Re-checking each draw makes this
+    // self-healing rather than requiring every settings control everywhere to
+    // remember to notify this window.
+    ResetSelections();
+
     DrawSearchBar();
+
+    // Both panels below claim all remaining height, so this has to sit above
+    // them rather than at the foot of the tab like the other native buttons.
+    if (ImGui.Button("Open as a game window")) _nativeUi.ToggleQuests();
+    ImGui.SameLine();
+    ImGui.TextDisabled("Experimental native version of this tab.");
+    ImGui.Spacing();
 
     float totalWidth = ImGui.GetContentRegionAvail().X;
     float splitterWidth = 4f;
@@ -704,6 +717,11 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
 
     DrawSpoilerSettings();
+
+    ImGui.Spacing();
+    ImGui.Separator();
+    ImGui.Spacing();
+    DrawNativeButton("Open as a game window", _nativeUi.ToggleSettings);
   }
 
   private const string RepoUrl = "https://github.com/LegendsOfTheGame/TimeMemoriaV3";
