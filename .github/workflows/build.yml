@@ -7,6 +7,16 @@ on:
   pull_request:
     branches: [main, master]
 
+  # A push does not always produce a run — one has been missed. Without a manual
+  # trigger the only way to retry is to move a tag, which rewrites history for
+  # something that was never the tag's fault.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag or branch to build and, for a v-tag, release"
+        required: false
+        default: main
+
 jobs:
   build:
     runs-on: ubuntu-latest
