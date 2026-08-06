@@ -109,13 +109,19 @@ public unsafe class CompanionAddon : NativeAddon
 
     SetHeading(ref row, "Furthest behind  (lv.progress)");
 
-    // Battle jobs only. Ordered by level plus progress within it, so a job most
-    // of the way through a level ranks above one that has just reached it --
-    // comparing levels alone put Miner and Botanist in the wrong order once.
+    // Battle jobs only, and not the limited ones. This list answers "what should
+    // I level next", and Blue Mage or Beastmaster cannot be levelled by any of
+    // the means the rest of the list implies -- they would simply sit at the top
+    // of it for ever. The flag comes from the ClassJob sheet, so a limited job
+    // added in a future patch is excluded without anything being changed here.
+    //
+    // Ordered by level plus progress within it, so a job most of the way through
+    // a level ranks above one that has just reached it -- comparing levels alone
+    // put Miner and Botanist in the wrong order once.
     List<ClassJobProgress> jobs =
     [
       .. ProgressService.GetProgress()
-        .Where((j) => j.IsUnlocked && j.Category == "combat" && !j.IsMaxLevel)
+        .Where((j) => j.IsUnlocked && j.Category == "combat" && !j.IsMaxLevel && !j.IsLimitedJob)
         .OrderBy((j) => j.Level + j.Fraction)
         .Take(LowestJobCount)
     ];

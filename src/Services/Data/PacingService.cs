@@ -48,7 +48,21 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
   /// </summary>
   private static readonly TimeSpan AnchorDelay = TimeSpan.FromSeconds(5);
 
+  /// <summary>
+  /// How long the completion total must hold steady before it is trusted.
+  ///
+  /// The game registers completions progressively as a character loads, so the
+  /// total keeps climbing after it first reads non-zero. Anchoring on that first
+  /// reading captures a partial figure, and everything arriving afterwards is
+  /// then counted as quests finished this session — 24 of them in zero minutes,
+  /// in the case that found this.
+  /// </summary>
+  private static readonly TimeSpan SettleWindow = TimeSpan.FromSeconds(4);
+
   private DateTime? _anchorDueAt = DateTime.UtcNow + AnchorDelay;
+
+  private int? _settlingTotal;
+  private DateTime _settlingSince = DateTime.UtcNow;
 
   public Task StartAsync(CancellationToken cancellationToken)
   {
@@ -85,6 +99,17 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
 
     int total = TotalComplete;
     if (total <= 0) return;
+
+    // Wait for the figure to stop moving. A total still climbing is the game
+    // finishing its load, not the player finishing quests.
+    if (_settlingTotal != total)
+    {
+      _settlingTotal = total;
+      _settlingSince = DateTime.UtcNow;
+      return;
+    }
+
+    if (DateTime.UtcNow - _settlingSince < SettleWindow) return;
 
     _sessionBaseline = total;
     _anchorDueAt = null;
@@ -151,6 +176,12 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
   public void ResetSession()
   {
     _sessionBaseline = null;
+
+    // Clear the settling state too, or the next anchor compares against the
+    // previous character's total and settles instantly on a wrong figure.
+    _settlingTotal = null;
+    _settlingSince = DateTime.UtcNow;
+
     _logger.Debug("[Pacing] Session baseline cleared.");
   }
 
