@@ -10,10 +10,12 @@ writes, so the two cannot drift apart.
 
 Usage:
     python tools/Build-RepoJson.py
+    python tools/Build-RepoJson.py "Fixed session pacing on character switch."
 """
 
 import json
 import pathlib
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUILT = ROOT / 'bin' / 'Release' / 'TimeMemoriaV3' / 'TimeMemoriaV3.json'
@@ -27,14 +29,20 @@ REPO = 'TimeMemoriaV3'
 DOWNLOAD = f'https://github.com/{OWNER}/{REPO}/releases/latest/download/latest.zip'
 ICON = f'https://raw.githubusercontent.com/{OWNER}/{REPO}/main/assets/icon.png'
 
+# Dalamud's installer groups by these. Lowercase: that is what its own enum uses,
+# and what most published plugins actually write, though the field is loose
+# enough that both cases appear in the wild.
+CATEGORY_TAGS = ['utility']
 
-def main():
+
+def main(changelog=None):
     if not BUILT.exists():
         raise SystemExit(f'{BUILT} not found — run: dotnet build -c Release')
 
     manifest = json.loads(BUILT.read_text(encoding='utf-8-sig'))
 
     manifest.update({
+        'CategoryTags': CATEGORY_TAGS,
         'IsHide': False,
         'IsTestingExclusive': False,
         'DownloadLinkInstall': DOWNLOAD,
@@ -43,6 +51,11 @@ def main():
         'IconUrl': ICON,
         'DownloadCount': 0,
     })
+
+    # Shown in the installer beside the update. Omitted rather than left empty,
+    # since an empty changelog reads as "nothing changed".
+    if changelog:
+        manifest['Changelog'] = changelog
 
     OUT.write_text(json.dumps([manifest], indent=2) + '\n', encoding='utf-8')
 
@@ -54,4 +67,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1] if len(sys.argv) > 1 else None)
