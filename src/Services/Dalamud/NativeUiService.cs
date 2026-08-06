@@ -84,7 +84,8 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       Title = "Time Memoria — Quests",
       Size = new Vector2(830.0f, 620.0f),
       DataService = _dataService,
-      PatchService = _questPatch
+      PatchService = _questPatch,
+      Logger = _logger
     };
 
     _logger.Debug("[NativeUi] Addons created.");

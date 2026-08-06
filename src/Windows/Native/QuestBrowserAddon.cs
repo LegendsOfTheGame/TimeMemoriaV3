@@ -8,29 +8,29 @@ using Lumina.Text.ReadOnly;
 namespace TimeMemoria.Windows.Native;
 
 /// <summary>
-/// The Quests tab as a native game window: search across the top, filter tabs
-/// and a scrolling quest list on the left, the selected quest's details on the
-/// right.
+/// The Quests tab as a native game window: search across the top, a collapsible
+/// quest tree on the left, and details of the selected quest on the right.
 ///
-/// Unlike the earlier native tabs this one is built declaratively, in a single
-/// nested expression, which is the shape the toolkit is designed around. Layout
-/// is expressed as fractions of the window's own content area rather than fixed
-/// pixel constants, so resizing does not have to be handled separately.
+/// A tree rather than a flat list because there are around seven thousand
+/// quests and the list scrolls one row per wheel tick — no amount of tuning
+/// makes that browsable. Collapsed, a whole section costs a single row.
 ///
-/// The completion filter appears here as a tab row rather than a setting. It is
-/// the same value the Settings tab exposes, just promoted to where it is
-/// actually used.
+/// <see cref="TreeListSection{T}"/> has a header, its own entries and child
+/// sections, which is the same shape as the quest tree this plugin already
+/// builds. So the sections are a direct projection of that tree rather than a
+/// separate model kept in step with it.
 /// </summary>
 public unsafe class QuestBrowserAddon : NativeAddon
 {
   private const float BarHeight = 28.0f;
-  private const float Gap = 12.0f;
+  private const float Gap = 8.0f;
 
   public required IDataService DataService { get; init; }
   public required IQuestPatchService PatchService { get; init; }
+  public required ILogger Logger { get; init; }
 
   private TextInputNode? _search;
-  private ListNode<Types.Quest, QuestListItemNode>? _list;
+  private NestableTreeListNode<Types.Quest, QuestListItemNode>? _tree;
   private QuestInfoNode? _info;
 
   private string _query = "";
@@ -42,8 +42,8 @@ public unsafe class QuestBrowserAddon : NativeAddon
   {
     base.OnSetup(addon, atkValueSpan);
 
-    // The list builds its rows through a parameterless constructor, so these
-    // cannot be injected per instance.
+    // Rows are built through a parameterless constructor, so these cannot be
+    // handed to instances individually.
     QuestListItemNode.DataService = DataService;
     QuestListItemNode.PatchService = PatchService;
 
@@ -66,7 +66,7 @@ public unsafe class QuestBrowserAddon : NativeAddon
             _search = new TextInputNode
             {
               Width = ContentSize.X,
-              PlaceholderString = "Search quests . . .",
+              PlaceholderString = "Search all quests . . .",
               AutoSelectAll = true,
               OnInputReceived = OnSearchChanged
             }
@@ -89,7 +89,7 @@ public unsafe class QuestBrowserAddon : NativeAddon
                   Height = BarHeight,
                   NavIndex = 3,
                   NavUp = 1,
-                  NavDown = 6,
+                  NavDown = 10,
                   InitialEntries =
                   [
                     new TabBarEntry { Label = "All", OnClick = () => SetFilter(CompletionFilter.All) },
@@ -98,13 +98,11 @@ public unsafe class QuestBrowserAddon : NativeAddon
                   ]
                 },
                 new ResNode { Height = Gap },
-                _list = new ListNode<Types.Quest, QuestListItemNode>
+                _tree = new NestableTreeListNode<Types.Quest, QuestListItemNode>
                 {
                   Height = ContentSize.Y - BarHeight * 2.0f - Gap,
-                  NavIndex = 6,
-                  NavUp = 3,
-                  NavRight = 100,
-                  OptionsList = GetQuests(),
+                  NoResultsString = "No quests match.",
+                  Sections = BuildSections(),
                   OnItemSelected = (quest) => _info?.SetQuest(quest)
                 }
               ]
@@ -126,7 +124,7 @@ public unsafe class QuestBrowserAddon : NativeAddon
   protected override void OnFinalize(AtkUnitBase* addon)
   {
     _search = null;
-    _list = null;
+    _tree = null;
     _info = null;
 
     _query = "";
@@ -149,40 +147,115 @@ public unsafe class QuestBrowserAddon : NativeAddon
 
   private void Refresh()
   {
-    if (_list is null) return;
+    if (_tree is null) return;
 
-    _list.OptionsList = GetQuests();
-    _list.ResetScroll();
+    _tree.Sections = BuildSections();
+    _tree.ResetScroll();
 
     // The previous selection may not survive the new filter, and leaving its
-    // details on screen beside a list that no longer contains it reads as a bug.
+    // details beside a tree that no longer contains it reads as a bug.
     _info?.SetQuest(null);
   }
 
   /// <summary>
-  /// Every quest the tree holds, flattened, then filtered. Walking the tree
-  /// rather than keeping a parallel list means the expansion and category
-  /// hiding already applied there is inherited rather than reimplemented.
+  /// The quest tree projected into sections.
+  ///
+  /// Categories are gathered across expansions, so "Main Scenario" appears once
+  /// rather than six times — the genres beneath already name their era, as in
+  /// "Heavensward Main Scenario Quests", so an expansion level above them would
+  /// only add a click.
+  ///
+  /// A search collapses all of that into one flat section: if you can already
+  /// name a quest, you should not have to find its category first.
   /// </summary>
-  private List<Types.Quest> GetQuests()
+  private List<TreeListSection<Types.Quest>> BuildSections()
   {
-    List<Types.Quest> quests = [];
+    if (_query.Length > 0)
+    {
+      List<Types.Quest> matches = [];
+      Collect(DataService.QuestData, matches);
+
+      Logger.Debug($"[QuestBrowser] search '{_query}' matched {matches.Count}");
+
+      return matches.Count == 0
+        ? []
+        : [new TreeListSection<Types.Quest> { Header = $"Results  ({matches.Count})", Entries = matches }];
+    }
+
+    Dictionary<string, TreeListSection<Types.Quest>> byCategory = [];
+    List<TreeListSection<Types.Quest>> sections = [];
 
     foreach (QuestData expansion in DataService.QuestData.Categories)
+    {
+      if (expansion.Hide) continue;
+
       foreach (QuestData category in expansion.Categories)
-        foreach (QuestData genre in category.Categories)
-          foreach (Types.Quest quest in genre.Quests)
-          {
-            if (quest.Hide) continue;
-            if (_query.Length > 0 && !quest.Title.Contains(_query, StringComparison.OrdinalIgnoreCase)) continue;
+      {
+        if (category.Hide) continue;
 
-            bool complete = DataService.IsQuestComplete(quest);
-            if (_filter == CompletionFilter.Complete && !complete) continue;
-            if (_filter == CompletionFilter.Incomplete && complete) continue;
+        if (!byCategory.TryGetValue(category.EnglishTitle, out TreeListSection<Types.Quest>? section))
+        {
+          byCategory[category.EnglishTitle] = section = new TreeListSection<Types.Quest> { Header = category.Title };
+          sections.Add(section);
+        }
 
-            quests.Add(quest);
-          }
+        Project(category, section);
+      }
+    }
 
-    return quests;
+    // A section whose whole subtree was filtered away is noise, not information.
+    sections.RemoveAll(IsEmpty);
+
+    return sections;
+  }
+
+  /// <summary>Copies one tree node's quests and children onto a section.</summary>
+  private void Project(QuestData node, TreeListSection<Types.Quest> section)
+  {
+    foreach (Types.Quest quest in node.Quests)
+      if (Include(quest))
+        section.Entries.Add(quest);
+
+    foreach (QuestData child in node.Categories)
+    {
+      if (child.Hide) continue;
+
+      TreeListSection<Types.Quest> childSection = new() { Header = Label(child) };
+      Project(child, childSection);
+
+      if (!IsEmpty(childSection)) section.Children.Add(childSection);
+    }
+  }
+
+  private static bool IsEmpty(TreeListSection<Types.Quest> section)
+    => section.Entries.Count == 0 && section.Children.Count == 0;
+
+  /// <summary>Header carrying the counts, since that is why one section gets opened over another.</summary>
+  private static string Label(QuestData node)
+    => node.Total > 0
+      ? $"{node.Title}   {(int)node.NumComplete}/{(int)node.Total}   {node.NumComplete / node.Total:P0}"
+      : node.Title;
+
+  private bool Include(Types.Quest quest)
+  {
+    if (quest.Hide) return false;
+    if (_query.Length > 0 && !quest.Title.Contains(_query, StringComparison.OrdinalIgnoreCase)) return false;
+
+    bool complete = DataService.IsQuestComplete(quest);
+    if (_filter == CompletionFilter.Complete && !complete) return false;
+    if (_filter == CompletionFilter.Incomplete && complete) return false;
+
+    return true;
+  }
+
+  private void Collect(QuestData node, List<Types.Quest> into)
+  {
+    if (node.Hide) return;
+
+    foreach (Types.Quest quest in node.Quests)
+      if (Include(quest))
+        into.Add(quest);
+
+    foreach (QuestData child in node.Categories) Collect(child, into);
   }
 }
