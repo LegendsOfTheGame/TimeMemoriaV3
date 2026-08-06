@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches: [main, master]
+    tags: ["v*"]
   pull_request:
     branches: [main, master]
 
@@ -10,7 +11,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # KamiToolKit and KamiToolKit.Components are submodules and the project
+      # references them directly, so a checkout without them cannot build.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -28,3 +33,23 @@ jobs:
 
       - name: Build
         run: dotnet build --no-restore -c Release
+
+      # DalamudPackager writes the installable zip and its manifest here. Keeping
+      # them as artifacts means any build can be inspected, not only tagged ones.
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: TimeMemoria
+          path: |
+            bin/Release/TimeMemoriaV3/latest.zip
+            bin/Release/TimeMemoriaV3/TimeMemoriaV3.json
+
+      # A tagged push becomes a release, which is what a plugin repository's
+      # download link points at.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/Release/TimeMemoriaV3/latest.zip
+            bin/Release/TimeMemoriaV3/TimeMemoriaV3.json
