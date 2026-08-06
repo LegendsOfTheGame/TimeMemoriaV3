@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch) : Window("TimeMemoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -384,7 +384,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Separator();
     ImGui.Spacing();
 
-    using ImRaii.TableDisposable table = ImRaii.Table("##questTable", 5,
+    using ImRaii.TableDisposable table = ImRaii.Table("##questTable", 6,
       ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV, ImGui.GetContentRegionAvail());
     if (!table.Success) return;
 
@@ -392,6 +392,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TableSetupColumn("##check", ImGuiTableColumnFlags.WidthFixed, 22f);
     ImGui.TableSetupColumn("##level", ImGuiTableColumnFlags.WidthFixed, 36f);
     ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthStretch);
+    ImGui.TableSetupColumn("Patch", ImGuiTableColumnFlags.WidthFixed, 46f);
     ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 140f);
     ImGui.TableSetupColumn("Done", ImGuiTableColumnFlags.WidthFixed, 90f);
     ImGui.TableHeadersRow();
@@ -409,6 +410,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
         ImGui.TableNextColumn();
         ImGui.TableNextColumn();
         ImGui.TextColored(HeaderColour, genre.Title);
+        ImGui.TableNextColumn();
         ImGui.TableNextColumn();
         ImGui.TableNextColumn();
       }
@@ -432,6 +434,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
         string title = quest.Ids.Count > 0 ? $"{quest.Title} [{quest.Ids[0]}]" : quest.Title;
         if (complete) ImGui.TextDisabled(title);
         else ImGui.Text(title);
+
+        ImGui.TableNextColumn();
+        DrawPatchCell(quest);
 
         ImGui.TableNextColumn();
         ImGui.TextDisabled(quest.Area);
@@ -858,6 +863,31 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TextDisabled($"  {what}");
     if (more is not null) ImGui.TextDisabled($"  {more}");
     ImGui.Spacing();
+  }
+
+  /// <summary>
+  /// The patch a quest arrived in, which the game itself does not record — its
+  /// tables know a quest is Endwalker, not that it is 6.3.
+  /// </summary>
+  private void DrawPatchCell(Types.Quest quest)
+  {
+    string? patch = _questPatch.GetPatch(quest.Ids);
+
+    if (patch is null)
+    {
+      ImGui.TextDisabled("—");
+      if (ImGui.IsItemHovered()) ImGui.SetTooltip("No patch recorded for this quest.");
+      return;
+    }
+
+    ImGui.TextDisabled(patch);
+
+    // A quest carrying several ids was reissued, and its ids disagree about the
+    // patch. Worth explaining on the row rather than leaving the number looking
+    // arbitrary to anyone who knows the quest has a later version.
+    if (quest.Ids.Count > 1 && ImGui.IsItemHovered())
+      ImGui.SetTooltip($"This quest has {quest.Ids.Count} ids from different patches.\n" +
+                       "Showing the earliest — when the content first existed.");
   }
 
   /// <summary>Shows where a control leads before it is clicked.</summary>
@@ -1563,7 +1593,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TextDisabled($"  {additions.Count} quest{(additions.Count == 1 ? "" : "s")} added since {_snapshot.BaselineDate}");
     ImGui.Spacing();
 
-    using ImRaii.TableDisposable table = ImRaii.Table("##whatsNewTable", 5,
+    using ImRaii.TableDisposable table = ImRaii.Table("##whatsNewTable", 6,
       ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg,
       ImGui.GetContentRegionAvail());
     if (!table.Success) return;
@@ -1572,6 +1602,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TableSetupColumn("##check", ImGuiTableColumnFlags.WidthFixed, 22f);
     ImGui.TableSetupColumn("##level", ImGuiTableColumnFlags.WidthFixed, 36f);
     ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthStretch);
+    ImGui.TableSetupColumn("Patch", ImGuiTableColumnFlags.WidthFixed, 46f);
     ImGui.TableSetupColumn("Where", ImGuiTableColumnFlags.WidthFixed, 200f);
     ImGui.TableSetupColumn("Seen", ImGuiTableColumnFlags.WidthFixed, 90f);
     ImGui.TableHeadersRow();
@@ -1594,6 +1625,16 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       ImGui.TableNextColumn();
       if (complete) ImGui.TextDisabled($"{quest.Title} [{quest.Id}]");
       else ImGui.Text($"{quest.Title} [{quest.Id}]");
+
+      // A quest new to this plugin is not necessarily new to the game -- it may
+      // simply be one the patch map already knew about. The two columns
+      // together say which: an old patch beside a recent "Seen" date means the
+      // plugin only just noticed it.
+      ImGui.TableNextColumn();
+      string? patch = _questPatch.GetPatch([quest.Id]);
+      ImGui.TextDisabled(patch ?? "—");
+      if (patch is null && ImGui.IsItemHovered())
+        ImGui.SetTooltip("No patch recorded yet — likely newer than the patch map.");
 
       ImGui.TableNextColumn();
       ImGui.TextDisabled($"{quest.Expansion} › {quest.Section}");

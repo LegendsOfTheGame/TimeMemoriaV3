@@ -40,6 +40,8 @@
     <None Include="data/toc.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- Festival names, which the game's own sheet leaves blank. -->
     <None Include="data/festival-names.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Which patch introduced each quest. Not in the game files at all. -->
+    <None Include="data/quest-patches.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The submodule lives inside this project's directory, so the SDK's default

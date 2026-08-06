@@ -150,8 +150,7 @@ public class TocService(ILogger _logger, Configuration _configuration, IDalamudP
     foreach (TocEntry entry in entries)
     {
       if (entry.Role is not ("Start" or "Final") || entry.Ids.Count == 0) continue;
-      if (!float.TryParse(entry.Patch, System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture, out float order)) continue;
+      if (!float.TryParse(entry.Patch, NumberStyles.Float, CultureInfo.InvariantCulture, out float order)) continue;
 
       if (!byPatch.TryGetValue(entry.Patch, out MsqPatch? patch))
         byPatch[entry.Patch] = patch = new MsqPatch(entry.Patch, order);

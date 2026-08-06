@@ -66,6 +66,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton<IFestivalService, FestivalService>();
         collection.AddSingleton<IQuestJournalService, QuestJournalService>();
         collection.AddSingleton<IQuestSnapshotService, QuestSnapshotService>();
+        collection.AddSingleton<IQuestPatchService, QuestPatchService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
@@ -83,6 +84,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddHostedService(sp => sp.GetRequiredService<IPacingService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IQuestJournalService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IQuestSnapshotService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IQuestPatchService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
       }).Build();

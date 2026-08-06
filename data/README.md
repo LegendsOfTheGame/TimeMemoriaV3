@@ -58,7 +58,7 @@ round-tripped through a UTF-7 encoder upstream are decoded (`Yo+AC0-kai` →
 Refresh by re-running `tools/Convert-FestivalNames.py` against a fresh copy of
 the upstream CSV.
 
-## `quest-patches.json` — 5,326 ids
+## `quest-patches.json` — 5,326 ids — **read by `QuestPatchService`**
 
 Quest id to the patch that introduced it:
 
