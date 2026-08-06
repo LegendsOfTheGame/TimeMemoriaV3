@@ -53,10 +53,15 @@ public class TocService(ILogger _logger, Configuration _configuration, IDalamudP
   private static readonly string[] ExpansionCodes = ["ARR", "HW", "SB", "ShB", "EW", "DT"];
 
   /// <summary>
-  /// The free trial covers everything through Stormblood, patch 4.58 — so the
-  /// first three expansions. ExVersion row ids line up with that directly.
+  /// The free trial covers everything through Shadowbringers, extended from
+  /// Stormblood in patch 7.51. ExVersion row ids line up directly, so
+  /// Shadowbringers is 3.
+  ///
+  /// This has moved twice now and will move again. It gates both what Free
+  /// Trial Mode hides and whether an account is detected as a trial one, so
+  /// leaving it stale silently mislabels people.
   /// </summary>
-  private const uint LastFreeTrialExpansion = 2;
+  private const uint LastFreeTrialExpansion = 3;
 
   /// <summary>Expansion row id to the quest ids that open it.</summary>
   private readonly Dictionary<uint, List<uint>> _gates = [];

@@ -21,6 +21,12 @@ public unsafe class MainAddon : NativeAddon
   public required IDataService DataService { get; init; }
   public required IQuestPatchService PatchService { get; init; }
   public required IClassJobProgressService ProgressService { get; init; }
+  public required IQuestSnapshotService Snapshot { get; init; }
+  public required IPlaytimeService Playtime { get; init; }
+  public required IPacingService Pacing { get; init; }
+  public required IFestivalService Festivals { get; init; }
+  public required INewsService News { get; init; }
+  public required IPlayerState PlayerState { get; init; }
   public required Configuration Config { get; init; }
   public required ILogger Logger { get; init; }
 
@@ -35,9 +41,22 @@ public unsafe class MainAddon : NativeAddon
     Vector2 panelPosition = ContentStartPosition + new Vector2(0.0f, TabBarHeight + Gap);
 
     OverviewPanelNode overview = new() { DataService = DataService };
-    QuestsPanelNode quests = new() { DataService = DataService, PatchService = PatchService };
+    QuestsPanelNode quests = new()
+    {
+      DataService = DataService, PatchService = PatchService, ProgressService = ProgressService,
+      Logger = Logger
+    };
+    NewsPanelNode news = new()
+    {
+      Playtime = Playtime, Pacing = Pacing, Festivals = Festivals, News = News, PlayerState = PlayerState
+    };
+    WhatsNewPanelNode whatsNew = new() { Snapshot = Snapshot, PatchService = PatchService };
     ProgressionPanelNode progression = new() { ProgressService = ProgressService };
     SettingsPanelNode settings = new() { Config = Config, DataService = DataService };
+    HelpPanelNode help = new();
+    CreditsPanelNode credits = new();
+
+    TabPanelNode[] panels = [overview, quests, news, whatsNew, progression, settings, help, credits];
 
     TabBarNode tabs = new()
     {
@@ -48,14 +67,18 @@ public unsafe class MainAddon : NativeAddon
       [
         new TabBarEntry { Label = "Overview", OnClick = () => Show(overview) },
         new TabBarEntry { Label = "Quests", OnClick = () => Show(quests) },
+        new TabBarEntry { Label = "News", OnClick = () => Show(news) },
+        new TabBarEntry { Label = "What's New", OnClick = () => Show(whatsNew) },
         new TabBarEntry { Label = "Progression", OnClick = () => Show(progression) },
-        new TabBarEntry { Label = "Settings", OnClick = () => Show(settings) }
+        new TabBarEntry { Label = "Settings", OnClick = () => Show(settings) },
+        new TabBarEntry { Label = "Help", OnClick = () => Show(help) },
+        new TabBarEntry { Label = "Credits", OnClick = () => Show(credits) }
       ]
     };
 
     AddNode(tabs);
 
-    foreach (TabPanelNode panel in new TabPanelNode[] { overview, quests, progression, settings })
+    foreach (TabPanelNode panel in panels)
     {
       panel.Position = panelPosition;
       panel.Size = panelSize;

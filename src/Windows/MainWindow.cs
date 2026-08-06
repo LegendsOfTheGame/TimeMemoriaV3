@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch) : Window("TimeMemoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch) : Window("Time Memoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -21,6 +21,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       MinimumSize = new Vector2(475, 240),
       MaximumSize = new Vector2(float.MaxValue)
     };
+
+    RememberSizeForNativeWindow();
 
     using (ImRaii.TabBarDisposable tabBar = ImRaii.TabBar("##tabBar", ImGuiTabBarFlags.None))
     {
@@ -100,16 +102,39 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Spacing();
 
     DrawSuggestedQuest();
-
-    ImGui.Spacing();
-    ImGui.Separator();
-    ImGui.Spacing();
-    // Passing this window's size across is how the native window gets resized:
-    // it has no handle of its own, but this one does.
-    if (ImGui.Button("Open the game window")) _nativeUi.Toggle(ImGui.GetWindowSize());
-    ImGui.SameLine();
-    ImGui.TextDisabled("Opens at this window's current size.");
   }
+
+  /// <summary>
+  /// The native window has no resize handle; this one does. So its size is
+  /// borrowed from here, and persisted, meaning the native window can be sized
+  /// even by someone who never opens this one twice.
+  ///
+  /// Saving is deliberately not done per frame — a drag would write the config
+  /// file hundreds of times. It is written once the size has settled.
+  /// </summary>
+  private void RememberSizeForNativeWindow()
+  {
+    Vector2 size = ImGui.GetWindowSize();
+
+    if (Math.Abs(size.X - _configuration.NativeWindowWidth) < 1f &&
+        Math.Abs(size.Y - _configuration.NativeWindowHeight) < 1f)
+    {
+      // Unchanged. If a resize just finished, commit it.
+      if (_sizeDirty)
+      {
+        _configuration.Save();
+        _sizeDirty = false;
+      }
+
+      return;
+    }
+
+    _configuration.NativeWindowWidth = size.X;
+    _configuration.NativeWindowHeight = size.Y;
+    _sizeDirty = true;
+  }
+
+  private bool _sizeDirty;
 
   /// <summary>One aligned "name  complete/total  percent" line.</summary>
   private static void DrawProgressRow(string label, int complete, int total, bool dimmed = false)
@@ -703,7 +728,36 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
 
     DrawSpoilerSettings();
+    DrawInterfaceSettings();
+  }
 
+  /// <summary>
+  /// Which of the two windows the plugin opens. Both carry this control, so
+  /// whichever one you are looking at can hand you the other.
+  /// </summary>
+  private void DrawInterfaceSettings()
+  {
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Interface");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    bool useNative = _configuration.UseNativeUi;
+    if (ImGui.Checkbox("Use the game window for /tm", ref useNative))
+    {
+      _configuration.UseNativeUi = useNative;
+      _configuration.Save();
+    }
+
+    ImGui.TextDisabled(useNative
+      ? "  /tm opens the game window. This one stays available via /tm classic."
+      : "  /tm opens this window.");
+
+    ImGui.Spacing();
+
+    if (ImGui.Button("Open the game window")) _nativeUi.Toggle();
+    ImGui.SameLine();
+    ImGui.TextDisabled("Opens at this window's current size.");
   }
 
   private const string RepoUrl = "https://github.com/LegendsOfTheGame/TimeMemoriaV3";
@@ -772,6 +826,19 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       "Ocean Fishing windows. It stores what you paste in your browser and",
       "nowhere else. There is a button beside the export to open it.");
 
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Commands");
+    ImGui.Separator();
+    ImGui.Spacing();
+    ImGui.TextDisabled("  /timememoria    the window chosen in Settings  (/tm for short)");
+    ImGui.TextDisabled("  /tm classic     this window, whichever is chosen");
+    ImGui.TextDisabled("  /tm native      the game-styled window, whichever is chosen");
+    ImGui.TextDisabled("  /tmmini         playtime, pacing and jobs, in a small window");
+    ImGui.TextDisabled("  /tm reset       rebuild the quest tree");
+    ImGui.Spacing();
+    ImGui.TextDisabled("  The plugin registers these; it never sends commands itself.");
+
+    ImGui.Spacing();
     ImGui.Spacing();
     ImGui.TextColored(HeaderColour, "What this plugin will never do");
     ImGui.Separator();
@@ -1067,6 +1134,13 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.SameLine();
     ImGui.TextDisabled("Paste the ledger export there. It keeps everything in your browser.");
 
+    ImGui.Spacing();
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    if (ImGui.Button("Open the at-a-glance window")) _nativeUi.ToggleCompanion();
+    ImGui.SameLine();
+    ImGui.TextDisabled("Playtime, pacing and the battle jobs furthest behind.");
   }
 
 
@@ -1304,7 +1378,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Spacing();
 
     bool freeTrialMode = _configuration.FreeTrialMode;
-    if (ImGui.Checkbox("Free Trial Mode (restrict to Stormblood and earlier)", ref freeTrialMode))
+    if (ImGui.Checkbox("Free Trial Mode (restrict to Shadowbringers and earlier)", ref freeTrialMode))
     {
       _configuration.FreeTrialMode = freeTrialMode;
       _configuration.Save();

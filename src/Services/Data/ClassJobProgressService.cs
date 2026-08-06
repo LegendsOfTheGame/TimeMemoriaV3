@@ -11,6 +11,16 @@ public class ClassJobProgress
   public required string Abbreviation { get; init; }
   public required string Category { get; init; }
 
+  /// <summary>
+  /// The base class this job grew out of — Marauder for Warrior, Gladiator for
+  /// Paladin — or null where there is none.
+  ///
+  /// The two share a level, so a level 20 "Warrior" is really still a Marauder,
+  /// and everything outstanding for them is filed in the journal under the class
+  /// name. Anything searching by name needs both.
+  /// </summary>
+  public string? ClassName { get; init; }
+
   /// <summary>Tank, Healer, DPS, Crafter or Gatherer.</summary>
   public required string Role { get; init; }
   public int Level { get; init; }
@@ -84,9 +94,17 @@ public class ClassJobProgressService(IPluginLog _pluginLog, IPlayerState _player
             if (row.HasValue) toNext = row.Value.ExpToNext;
           }
 
+          // Null when the parent is the job itself, which is how the sheet
+          // represents a job that was never a class — Reaper, Sage and so on.
+          string jobName = ToDisplayName(job.Name.ToString());
+          string? className = job.ClassJobParent.ValueNullable is { } parent && parent.RowId != job.RowId
+            ? ToDisplayName(parent.Name.ToString())
+            : null;
+
           result.Add(new ClassJobProgress
           {
-            Name = ToDisplayName(job.Name.ToString()),
+            Name = jobName,
+            ClassName = string.Equals(className, jobName, StringComparison.OrdinalIgnoreCase) ? null : className,
             Abbreviation = job.Abbreviation.ToString(),
             Category = GetCategory(job),
             Role = GetRole(job),

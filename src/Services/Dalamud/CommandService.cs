@@ -2,20 +2,39 @@ namespace TimeMemoria.Services;
 
 public interface ICommandService : IHostedService;
 
-public class CommandService(ILogger _logger, IDataService _dataService, IWindowService _windowService, ICommandManager _commandManager) : ICommandService
+/// <summary>
+/// The plugin's chat commands.
+///
+/// These were <c>/questtracker</c> and <c>/qt</c>, inherited from the plugin
+/// this one descends from — which is still installed for plenty of people,
+/// including anyone comparing the two. Registering another plugin's commands is
+/// a collision, so they are gone.
+/// </summary>
+public class CommandService(ILogger _logger, IDataService _dataService, IWindowService _windowService,
+  INativeUiService _nativeUi, Configuration _configuration, ICommandManager _commandManager) : ICommandService
 {
-  private const string TimeMemoriaCommand = "/questtracker";
-  private const string TimeMemoriaCommandAlias = "/qt";
+  private const string MainCommand = "/timememoria";
+  private const string MainAlias = "/tm";
+  private const string GlanceCommand = "/tmmini";
 
   public Task StartAsync(CancellationToken cancellationToken)
   {
-    _commandManager.AddHandler(TimeMemoriaCommand, new CommandInfo(OnCommand)
+    _commandManager.AddHandler(MainCommand, new CommandInfo(OnCommand)
     {
-      HelpMessage = $"See '{TimeMemoriaCommand} help' for more."
+      HelpMessage = $"Open Time Memoria. See '{MainCommand} help' for more.",
+      ShowInHelp = true
     });
-    _commandManager.AddHandler(TimeMemoriaCommandAlias, new CommandInfo(OnCommand)
+
+    _commandManager.AddHandler(MainAlias, new CommandInfo(OnCommand)
     {
-      HelpMessage = $"Alias for {TimeMemoriaCommand}."
+      HelpMessage = $"Alias for {MainCommand}.",
+      ShowInHelp = true
+    });
+
+    _commandManager.AddHandler(GlanceCommand, new CommandInfo(OnGlanceCommand)
+    {
+      HelpMessage = "Open the at-a-glance window: playtime, pacing and jobs.",
+      ShowInHelp = true
     });
 
     return _logger.ServiceLifecycle();
@@ -23,20 +42,25 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
 
   public Task StopAsync(CancellationToken cancellationToken)
   {
-    _commandManager.RemoveHandler(TimeMemoriaCommand);
-    _commandManager.RemoveHandler(TimeMemoriaCommandAlias);
+    _commandManager.RemoveHandler(MainCommand);
+    _commandManager.RemoveHandler(MainAlias);
+    _commandManager.RemoveHandler(GlanceCommand);
 
     return _logger.ServiceLifecycle();
   }
 
-  private async void OnCommand(string command, string arguments)
+  private void OnGlanceCommand(string command, string arguments) => _nativeUi.ToggleCompanion();
+
+  private void OnCommand(string command, string arguments)
   {
     _logger.Debug($"command::'{command}' arguments::'{arguments}'");
 
     string[] args = arguments.Split(" ", StringSplitOptions.RemoveEmptyEntries);
     if (args.Length == 0)
     {
-      _windowService.Toggle();
+      if (_configuration.UseNativeUi) _nativeUi.Toggle();
+      else _windowService.Toggle();
+
       return;
     }
 
@@ -45,12 +69,27 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
       case "help":
       case "?":
         _logger.Chat("Available commands:");
-        _logger.Chat($"  {command} reset - Resets the Quest Tracker");
-        _logger.Chat($"  {command} - Opens the TimeMemoria window");
+        _logger.Chat($"  {MainCommand} — open the window you have chosen in Settings");
+        _logger.Chat($"  {MainCommand} classic — the classic window, whatever is chosen");
+        _logger.Chat($"  {MainCommand} native — the game-styled window, whatever is chosen");
+        _logger.Chat($"  {MainCommand} reset — reset the quest tree");
+        _logger.Chat($"  {GlanceCommand} — open the at-a-glance window");
         break;
+
+      // Named explicitly so neither window can become unreachable. Choosing the
+      // native one and then finding it broken should not leave anybody stuck.
+      case "classic":
+        _windowService.Toggle();
+        break;
+
+      case "native":
+        _nativeUi.Toggle();
+        break;
+
       case "reset":
         _dataService.Reset();
         break;
+
       default:
         _logger.Chat("Invalid command:");
         _logger.Chat($"  {command} {arguments}");

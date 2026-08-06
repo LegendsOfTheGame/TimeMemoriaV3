@@ -28,6 +28,8 @@ public class SettingsPanelNode : TabPanelNode
   private readonly CheckboxNode _excludeLeves;
   private readonly CheckboxNode _spoiler;
   private readonly CheckboxNode _freeTrial;
+  private readonly CheckboxNode _useNative;
+  private readonly TextNode _resizeHint;
 
   public SettingsPanelNode()
   {
@@ -70,8 +72,27 @@ public class SettingsPanelNode : TabPanelNode
     _spoiler = AddCheckbox("Spoiler Mode (show expansions you have not reached)",
       (value) => { Config.SpoilerMode = value; Config.Save(); });
 
-    _freeTrial = AddCheckbox("Free Trial Mode (restrict to Stormblood and earlier)",
+    _freeTrial = AddCheckbox("Free Trial Mode (restrict to Shadowbringers and earlier)",
       (value) => { Config.FreeTrialMode = value; Config.Save(); });
+
+    // Present in both windows deliberately: whichever one you are looking at,
+    // you can switch to the other. Only offering it in the ImGui window would
+    // strand anyone who chose this one.
+    _useNative = AddCheckbox("Use the native look for /tm",
+      (value) => { Config.UseNativeUi = value; Config.Save(); });
+
+    // This window has no resize handle -- the toolkit does not provide one --
+    // so the only way to change its size is to size the classic window and come
+    // back. Said here because there is nothing on screen to suggest it.
+    _resizeHint = new TextNode
+    {
+      FontSize = 11,
+      TextColor = new Vector4(0.6f, 0.6f, 0.6f, 1.0f),
+      String = "If this window is the wrong size, resize the classic window and reopen this one.",
+      IsVisible = true
+    };
+
+    _list.AddNode(_resizeHint);
   }
 
   public override void Refresh()
@@ -82,6 +103,7 @@ public class SettingsPanelNode : TabPanelNode
     Sync(_excludeLeves, Config.ExcludeLevequests);
     Sync(_spoiler, Config.SpoilerMode);
     Sync(_freeTrial, Config.FreeTrialMode);
+    Sync(_useNative, Config.UseNativeUi);
 
     string expected = DisplayOptions[Math.Clamp(Config.DisplayOption, 0, DisplayOptions.Length - 1)];
     if (_display.SelectedOption != expected) _display.SelectedOption = expected;
@@ -95,8 +117,10 @@ public class SettingsPanelNode : TabPanelNode
     _list.Position = new Vector2(0.0f, 0.0f);
 
     foreach (CheckboxNode box in
-      new[] { _showCount, _showPercentage, _excludeOther, _excludeLeves, _spoiler, _freeTrial })
+      new[] { _showCount, _showPercentage, _excludeOther, _excludeLeves, _spoiler, _freeTrial, _useNative })
       box.Size = new Vector2(Width - 12.0f, RowHeight);
+
+    _resizeHint.Size = new Vector2(Width - 12.0f, 18.0f);
   }
 
   private static void Sync(CheckboxNode node, bool value)

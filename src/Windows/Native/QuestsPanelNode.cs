@@ -22,6 +22,8 @@ public class QuestsPanelNode : TabPanelNode
 
   public required IDataService DataService { get; init; }
   public required IQuestPatchService PatchService { get; init; }
+  public required IClassJobProgressService ProgressService { get; init; }
+  public required ILogger Logger { get; init; }
 
   private readonly TextInputNode _search;
   private readonly TabBarNode _filterTabs;
@@ -159,6 +161,8 @@ public class QuestsPanelNode : TabPanelNode
   {
     List<TreeListSection<QuestData>> sections = [];
 
+    if (BuildRecommended() is { } recommended) sections.Add(recommended);
+
     foreach (QuestData expansion in DataService.QuestData.Categories)
     {
       if (expansion.Hide) continue;
@@ -208,6 +212,160 @@ public class QuestsPanelNode : TabPanelNode
 
     _list.Size = new Vector2(rightWidth, bodyHeight);
     _list.Position = new Vector2(leftWidth + Gap, BarHeight * 2.0f + Gap);
+  }
+
+  /// <summary>
+  /// What to do next, at the top of the tree where it is seen before anything
+  /// else. Three answers, because "what next" has three reasonable readings:
+  /// the oldest thing left undone, the story, and whichever jobs are actually
+  /// being played.
+  ///
+  /// Each branch here holds a synthetic node wrapping a single quest rather
+  /// than a real branch of the tree, so selecting it shows that one quest.
+  /// </summary>
+  private TreeListSection<QuestData>? BuildRecommended()
+  {
+    TreeListSection<QuestData> section = new() { Header = "Recommended" };
+
+    if (DataService.FindOldestIncomplete(out _, out _) is { } oldest)
+      section.Entries.Add(Bundle("Oldest unfinished", [oldest]));
+
+    if (FirstIncompleteIn("Main Scenario") is { } msq)
+      section.Entries.Add(Bundle("Next in the Main Scenario", [msq]));
+
+    // Only jobs the character has actually unlocked. An unlocked job is one with
+    // a level, which is what IsUnlocked means — so jobs never touched do not
+    // appear and suggest work that cannot be started.
+    List<Types.Quest> jobQuests =
+    [
+      .. ProgressService.GetProgress()
+        .Where((p) => p.IsUnlocked)
+        .Select(FirstIncompleteForJob)
+        .OfType<Types.Quest>()
+    ];
+
+    if (jobQuests.Count > 0) section.Entries.Add(Bundle($"Job Quests  ({jobQuests.Count})", jobQuests));
+    else LogJobLineShape();
+
+    return section.Entries.Count > 0 ? section : null;
+  }
+
+  /// <summary>
+  /// Dumps the shape of the class and job branch when no job quest was matched,
+  /// so the mismatch can be seen rather than guessed at.
+  /// </summary>
+  private void LogJobLineShape()
+  {
+    Logger.Debug("[Quests] No job quests matched. Jobs: " +
+                 string.Join(", ", ProgressService.GetProgress().Where((p) => p.IsUnlocked)
+                   .Select((p) => p.ClassName is null ? p.Name : $"{p.Name}<{p.ClassName}>")));
+
+    foreach (QuestData expansion in DataService.QuestData.Categories)
+      foreach (QuestData category in expansion.Categories)
+      {
+        Logger.Debug($"[Quests]   {expansion.Title} / '{category.Title}' english='{category.EnglishTitle}' " +
+                     $"children={category.Categories.Count} quests={category.Quests.Count}");
+
+        if (category.EnglishTitle != "Class & Job Quests") continue;
+
+        foreach (QuestData genre in category.Categories)
+          Logger.Debug($"[Quests]       genre '{genre.Title}' hide={genre.Hide} " +
+                       $"children={genre.Categories.Count} quests={genre.Quests.Count}");
+      }
+  }
+
+  /// <summary>
+  /// A synthetic branch holding the recommended quests, so the tree stays a list
+  /// of things to select and the quests themselves appear on the right like
+  /// every other selection.
+  ///
+  /// Total is left at zero deliberately: these are suggestions, not a set being
+  /// worked through, so a completion percentage beside them would be noise.
+  /// </summary>
+  private static QuestData Bundle(string title, List<Types.Quest> quests) => new()
+  {
+    Title = title,
+    EnglishTitle = title,
+    Quests = quests
+  };
+
+  /// <summary>First unfinished quest in a named section, across expansions in order.</summary>
+  private Types.Quest? FirstIncompleteIn(string englishTitle)
+  {
+    foreach (QuestData expansion in DataService.QuestData.Categories)
+      foreach (QuestData category in expansion.Categories)
+        if (category.EnglishTitle == englishTitle && FirstIncomplete(category) is { } quest)
+          return quest;
+
+    return null;
+  }
+
+  /// <summary>
+  /// First unfinished quest of a job's line, walked in expansion order so the
+  /// earliest outstanding one wins.
+  ///
+  /// Matched against the class name as well as the job name. The journal files
+  /// levels 1–30 under the class — "Marauder Quests" — and only the job's own
+  /// line above that, so a level 20 Warrior's outstanding quests are all under
+  /// a name the job search would never find. The class is checked first because
+  /// it is the earlier of the two.
+  /// </summary>
+  private Types.Quest? FirstIncompleteForJob(ClassJobProgress job)
+  {
+    foreach (string name in job.ClassName is null ? [job.Name] : new[] { job.ClassName, job.Name })
+      if (FirstIncompleteInJobLine(name) is { } quest)
+        return quest;
+
+    return null;
+  }
+
+  /// <summary>
+  /// Class and job quests are not filed directly under their category. They sit
+  /// beneath a role grouping — "Disciple of War Quests" holds Gladiator,
+  /// Marauder and the rest; "Disciple of War Job Quests" holds Paladin, Warrior
+  /// and so on. So the branch named after a job has to be searched for at any
+  /// depth rather than expected at a fixed one.
+  /// </summary>
+  private Types.Quest? FirstIncompleteInJobLine(string name)
+  {
+    foreach (QuestData expansion in DataService.QuestData.Categories)
+      foreach (QuestData category in expansion.Categories)
+      {
+        if (category.EnglishTitle != "Class & Job Quests") continue;
+
+        if (FindBranchNamed(category, name) is { } branch && FirstIncomplete(branch) is { } quest)
+          return quest;
+      }
+
+    return null;
+  }
+
+  private static QuestData? FindBranchNamed(QuestData node, string name)
+  {
+    foreach (QuestData child in node.Categories)
+    {
+      if (child.Hide) continue;
+
+      if (child.Title.StartsWith(name, StringComparison.OrdinalIgnoreCase)) return child;
+      if (FindBranchNamed(child, name) is { } found) return found;
+    }
+
+    return null;
+  }
+
+  private Types.Quest? FirstIncomplete(QuestData node)
+  {
+    if (node.Hide) return null;
+
+    foreach (Types.Quest quest in node.Quests)
+      if (!quest.Hide && !DataService.IsQuestComplete(quest))
+        return quest;
+
+    foreach (QuestData child in node.Categories)
+      if (FirstIncomplete(child) is { } found)
+        return found;
+
+    return null;
   }
 
   private static string Label(QuestData node)

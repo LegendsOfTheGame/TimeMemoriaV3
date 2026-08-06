@@ -14,17 +14,18 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- Distinct assembly name only so the earlier attempt can stay installed
-         alongside this one while its numbers are still worth comparing against.
-         Nobody else has either plugin, so this is a one-line change to
-         TimeMemoria whenever that stops being useful. -->
+    <!-- Stays TimeMemoriaV3 permanently. Dalamud derives InternalName from this,
+         and InternalName is what keys the config file and the directory holding
+         the quest journal and snapshot. Renaming it would orphan both — and
+         would collide with the earlier attempt's own config, which is still on
+         disk. Nothing is gained: the name below is what anyone actually sees. -->
     <AssemblyName>TimeMemoriaV3</AssemblyName>
     <RootNamespace>TimeMemoria</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup>
     <Author>Legends of the Game</Author>
-    <Name>Time Memoria (Rebuild)</Name>
+    <Name>Time Memoria</Name>
     <Punchline>Remember every step, Warriors of Light.</Punchline>
     <Description>Quest progression and pacing — a reflective notebook for your story journey, not a scoreboard.</Description>
     <RepoUrl>https://github.com/LegendsOfTheGame/TimeMemoriaV3</RepoUrl>

@@ -67,6 +67,18 @@ public class FestivalService(ILogger _logger, IDataManager _dataManager, IDalamu
     return names;
   }
 
+  /// <summary>
+  /// True for rows the client switches on alongside a real event rather than
+  /// as one.
+  ///
+  /// "Special Event Flag" marks that a recurring event is running; the event
+  /// itself is switched on separately and named properly. Both being active at
+  /// once is normal, so showing them both lists the same thing twice, once
+  /// under a name that means nothing to a player.
+  /// </summary>
+  private bool IsInternalFlag(uint id)
+    => _names.TryGetValue(id, out string? name) && name == "Special Event Flag";
+
   public unsafe List<ActiveFestival> GetActive()
   {
     List<ActiveFestival> result = [];
@@ -86,6 +98,7 @@ public class FestivalService(ILogger _logger, IDataManager _dataManager, IDalamu
       for (int i = 0; i < ids.Length; i++)
       {
         if (ids[i] == 0) continue;
+        if (IsInternalFlag(ids[i])) continue;
 
         // The mapped name wins: it carries the year, so repeat events like
         // All Saints' Wake stay distinguishable. The sheet is only a fallback

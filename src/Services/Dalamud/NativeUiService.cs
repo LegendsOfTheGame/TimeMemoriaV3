@@ -8,10 +8,11 @@ public interface INativeUiService : IAsyncDisposable
   /// <summary>Builds the window. Must run after KamiToolKit is initialised.</summary>
   void Create();
 
-  /// <summary>
-  /// Shows or hides the native window, opening it at <paramref name="preferredSize"/>.
-  /// </summary>
-  void Toggle(Vector2 preferredSize);
+  /// <summary>Shows or hides the native window.</summary>
+  void Toggle();
+
+  /// <summary>Shows or hides the small at-a-glance window.</summary>
+  void ToggleCompanion();
 
   /// <summary>False until <see cref="Create"/> has run.</summary>
   bool IsReady { get; }
@@ -32,15 +33,28 @@ public interface INativeUiService : IAsyncDisposable
 /// cleanup, which conversely must be back on the main thread.
 /// </summary>
 public class NativeUiService(ILogger _logger, IClassJobProgressService _classJobProgress, IDataService _dataService,
-  Configuration _configuration, IQuestPatchService _questPatch) : INativeUiService
+  Configuration _configuration, IQuestPatchService _questPatch, IPlaytimeService _playtime, IPacingService _pacing,
+  IQuestSnapshotService _snapshot, IFestivalService _festivals, INewsService _news, IPlayerState _playerState)
+  : INativeUiService
 {
   private MainAddon? _window;
+  private CompanionAddon? _companion;
 
   public bool IsReady => _window is not null;
 
   public void Create()
   {
     if (_window is not null) return;
+
+    _companion = new CompanionAddon
+    {
+      InternalName = "TimeMemoriaGlance",
+      Title = "Time Memoria",
+      Size = new Vector2(300.0f, 380.0f),
+      ProgressService = _classJobProgress,
+      Playtime = _playtime,
+      Pacing = _pacing
+    };
 
     _window = new MainAddon
     {
@@ -50,6 +64,12 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       DataService = _dataService,
       PatchService = _questPatch,
       ProgressService = _classJobProgress,
+      Snapshot = _snapshot,
+      Playtime = _playtime,
+      Pacing = _pacing,
+      Festivals = _festivals,
+      News = _news,
+      PlayerState = _playerState,
       Config = _configuration,
       Logger = _logger
     };
@@ -63,7 +83,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   /// whatever they settled on. Size is read when the window is built, which
   /// happens on open, so setting it first is enough.
   /// </summary>
-  public void Toggle(Vector2 preferredSize)
+  public void Toggle()
   {
     if (_window is null)
     {
@@ -74,8 +94,8 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     if (!_window.IsOpen)
     {
       Vector2 size = new(
-        Math.Clamp(preferredSize.X, MinimumSize.X, MaximumSize.X),
-        Math.Clamp(preferredSize.Y, MinimumSize.Y, MaximumSize.Y));
+        Math.Clamp(_configuration.NativeWindowWidth, MinimumSize.X, MaximumSize.X),
+        Math.Clamp(_configuration.NativeWindowHeight, MinimumSize.Y, MaximumSize.Y));
 
       if (size != _window.Size)
       {
@@ -87,6 +107,17 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     _window.Toggle();
   }
 
+  public void ToggleCompanion()
+  {
+    if (_companion is null)
+    {
+      _logger.Error("[NativeUi] Companion toggled before it was created.");
+      return;
+    }
+
+    _companion.Toggle();
+  }
+
   /// <summary>Below this the tree and quest list stop being usable.</summary>
   private static readonly Vector2 MinimumSize = new(700.0f, 460.0f);
 
@@ -96,11 +127,18 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   {
     GC.SuppressFinalize(this);
 
-    if (_window is null) return;
+    if (_companion is not null)
+    {
+      await _companion.DisposeAsync();
+      _companion = null;
+    }
 
-    await _window.DisposeAsync();
-    _window = null;
+    if (_window is not null)
+    {
+      await _window.DisposeAsync();
+      _window = null;
+    }
 
-    _logger.Debug("[NativeUi] Window disposed.");
+    _logger.Debug("[NativeUi] Windows disposed.");
   }
 }

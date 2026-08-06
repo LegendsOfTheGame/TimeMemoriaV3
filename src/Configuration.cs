@@ -19,6 +19,19 @@ public class Configuration : IPluginConfiguration
   /// <summary>Keyed by "CharacterName@WorldName".</summary>
   public Dictionary<string, PlaytimeRecord> PlaytimeRecords { get; set; } = [];
 
+  /// <summary>Open the game-styled window rather than the ImGui one.</summary>
+  public bool UseNativeUi { get; set; } = false;
+
+  /// <summary>
+  /// Size for the native window, which has no resize handle of its own. Tracked
+  /// from the ImGui window, which does, and persisted so the native window does
+  /// not depend on the other having been opened this session.
+  /// </summary>
+  public float NativeWindowWidth { get; set; } = 900f;
+
+  /// <inheritdoc cref="NativeWindowWidth"/>
+  public float NativeWindowHeight { get; set; } = 640f;
+
   [NonSerialized]
   private IDalamudPluginInterface PluginInterface = null!;
 

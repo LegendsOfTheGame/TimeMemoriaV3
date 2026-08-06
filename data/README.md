@@ -55,6 +55,28 @@ Placeholder rows (`None`, `Unknown`) are dropped so the service falls back to
 round-tripped through a UTF-7 encoder upstream are decoded (`Yo+AC0-kai` →
 `Yo-kai`).
 
+### Reading the names
+
+The naming carries meaning worth knowing before "tidying" any of it away:
+
+- **A year in the name** — `Hatching Tide (2021)` — is one specific year's run.
+  Each year gets its own id, which is why the same event appears many times.
+- **No year** — `Yo-kai Watch` — is a flag reused whenever that event returns.
+- **`Special Event Flag`** marks that a recurring event is running. It is a real
+  designation rather than a missing name — but it is not itself an event, and
+  the event it accompanies is switched on separately under its own name. So
+  `FestivalService` hides it: listing both shows the same thing twice, once
+  under a label that means nothing to a player.
+- **Not every festival is a seasonal event.** Id 101 is `Ocean Fishing`, which
+  the client switches on only while you are aboard the boat and off the moment
+  you leave. It is deliberately *not* filtered — it is unique and briefly true.
+
+That distinction is the whole rule for hiding anything here: `Special Event Flag`
+goes because something else already says the same thing under a better name.
+Nothing goes merely for being unfamiliar. Filtering by an allowlist of expected
+names is what made Yo-kai Watch invisible in the previous version, and reading
+the client instead is the reason it is visible now.
+
 Refresh by re-running `tools/Convert-FestivalNames.py` against a fresh copy of
 the upstream CSV.
 
