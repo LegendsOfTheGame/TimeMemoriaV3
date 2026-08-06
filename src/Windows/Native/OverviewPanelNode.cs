@@ -1,29 +1,26 @@
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using KamiToolKit.BaseTypes;
 using KamiToolKit.Nodes;
 
 namespace TimeMemoria.Windows.Native;
 
 /// <summary>
-/// The Overview tab as a native game window.
+/// Quest completion by expansion and by category.
 ///
-/// Every row here has the same shape — a label, a count, a percentage — so one
-/// pooled row type covers headings and data alike. A heading is simply a row
-/// with its count and percentage hidden. That keeps <see cref="OnSetup"/> to a
-/// single loop and means <see cref="OnUpdate"/> never has to add or remove a
-/// node, only change text and visibility.
+/// Every line is label / count / percent, so one pooled row type serves
+/// headings and data alike — a heading is a row with its count and percent
+/// hidden. Rows are built once and only ever have their text and visibility
+/// changed, which is what keeps a retained tree cheap.
 /// </summary>
-public unsafe class OverviewAddon : NativeAddon
+public class OverviewPanelNode : TabPanelNode
 {
   private const float RowHeight = 20.0f;
-  private const float LabelWidth = 210.0f;
+  private const float LabelWidth = 230.0f;
   private const float CountWidth = 110.0f;
   private const float PercentWidth = 55.0f;
 
   /// <summary>
-  /// Fixed pool, not derived from live state. OnSetup runs once, and if it ran
-  /// while no character was loaded a state-derived count would be zero and the
-  /// window would stay empty for the rest of the session.
+  /// Fixed pool rather than one derived from live data, which would be zero if
+  /// this were built before a character loaded.
   /// </summary>
   private const int MaxRows = 28;
 
@@ -33,20 +30,13 @@ public unsafe class OverviewAddon : NativeAddon
 
   public required IDataService DataService { get; init; }
 
-  private VerticalListNode? _list;
+  private readonly VerticalListNode _list;
   private readonly List<(TextNode Label, TextNode Count, TextNode Percent)> _rows = [];
 
-  protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan)
+  public OverviewPanelNode()
   {
-    _list = new VerticalListNode
-    {
-      Position = ContentStartPosition,
-      Size = ContentSize,
-      ItemSpacing = 1.0f,
-      IsVisible = true
-    };
-
-    AddNode(_list);
+    _list = new VerticalListNode { ItemSpacing = 1.0f, IsVisible = true };
+    _list.AttachNode(this);
 
     for (int i = 0; i < MaxRows; i++)
     {
@@ -69,21 +59,7 @@ public unsafe class OverviewAddon : NativeAddon
     }
   }
 
-  /// <summary>
-  /// Closing an addon tears its nodes down, and opening it again runs OnSetup
-  /// afresh. Without this the row list would keep the previous run's entries and
-  /// grow by <see cref="MaxRows"/> every time the window was reopened, holding
-  /// references to nodes that no longer exist.
-  /// </summary>
-  protected override void OnFinalize(AtkUnitBase* addon)
-  {
-    _rows.Clear();
-    _list = null;
-
-    base.OnFinalize(addon);
-  }
-
-  protected override void OnUpdate(AtkUnitBase* addon)
+  public override void Refresh()
   {
     IReadOnlyList<ExpansionProgress> expansions = DataService.ExpansionProgress;
     IReadOnlyList<CategoryProgress> categories = DataService.CategoryProgress;
@@ -104,14 +80,16 @@ public unsafe class OverviewAddon : NativeAddon
       SetHeading(ref row, "By Category");
 
       // An excluded section still shows its real numbers, dimmed, so nothing
-      // silently disappears -- it is visibly present and visibly not counted.
+      // silently disappears — it is visibly present and visibly not counted.
       foreach (CategoryProgress category in categories)
         SetRow(ref row, category.Name, category.NumComplete, category.Total, category.Excluded);
     }
 
-    // Anything the data did not fill this pass.
     for (; row < _rows.Count; row++)
-      Hide(_rows[row]);
+    {
+      (TextNode label, TextNode count, TextNode percent) = _rows[row];
+      label.IsVisible = count.IsVisible = percent.IsVisible = false;
+    }
   }
 
   private void SetHeading(ref int row, string text)
@@ -143,8 +121,13 @@ public unsafe class OverviewAddon : NativeAddon
     label.TextColor = count.TextColor = percent.TextColor = colour;
   }
 
-  private static void Hide((TextNode Label, TextNode Count, TextNode Percent) row)
-    => row.Label.IsVisible = row.Count.IsVisible = row.Percent.IsVisible = false;
+  protected override void OnSizeChanged()
+  {
+    base.OnSizeChanged();
+
+    _list.Size = new Vector2(Width, Height);
+    _list.Position = new Vector2(0.0f, 0.0f);
+  }
 
   private static TextNode MakeText(float width, AlignmentType alignment) => new()
   {

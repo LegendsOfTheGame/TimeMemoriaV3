@@ -104,18 +104,18 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Spacing();
     ImGui.Separator();
     ImGui.Spacing();
-    DrawNativeButton("Open as a game window", _nativeUi.ToggleOverview);
+    DrawNativeButton("Open the game window", _nativeUi.Toggle);
   }
 
   /// <summary>
-  /// Opens this tab's native counterpart. Each tab gets its own, added one at a
-  /// time so a broken one is obvious rather than buried among six others.
+  /// Opens the native counterpart of this window — the same tabs drawn with the
+  /// game's own widgets rather than ImGui.
   /// </summary>
   private static void DrawNativeButton(string label, System.Action toggle)
   {
     if (ImGui.Button(label)) toggle();
     ImGui.SameLine();
-    ImGui.TextDisabled("Experimental native version of this tab.");
+    ImGui.TextDisabled("Experimental native version of this window.");
   }
 
   /// <summary>One aligned "name  complete/total  percent" line.</summary>
@@ -183,13 +183,6 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ResetSelections();
 
     DrawSearchBar();
-
-    // Both panels below claim all remaining height, so this has to sit above
-    // them rather than at the foot of the tab like the other native buttons.
-    if (ImGui.Button("Open as a game window")) _nativeUi.ToggleQuests();
-    ImGui.SameLine();
-    ImGui.TextDisabled("Experimental native version of this tab.");
-    ImGui.Spacing();
 
     float totalWidth = ImGui.GetContentRegionAvail().X;
     float splitterWidth = 4f;
@@ -718,10 +711,6 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     DrawSpoilerSettings();
 
-    ImGui.Spacing();
-    ImGui.Separator();
-    ImGui.Spacing();
-    DrawNativeButton("Open as a game window", _nativeUi.ToggleSettings);
   }
 
   private const string RepoUrl = "https://github.com/LegendsOfTheGame/TimeMemoriaV3";
@@ -1085,11 +1074,6 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.SameLine();
     ImGui.TextDisabled("Paste the ledger export there. It keeps everything in your browser.");
 
-    ImGui.Spacing();
-    ImGui.Separator();
-    ImGui.Spacing();
-
-    DrawNativeButton("Open as a game window", _nativeUi.ToggleProgression);
   }
 
 
