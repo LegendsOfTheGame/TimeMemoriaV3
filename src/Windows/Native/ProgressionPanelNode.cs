@@ -34,12 +34,40 @@ public class ProgressionPanelNode : TabPanelNode
   };
 
   public required IClassJobProgressService ProgressService { get; init; }
+  public required ILedgerExportService LedgerExport { get; init; }
+
+  private readonly TextButtonNode _copyProgression;
+  private readonly TextButtonNode _copyLedger;
+  private readonly TextButtonNode _openLedger;
+  private readonly TextNode _copyFeedback;
+
+  private DateTime _copyShownAt = DateTime.MinValue;
 
   private readonly VerticalListNode _list;
   private readonly List<(TextNode Name, TextNode Level, TextNode Exp, TextNode Percent)> _rows = [];
 
   public ProgressionPanelNode()
   {
+    // The classic window has had these since before the native one existed;
+    // they were simply missed in the port. Same two payloads, same clipboard.
+    _copyProgression = MakeButton("Copy progression",
+      () => Copy(LedgerExport.BuildProgressionJson, "Copied as JSON."));
+
+    _copyLedger = MakeButton("Copy for the Ledger",
+      () => Copy(LedgerExport.BuildLedgerJson, "Copied in ledger format."));
+
+    _openLedger = MakeButton("Open the Ledger",
+      () => Dalamud.Utility.Util.OpenLink(LedgerUrl));
+
+    _copyFeedback = new TextNode
+    {
+      FontSize = 12,
+      TextColor = new Vector4(0.6f, 0.6f, 0.6f, 1.0f),
+      String = "Nothing is sent anywhere — the export stays on your clipboard.",
+      IsVisible = true
+    };
+    _copyFeedback.AttachNode(this);
+
     _list = new VerticalListNode { ItemSpacing = 2.0f, IsVisible = true };
     _list.AttachNode(this);
 
@@ -56,6 +84,13 @@ public class ProgressionPanelNode : TabPanelNode
 
   public override void Refresh()
   {
+    // Let a copy confirmation fade rather than sit there for ever.
+    if (_copyShownAt != DateTime.MinValue && DateTime.UtcNow - _copyShownAt > TimeSpan.FromSeconds(4))
+    {
+      _copyFeedback.String = "Nothing is sent anywhere — the export stays on your clipboard.";
+      _copyShownAt = DateTime.MinValue;
+    }
+
     List<ClassJobProgress> unlocked = [.. ProgressService.GetProgress().Where((p) => p.IsUnlocked)];
 
     // The least progressed job in each role. Compared on level plus the fraction
@@ -92,6 +127,37 @@ public class ProgressionPanelNode : TabPanelNode
     }
   }
 
+  /// <summary>Where the ledger export is meant to be pasted.</summary>
+  private const string LedgerUrl = "https://legendsofthegame.github.io/pandora-lunar/";
+
+  private TextButtonNode MakeButton(string label, System.Action onClick)
+  {
+    TextButtonNode node = new() { String = label, IsVisible = true, OnClick = onClick };
+    node.AttachNode(this);
+
+    return node;
+  }
+
+  /// <summary>
+  /// Builds a payload and puts it on the clipboard, reporting either way. This
+  /// runs from a button callback on the framework thread, which is the same
+  /// thread ImGui renders on, so the clipboard call is safe from here.
+  /// </summary>
+  private void Copy(Func<string> build, string success)
+  {
+    try
+    {
+      ImGui.SetClipboardText(build());
+      _copyFeedback.String = success;
+    }
+    catch (Exception ex)
+    {
+      _copyFeedback.String = $"Copy failed: {ex.Message}";
+    }
+
+    _copyShownAt = DateTime.UtcNow;
+  }
+
   /// <summary>Level plus progress through it, rounded the way the export rounds it.</summary>
   private static float Effective(ClassJobProgress job)
     => job.Level + (float)Math.Round(job.Fraction, 3, MidpointRounding.AwayFromZero);
@@ -100,7 +166,26 @@ public class ProgressionPanelNode : TabPanelNode
   {
     base.OnSizeChanged();
 
-    _list.Size = new Vector2(Width, Height);
+    const float buttonHeight = 26.0f;
+    const float buttonWidth = 150.0f;
+    const float gap = 6.0f;
+
+    // Buttons along the bottom, table above them.
+    float buttonsY = Height - buttonHeight;
+
+    _copyProgression.Size = new Vector2(buttonWidth, buttonHeight);
+    _copyProgression.Position = new Vector2(0.0f, buttonsY);
+
+    _copyLedger.Size = new Vector2(buttonWidth, buttonHeight);
+    _copyLedger.Position = new Vector2(buttonWidth + gap, buttonsY);
+
+    _openLedger.Size = new Vector2(buttonWidth, buttonHeight);
+    _openLedger.Position = new Vector2((buttonWidth + gap) * 2.0f, buttonsY);
+
+    _copyFeedback.Size = new Vector2(Width, 18.0f);
+    _copyFeedback.Position = new Vector2(0.0f, buttonsY - 20.0f);
+
+    _list.Size = new Vector2(Width, buttonsY - 24.0f);
     _list.Position = new Vector2(0.0f, 0.0f);
   }
 

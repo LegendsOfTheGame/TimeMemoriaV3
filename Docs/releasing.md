@@ -13,6 +13,11 @@ it can only be written once the release it points at exists.
 
 ## Every release
 
+Now that the plugin is published, **any fix that reaches users is a release**.
+There is no such thing as "just a commit" for a behaviour change: whoever
+installed it has the previous build, and only a higher version tells Dalamud to
+replace it. Bump before committing, not after.
+
 1. Set `<Version>` in `TimeMemoria.csproj`. Format is `MAJOR.MINOR.PATCH.API` —
    the last digit is the Dalamud API level, so 3.0.0 on API 15 is `3.0.0.15`.
 2. Commit and push.

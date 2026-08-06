@@ -21,6 +21,7 @@ public unsafe class MainAddon : NativeAddon
   public required IDataService DataService { get; init; }
   public required IQuestPatchService PatchService { get; init; }
   public required IClassJobProgressService ProgressService { get; init; }
+  public required ILedgerExportService LedgerExport { get; init; }
   public required IQuestSnapshotService Snapshot { get; init; }
   public required IPlaytimeService Playtime { get; init; }
   public required IPacingService Pacing { get; init; }
@@ -51,7 +52,7 @@ public unsafe class MainAddon : NativeAddon
       Playtime = Playtime, Pacing = Pacing, Festivals = Festivals, News = News, PlayerState = PlayerState
     };
     WhatsNewPanelNode whatsNew = new() { Snapshot = Snapshot, PatchService = PatchService };
-    ProgressionPanelNode progression = new() { ProgressService = ProgressService };
+    ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport };
     SettingsPanelNode settings = new() { Config = Config, DataService = DataService };
     HelpPanelNode help = new();
     CreditsPanelNode credits = new();
