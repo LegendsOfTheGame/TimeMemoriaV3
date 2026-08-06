@@ -6,6 +6,28 @@ for your story journey, not a scoreboard.
 > ⚠️ This plugin **cannot** be used for ACT/FFLogs-style performance analysis.
 > It does not track, read, or evaluate combat performance in any way.
 
+![The Quests tab](assets/quests.png)
+
+Browse by expansion and section, or let **Recommended** answer "what next" — the
+oldest thing outstanding, the next Main Scenario quest, and the next quest for
+every job you have actually unlocked. The patch each quest arrived in is not in
+the game's own tables; it ships as data.
+
+| | |
+|---|---|
+| ![Overview](assets/overview.png) | ![Progression](assets/progression.png) |
+| Completion by expansion and by section. Excluded categories stay visible but uncounted. | Class and job levels, coloured by role, marking the least progressed in each. |
+
+![The at-a-glance window](assets/mini.png)
+
+A small companion window for while you are actually playing: playtime with the
+age of the reading, session and lifetime pacing, and the battle jobs furthest
+behind.
+
+Every window above is drawn with the game's own widgets. There is a classic
+ImGui version of all of it too — `/tm classic` — and a setting for which one
+`/tm` opens.
+
 ---
 
 ## Status: unreleased
@@ -33,7 +55,7 @@ failed. Numbering it 1.0 would hide that.
 | Playtime & pacing | ✅ session and lifetime |
 | Class & job progression | ✅ with clipboard export |
 | Patch attribution | ✅ patch column on quests and What's New |
-| Native game windows | 🚧 Progression only |
+| Native game windows | ✅ every tab, plus a companion window |
 | Ocean Fishing helper | ❌ future |
 
 ### Versioning
@@ -74,13 +96,6 @@ move again. The module table above carries what those digits used to.
 - Per-character completion dates from first install onwards
 - Help and Credits
 
-### Not finished
-
-- **Native UI.** One tab — Progression — exists as a real game window and
-  unloads cleanly. The rest is still ImGui.
-- **Screenshots.** Those in `assets/` are the original QuestTracker's and must
-  be retaken.
-
 ---
 
 ## Building
@@ -99,9 +114,12 @@ Already cloned? `git submodule update --init --recursive`, then:
 dotnet build TimeMemoria.csproj
 ```
 
-Requires the .NET 10 SDK and a Dalamud development environment. The assembly is
-named `TimeMemoriaV3` so it can be loaded alongside the released plugin for
-comparison.
+Requires the .NET 10 SDK and a Dalamud development environment.
+
+The assembly is named `TimeMemoriaV3` permanently. Dalamud derives InternalName
+from it, and InternalName keys the configuration file and the directory holding
+the quest journal — renaming it would orphan both. Only the display name matters
+to anyone using the plugin, and that is `Time Memoria`.
 
 ---
 

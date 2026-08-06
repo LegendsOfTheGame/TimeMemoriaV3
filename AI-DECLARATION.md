@@ -60,10 +60,10 @@ No asset here is AI-generated.
   is that file resampled to 512x512 with Pillow's Lanczos filter to meet
   Dalamud's size cap. That is arithmetic on pixels, not a generative or
   ML-upscaling step — no detail was invented that the maintainer did not draw.
-- `overview.png`, `quests.png`, `settings.png` — **stale, and not this plugin.**
-  They are screenshots of the original QuestTracker from when the game held
-  around 4,360 quests, showing three tabs where this plugin has eight. They must
-  be retaken before submission.
+- `overview.png`, `quests.png`, `progression.png`, `mini.png` — screenshots of
+  this plugin running, captured by the maintainer. Unretouched. The set the
+  repository shipped with previously showed the original QuestTracker and has
+  been replaced.
 
 If any of this changes, this section changes with it — the policy asks for asset
 disclosure to be more visible than code disclosure, since assets are what users
