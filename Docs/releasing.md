@@ -52,6 +52,24 @@ replace it. Bump before committing, not after.
    compares. This happened to 3.0.3.15; check the version the script prints
    against the tag before committing.
 
+## Verifying a release actually reached users
+
+Disable the dev plugin first. A dev plugin registered from `bin/Release` and an
+install from the repository share an `InternalName`, and the local one wins —
+so the installer keeps reporting whatever the dev build says while the published
+version goes unnoticed. Nothing warns about the collision.
+
+Then check the two things that can disagree:
+
+```
+gh api repos/LegendsOfTheGame/TimeMemoriaV3/releases/latest --jq .tag_name
+curl -s "https://raw.githubusercontent.com/LegendsOfTheGame/TimeMemoriaV3/main/repo.json?cb=$(date +%s)" | head -6
+```
+
+The cache-buster matters — `raw.githubusercontent.com` caches each URL for about
+five minutes, so a scan straight after pushing the manifest can legitimately see
+the previous version. That is not a failure; wait and rescan.
+
 ## Listing it somewhere
 
 The manifest lives at:
