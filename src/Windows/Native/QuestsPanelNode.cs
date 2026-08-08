@@ -281,11 +281,23 @@ public class QuestsPanelNode : TabPanelNode
     // Labelled with the job, since a list of fourteen quest names says nothing
     // about which job each belongs to. The label goes on a clone: the quest in
     // the tree is shared, and renaming it there would rename it everywhere.
-    List<Types.Quest> jobQuests = [];
+    // A job's next quest is often above its current level, and listing it as a
+    // recommendation says "do this" about something that cannot be accepted.
+    // Those become an instruction instead, and sort below the ones that can be
+    // started — so whatever sits at the top of the section is always actionable.
+    List<(Types.Quest Quest, bool Gated)> next = [];
 
     foreach (ClassJobProgress job in ProgressService.GetProgress().Where((p) => p.IsUnlocked))
-      if (FirstIncompleteForJob(job) is { } next)
-        jobQuests.Add(LabelledFor(next, job.Name));
+      if (FirstIncompleteForJob(job) is { } quest)
+        next.Add(quest.Level > job.Level
+          ? (GatedFor(quest, job), true)
+          : (LabelledFor(quest, job.Name, OutstandingForJob(job)), false));
+
+    // Level ascending within each group rather than across the whole list: a
+    // sort purely by level would put a gated Lv 70 above a Lv 73 you can start
+    // today, which is the thing this is meant to stop.
+    List<Types.Quest> jobQuests =
+      [.. next.OrderBy((n) => n.Gated).ThenBy((n) => n.Quest.Level).Select((n) => n.Quest)];
 
     if (jobQuests.Count > 0) section.Entries.Add(Bundle($"Job Quests  ({jobQuests.Count})", jobQuests));
     else LogJobLineShape();
@@ -322,10 +334,30 @@ public class QuestsPanelNode : TabPanelNode
   /// ids, level, area — is carried over, so completion and patch still resolve
   /// against the real quest.
   /// </summary>
-  private static Types.Quest LabelledFor(Types.Quest quest, string jobName)
+  private static Types.Quest LabelledFor(Types.Quest quest, string jobName, int outstanding)
   {
     Types.Quest copy = (Types.Quest)quest.Clone();
-    copy.Title = $"{quest.Title}  ({jobName})";
+
+    // The count is only worth saying when it is more than the quest already
+    // named: "1 behind" is what the row is showing anyway.
+    copy.Title = outstanding > 1
+      ? $"{quest.Title}  ({jobName} — {outstanding} behind)"
+      : $"{quest.Title}  ({jobName})";
+
+    return copy;
+  }
+
+  /// <summary>
+  /// The same quest, titled as the thing the player can actually act on. The
+  /// quest itself is unreachable until the job catches up, so naming it as a
+  /// recommendation would be advice that cannot be taken — the levelling is the
+  /// recommendation. The quest is still carried underneath, so its level, area
+  /// and patch line up as usual and it remains selectable.
+  /// </summary>
+  private static Types.Quest GatedFor(Types.Quest quest, ClassJobProgress job)
+  {
+    Types.Quest copy = (Types.Quest)quest.Clone();
+    copy.Title = $"Level {job.Name} to {quest.Level} for \"{quest.Title}\"";
 
     return copy;
   }
@@ -422,6 +454,46 @@ public class QuestsPanelNode : TabPanelNode
         return found;
 
     return null;
+  }
+
+  /// <summary>
+  /// How many of a job's quests are outstanding at or below its current level.
+  ///
+  /// "What is next" and "how far behind am I" are different questions, and a
+  /// row showing only the next quest looks the same for a job that is one quest
+  /// behind and one that skipped its entire early line — a Goldsmith at 50 can
+  /// still be missing the level 20 quest. Quests above the current level are not
+  /// counted: those are not skipped, just not reached yet.
+  /// </summary>
+  private int OutstandingForJob(ClassJobProgress job)
+  {
+    int total = 0;
+
+    foreach (string name in job.ClassName is null ? [job.Name] : new[] { job.ClassName, job.Name })
+      foreach (QuestData expansion in DataService.QuestData.Categories)
+        foreach (QuestData category in expansion.Categories)
+        {
+          if (category.EnglishTitle != "Class & Job Quests") continue;
+
+          if (FindBranchNamed(category, name) is { } branch) total += CountIncompleteUpTo(branch, job.Level);
+        }
+
+    return total;
+  }
+
+  private int CountIncompleteUpTo(QuestData node, int level)
+  {
+    if (node.Hide) return 0;
+
+    int total = 0;
+
+    foreach (Types.Quest quest in node.Quests)
+      if (!quest.Hide && quest.Level <= level && !DataService.IsQuestComplete(quest))
+        total++;
+
+    foreach (QuestData child in node.Categories) total += CountIncompleteUpTo(child, level);
+
+    return total;
   }
 
   private static string Label(QuestData node)
