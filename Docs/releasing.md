@@ -33,8 +33,8 @@ replace it. Bump before committing, not after.
 4. Regenerate and commit the repository manifest:
 
    ```
-   dotnet build -c Release
-   python tools/Build-RepoJson.py
+   dotnet build -c Release --no-incremental
+   python tools/Build-RepoJson.py "What changed, in a sentence."
    git add repo.json && git commit -m "release: 3.0.0.15" && git push
    ```
 
@@ -42,6 +42,15 @@ replace it. Bump before committing, not after.
    the version there always matches the build. Its download links point at
    `releases/latest`, which resolves to the newest release on its own and never
    needs editing.
+
+   **`--no-incremental` is not optional.** An ordinary build leaves
+   `bin/Release/TimeMemoria V3/TimeMemoriaV3.json` untouched when only the
+   version changed, so `Build-RepoJson.py` happily reads the *previous*
+   version and writes a manifest advertising it. Nothing errors. The release
+   exists on GitHub, the download link resolves to it, and every installer
+   decides there is no update — because `AssemblyVersion` is what Dalamud
+   compares. This happened to 3.0.3.15; check the version the script prints
+   against the tag before committing.
 
 ## Listing it somewhere
 
