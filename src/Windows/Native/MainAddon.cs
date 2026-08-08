@@ -31,8 +31,15 @@ public unsafe class MainAddon : NativeAddon
   public required Configuration Config { get; init; }
   public required ILogger Logger { get; init; }
 
+  /// <summary>
+  /// Raised by the title bar's gear button, which trades this window for the
+  /// at-a-glance one. The addon owns neither side of that swap, so it asks.
+  /// </summary>
+  public required System.Action OnSwapRequested { get; init; }
+
   private readonly List<TabPanelNode> _panels = [];
   private TabPanelNode? _active;
+  private TextureButtonNode? _swapButton;
 
   protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan)
   {
@@ -79,6 +86,9 @@ public unsafe class MainAddon : NativeAddon
 
     AddNode(tabs);
 
+    _swapButton = TitleBarButton.Gear(WindowNode, Size.X, "At-a-glance window (/tmmini)", () => OnSwapRequested());
+    AddNode(_swapButton);
+
     foreach (TabPanelNode panel in panels)
     {
       panel.Position = panelPosition;
@@ -115,6 +125,7 @@ public unsafe class MainAddon : NativeAddon
   {
     _panels.Clear();
     _active = null;
+    _swapButton = null;
 
     base.OnFinalize(addon);
   }

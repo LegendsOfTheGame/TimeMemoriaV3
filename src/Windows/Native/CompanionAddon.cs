@@ -39,7 +39,14 @@ public unsafe class CompanionAddon : NativeAddon
   public required IPacingService Pacing { get; init; }
   public required IAchievementService Achievements { get; init; }
 
+  /// <summary>
+  /// Raised by the title bar's gear button, which trades this window for the
+  /// full one. The addon owns neither side of that swap, so it asks.
+  /// </summary>
+  public required System.Action OnSwapRequested { get; init; }
+
   private VerticalListNode? _list;
+  private TextureButtonNode? _swapButton;
   private readonly List<(TextNode Label, TextNode Value)> _rows = [];
 
   protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan)
@@ -55,6 +62,9 @@ public unsafe class CompanionAddon : NativeAddon
     };
 
     AddNode(_list);
+
+    _swapButton = TitleBarButton.Gear(WindowNode, Size.X, "Full window (/tm)", () => OnSwapRequested());
+    AddNode(_swapButton);
 
     for (int i = 0; i < MaxRows; i++)
     {
@@ -79,6 +89,7 @@ public unsafe class CompanionAddon : NativeAddon
   {
     _rows.Clear();
     _list = null;
+    _swapButton = null;
 
     base.OnFinalize(addon);
   }

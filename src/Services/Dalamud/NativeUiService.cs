@@ -14,6 +14,12 @@ public interface INativeUiService : IAsyncDisposable
   /// <summary>Shows or hides the small at-a-glance window.</summary>
   void ToggleCompanion();
 
+  /// <summary>Closes the full window and opens the at-a-glance one in its place.</summary>
+  void SwapToCompanion();
+
+  /// <summary>Closes the at-a-glance window and opens the full one in its place.</summary>
+  void SwapToMain();
+
   /// <summary>False until <see cref="Create"/> has run.</summary>
   bool IsReady { get; }
 }
@@ -55,7 +61,8 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       ProgressService = _classJobProgress,
       Playtime = _playtime,
       Pacing = _pacing,
-      Achievements = _achievements
+      Achievements = _achievements,
+      OnSwapRequested = SwapToMain
     };
 
     _window = new MainAddon
@@ -74,7 +81,8 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       News = _news,
       PlayerState = _playerState,
       Config = _configuration,
-      Logger = _logger
+      Logger = _logger,
+      OnSwapRequested = SwapToCompanion
     };
 
     _logger.Debug("[NativeUi] Window created.");
@@ -94,20 +102,59 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       return;
     }
 
-    if (!_window.IsOpen)
-    {
-      Vector2 size = new(
-        Math.Clamp(_configuration.NativeWindowWidth, MinimumSize.X, MaximumSize.X),
-        Math.Clamp(_configuration.NativeWindowHeight, MinimumSize.Y, MaximumSize.Y));
-
-      if (size != _window.Size)
-      {
-        _window.Size = size;
-        _logger.Debug($"[NativeUi] Opening at {size.X:F0}x{size.Y:F0}.");
-      }
-    }
+    ApplyConfiguredSize();
 
     _window.Toggle();
+  }
+
+  /// <summary>
+  /// Size is read when the window is built, which happens on open, so this only
+  /// has to run before one. It is a no-op on a window that is already open.
+  /// </summary>
+  private void ApplyConfiguredSize()
+  {
+    if (_window is null || _window.IsOpen) return;
+
+    Vector2 size = new(
+      Math.Clamp(_configuration.NativeWindowWidth, MinimumSize.X, MaximumSize.X),
+      Math.Clamp(_configuration.NativeWindowHeight, MinimumSize.Y, MaximumSize.Y));
+
+    if (size == _window.Size) return;
+
+    _window.Size = size;
+    _logger.Debug($"[NativeUi] Opening at {size.X:F0}x{size.Y:F0}.");
+  }
+
+  /// <summary>
+  /// The two windows are alternatives rather than companions, so swapping closes
+  /// one before opening the other. Leaving both up would put the same numbers on
+  /// screen twice.
+  /// </summary>
+  public void SwapToCompanion()
+  {
+    if (_window is null || _companion is null)
+    {
+      _logger.Error("[NativeUi] Swap requested before the windows were created.");
+      return;
+    }
+
+    _window.Close();
+    _companion.Open();
+  }
+
+  /// <inheritdoc cref="SwapToCompanion"/>
+  public void SwapToMain()
+  {
+    if (_window is null || _companion is null)
+    {
+      _logger.Error("[NativeUi] Swap requested before the windows were created.");
+      return;
+    }
+
+    _companion.Close();
+
+    ApplyConfiguredSize();
+    _window.Open();
   }
 
   public void ToggleCompanion()
