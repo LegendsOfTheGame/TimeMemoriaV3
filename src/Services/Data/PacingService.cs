@@ -92,6 +92,16 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
   /// </summary>
   private void OnFrameworkUpdate(IFramework framework)
   {
+    // The native windows have no tick of their own: NativeAddon.OnUpdate fires
+    // once when the addon opens and never again. So the recount is driven from
+    // here, where there genuinely is a frame loop — otherwise the totals only
+    // move while the classic window happens to be open, which is exactly how
+    // they came to be frozen for anyone who had moved on from it.
+    //
+    // Throttled inside UpdateQuestData, so this costs a comparison per frame
+    // and a tree walk every five seconds.
+    if (_clientState.IsLoggedIn) _dataService.UpdateQuestData();
+
     if (_sessionBaseline is not null || _anchorDueAt is null) return;
     if (!_clientState.IsLoggedIn || DateTime.UtcNow < _anchorDueAt.Value) return;
 

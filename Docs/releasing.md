@@ -52,6 +52,24 @@ replace it. Bump before committing, not after.
    compares. This happened to 3.0.3.15; check the version the script prints
    against the tag before committing.
 
+## When a change does not appear in game
+
+Three separate things can serve stale code, and none of them says so:
+
+1. **An installed copy shadows the dev plugin.** Both claim the same
+   `InternalName` and the local one wins, so the installer keeps reporting the
+   dev build's version while the published one goes unnoticed.
+2. **A dev plugin reload can serve a cached assembly.** Disabling and
+   re-enabling is not always enough — remove the dev plugin entry in
+   `/xlsettings` and add it back.
+3. **`dotnet build` without `--no-incremental`** leaves DalamudPackager's
+   manifest untouched when only the version changed, so `repo.json` advertises
+   the previous release.
+
+If a change is definitely in the source and definitely not in the game, work
+through those three before looking for the fault in the code. All three have
+cost an hour each.
+
 ## Verifying a release actually reached users
 
 Disable the dev plugin first. A dev plugin registered from `bin/Release` and an

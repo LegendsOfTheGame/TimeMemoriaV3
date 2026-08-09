@@ -60,6 +60,13 @@ public unsafe class CompanionAddon : NativeAddon
   {
     base.OnSetup(addon, atkValueSpan);
 
+    // Forced, and this is not merely symmetry with the main window: the game
+    // closes its addons while a quest is being turned in, so OnSetup runs again
+    // the moment the player finishes the very thing the totals need to reflect.
+    // Waiting out the throttle here shows a stale figure at precisely the
+    // instant someone looks to see whether it counted.
+    DataService.UpdateQuestData(true);
+
     _list = new VerticalListNode
     {
       Position = ContentStartPosition,
