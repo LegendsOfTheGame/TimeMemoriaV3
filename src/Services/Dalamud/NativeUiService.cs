@@ -62,6 +62,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       Playtime = _playtime,
       Pacing = _pacing,
       Achievements = _achievements,
+      DataService = _dataService,
       OnSwapRequested = SwapToMain
     };
 

@@ -45,6 +45,9 @@ public unsafe class MainAddon : NativeAddon
   {
     base.OnSetup(addon, atkValueSpan);
 
+    // Forced: the window is about to draw totals someone opened it to read.
+    DataService.UpdateQuestData(true);
+
     Vector2 panelSize = new(ContentSize.X, ContentSize.Y - TabBarHeight - Gap);
     Vector2 panelPosition = ContentStartPosition + new Vector2(0.0f, TabBarHeight + Gap);
 
@@ -118,8 +121,21 @@ public unsafe class MainAddon : NativeAddon
     panel.Refresh();
   }
 
-  /// <summary>Only the visible panel is refreshed; a hidden one has nothing worth recomputing.</summary>
-  protected override void OnUpdate(AtkUnitBase* addon) => _active?.Refresh();
+  /// <summary>
+  /// Only the visible panel is refreshed; a hidden one has nothing worth
+  /// recomputing.
+  ///
+  /// The recount is what keeps the totals moving while the window is open. It
+  /// used to happen only as a side effect of the classic window's draw loop, so
+  /// anyone using this window saw figures frozen at login — and session pacing
+  /// read zero forever, because the total it subtracts from never changed.
+  /// </summary>
+  protected override void OnUpdate(AtkUnitBase* addon)
+  {
+    DataService.UpdateQuestData();
+
+    _active?.Refresh();
+  }
 
   protected override void OnFinalize(AtkUnitBase* addon)
   {

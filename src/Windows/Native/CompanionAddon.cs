@@ -40,6 +40,13 @@ public unsafe class CompanionAddon : NativeAddon
   public required IAchievementService Achievements { get; init; }
 
   /// <summary>
+  /// Only used to keep the totals moving. Session pacing is derived from them,
+  /// so without this the session reads zero for as long as this window is the
+  /// only one open.
+  /// </summary>
+  public required IDataService DataService { get; init; }
+
+  /// <summary>
   /// Raised by the title bar's gear button, which trades this window for the
   /// full one. The addon owns neither side of that swap, so it asks.
   /// </summary>
@@ -96,6 +103,8 @@ public unsafe class CompanionAddon : NativeAddon
 
   protected override void OnUpdate(AtkUnitBase* addon)
   {
+    DataService.UpdateQuestData();
+
     int row = 0;
 
     SetHeading(ref row, "Playtime");

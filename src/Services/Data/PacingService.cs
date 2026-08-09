@@ -95,7 +95,9 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
     if (_sessionBaseline is not null || _anchorDueAt is null) return;
     if (!_clientState.IsLoggedIn || DateTime.UtcNow < _anchorDueAt.Value) return;
 
-    _dataService.UpdateQuestData();
+    // Forced: this runs once and sets the baseline every later figure is
+    // measured against, so a throttled skip here would anchor on a stale total.
+    _dataService.UpdateQuestData(true);
 
     int total = TotalComplete;
     if (total <= 0) return;

@@ -55,6 +55,11 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   {
     try
     {
+      // Forced: an export is a figure someone is about to paste somewhere and
+      // keep. Being a few seconds stale is fine on screen and not fine here —
+      // an export written into the ledger is wrong until the next one.
+      _dataService.UpdateQuestData(true);
+
       JsonObject root = new()
       {
         ["source"] = "time-memoria",

@@ -708,7 +708,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
           {
             _configuration.DisplayOption = i;
             _configuration.Save();
-            _dataService.UpdateQuestData();
+            _dataService.UpdateQuestData(true);
             ResetSelections();
           }
 
@@ -742,7 +742,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     {
       _configuration.ExcludeOtherQuests = excludeOtherQuests;
       _configuration.Save();
-      _dataService.UpdateQuestData();
+      _dataService.UpdateQuestData(true);
     }
 
     bool excludeLevequests = _configuration.ExcludeLevequests;
@@ -750,7 +750,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     {
       _configuration.ExcludeLevequests = excludeLevequests;
       _configuration.Save();
-      _dataService.UpdateQuestData();
+      _dataService.UpdateQuestData(true);
     }
 
     DrawSpoilerSettings();

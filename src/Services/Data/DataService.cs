@@ -11,7 +11,11 @@ public interface IDataService : IHostedService
   event System.Action? OnReset;
   void Reset();
   bool IsQuestComplete(Types.Quest quest);
-  void UpdateQuestData();
+  /// <summary>
+  /// Recounts the tree's totals, at most once every few seconds. Pass
+  /// <paramref name="force"/> when someone is about to read the result.
+  /// </summary>
+  void UpdateQuestData(bool force = false);
   IReadOnlyList<ExpansionProgress> ExpansionProgress { get; }
   IReadOnlyList<CategoryProgress> CategoryProgress { get; }
   IReadOnlyList<ExpansionProgress> MsqProgress { get; }
@@ -443,8 +447,26 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     return false;
   }
 
-  public void UpdateQuestData()
+  /// <summary>
+  /// Recounts the tree. Individual completion is read live from the game, but
+  /// these aggregates are not — so nothing calling this leaves every total
+  /// frozen at whatever it was when the tree was last walked.
+  ///
+  /// Throttled because the walk is not cheap: the classic window called it every
+  /// frame, which is what produced the long UiBuilder hitches. Five seconds is
+  /// slow enough to stay clear of that and fast enough that a quest handed in
+  /// shows up before anyone goes looking.
+  ///
+  /// <paramref name="force"/> skips the throttle for the moments where being a
+  /// few seconds stale would actually be noticed — opening a window, or
+  /// exporting, where the whole point is a figure someone is about to read.
+  /// </summary>
+  public void UpdateQuestData(bool force = false)
   {
+    if (!force && DateTime.UtcNow - _lastQuestUpdate < QuestUpdateInterval) return;
+
+    _lastQuestUpdate = DateTime.UtcNow;
+
     _expansionTally.Clear();
     _categoryTally.Clear();
     _categoryNames.Clear();
@@ -452,6 +474,10 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     RebuildExpansionProgress();
     RebuildCategoryProgress();
   }
+
+  private static readonly TimeSpan QuestUpdateInterval = TimeSpan.FromSeconds(5.0);
+
+  private DateTime _lastQuestUpdate = DateTime.MinValue;
 
   /// <summary>
   /// Turns the per-expansion tally into an ordered, named list. Names come from

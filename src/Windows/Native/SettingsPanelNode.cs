@@ -46,7 +46,7 @@ public class SettingsPanelNode : TabPanelNode
       {
         Config.DisplayOption = Math.Max(0, Array.IndexOf(DisplayOptions, option));
         Config.Save();
-        DataService.UpdateQuestData();
+        DataService.UpdateQuestData(true);
       }
     };
 
@@ -59,14 +59,14 @@ public class SettingsPanelNode : TabPanelNode
     {
       Config.ExcludeOtherQuests = value;
       Config.Save();
-      DataService.UpdateQuestData();
+      DataService.UpdateQuestData(true);
     });
 
     _excludeLeves = AddCheckbox("Exclude 'Levequests' from Overall", (value) =>
     {
       Config.ExcludeLevequests = value;
       Config.Save();
-      DataService.UpdateQuestData();
+      DataService.UpdateQuestData(true);
     });
 
     _spoiler = AddCheckbox("Spoiler Mode (show expansions you have not reached)",
