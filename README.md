@@ -30,11 +30,21 @@ ImGui version of all of it too — `/tm classic` — and a setting for which one
 
 ---
 
-## Status: unreleased
+## Status: released
 
-**Time Memoria has never been released.** Nothing has been published and nobody
-has installed it — but two earlier versions were built and flown, and this one
-releases as **3.0** because it is shaped by what they taught.
+**Time Memoria is published.** Install it by adding this repository to Dalamud's
+custom plugin repositories:
+
+```
+https://raw.githubusercontent.com/LegendsOfTheGame/TimeMemoriaV3/main/repo.json
+```
+
+It is also carried by [Senither's plugin
+list](https://dalamud-plugins.senither.com/plugin/TimeMemoriaV3), which merges a
+number of third-party repositories into a single URL.
+
+Two earlier versions were built and flown before this one, which is why it began
+at **3.0** rather than 1.0 — it is shaped by what they taught.
 
 [TimeMemoriaV2](https://github.com/LegendsOfTheGame/TimeMemoriaV2) is kept for
 reference. It maintained its quest data by hand — 288 JSON files needing an
