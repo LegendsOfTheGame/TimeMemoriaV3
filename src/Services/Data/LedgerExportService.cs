@@ -2,9 +2,6 @@ namespace TimeMemoria.Services;
 
 public interface ILedgerExportService
 {
-  /// <summary>Time Memoria's own progression shape.</summary>
-  string BuildProgressionJson();
-
   /// <summary>The Adventurer's Ledger field shape, ready to merge.</summary>
   string BuildLedgerJson();
 }
@@ -13,44 +10,9 @@ public interface ILedgerExportService
 /// Builds the clipboard payloads. Local only — output goes to the clipboard and
 /// nowhere else; the plugin makes no outbound requests.
 /// </summary>
-public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService)
+public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies)
   : ILedgerExportService
 {
-  public string BuildProgressionJson()
-  {
-    try
-    {
-      JsonArray jobs = [];
-      foreach (ClassJobProgress p in _classJobProgress.GetProgress().Where(p => p.IsUnlocked))
-      {
-        jobs.Add(new JsonObject
-        {
-          ["name"] = p.Name,
-          ["abbreviation"] = p.Abbreviation,
-          ["category"] = p.Category,
-          ["level"] = p.Level,
-          ["exp"] = p.Experience,
-          ["expToNext"] = p.ExperienceToNext
-        });
-      }
-
-      JsonObject root = new()
-      {
-        ["character"] = _playerState.IsLoaded ? _playerState.CharacterName : string.Empty,
-        ["world"] = WorldName(),
-        ["exportedUtc"] = DateTime.UtcNow.ToString("o"),
-        ["classJobs"] = jobs
-      };
-
-      return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-    }
-    catch (Exception ex)
-    {
-      _pluginLog.Error(ex, "[LedgerExport] Failed to build progression payload");
-      return "{}";
-    }
-  }
-
   public string BuildLedgerJson()
   {
     try
@@ -79,6 +41,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       root["craft"] = BuildLevels(progress, "craft");
       root["gather"] = BuildLevels(progress, "gather");
       root["quests"] = BuildQuests();
+      root["societies"] = BuildSocieties();
       root["msqBreakdown"] = BuildMsqBreakdown();
 
       JsonObject? msqPatch = BuildMsqPatch();
@@ -113,6 +76,42 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       playtime["asOf"] = record.LifetimePlaytimeUpdatedUtc.Value.ToString("o");
 
     return playtime;
+  }
+
+  /// <summary>
+  /// Allied society standing, which the ledger has until now asked people to
+  /// enter by hand — and which was consequently a rank and three hundred points
+  /// out of date in the file that prompted this.
+  ///
+  /// Rank and points are durable facts about a character and belong here. The
+  /// daily allowance deliberately does not: it resets every day, so a stored
+  /// snapshot of it is worse than nothing.
+  ///
+  /// Every society is sent, including untouched ones at rank 0, because "not
+  /// started" is a fact the ledger cannot otherwise distinguish from "never
+  /// synced".
+  ///
+  /// Keyed by sheet id rather than by name. There are at least four spellings in
+  /// circulation for the same society — the sheet says "sylphs", the wiki says
+  /// "Sylphs", the ledger says "Sylph" — and an import that matches on wording
+  /// breaks the day any of them is revised. The id is the same number the client
+  /// indexes standing by and cannot drift. The name rides along for display.
+  /// </summary>
+  private JsonArray BuildSocieties()
+  {
+    JsonArray societies = [];
+
+    foreach (SocietyStanding standing in _societies.GetStandings())
+      societies.Add(new JsonObject
+      {
+        ["id"] = standing.Index,
+        ["name"] = standing.Name,
+        ["rank"] = standing.Rank,
+        ["points"] = standing.Points,
+        ["needed"] = standing.Needed
+      });
+
+    return societies;
   }
 
   /// <summary>

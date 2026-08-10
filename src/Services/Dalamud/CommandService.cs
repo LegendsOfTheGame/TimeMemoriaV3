@@ -1,3 +1,5 @@
+using Dalamud.Bindings.ImGui;
+
 namespace TimeMemoria.Services;
 
 public interface ICommandService : IHostedService;
@@ -11,7 +13,8 @@ public interface ICommandService : IHostedService;
 /// a collision, so they are gone.
 /// </summary>
 public class CommandService(ILogger _logger, IDataService _dataService, IWindowService _windowService,
-  INativeUiService _nativeUi, Configuration _configuration, ICommandManager _commandManager) : ICommandService
+  INativeUiService _nativeUi, Configuration _configuration, ICommandManager _commandManager,
+  ILedgerExportService _ledgerExport) : ICommandService
 {
   private const string MainCommand = "/timememoria";
   private const string MainAlias = "/tm";
@@ -51,6 +54,25 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
 
   private void OnGlanceCommand(string command, string arguments) => _nativeUi.ToggleCompanion();
 
+  /// <summary>
+  /// Command handlers run on the framework thread, the same one ImGui renders
+  /// on, so writing the clipboard from here is safe — the window's copy buttons
+  /// do it from the same place.
+  /// </summary>
+  private void Copy(Func<string> build, string what)
+  {
+    try
+    {
+      ImGui.SetClipboardText(build());
+      _logger.Chat($"Copied your progress in {what}.");
+    }
+    catch (Exception ex)
+    {
+      _logger.Chat($"Copy failed: {ex.Message}");
+      _logger.Error(ex, "Clipboard copy failed");
+    }
+  }
+
   private void OnCommand(string command, string arguments)
   {
     _logger.Debug($"command::'{command}' arguments::'{arguments}'");
@@ -72,8 +94,17 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _logger.Chat($"  {MainCommand} — open the window you have chosen in Settings");
         _logger.Chat($"  {MainCommand} classic — the classic window, whatever is chosen");
         _logger.Chat($"  {MainCommand} native — the game-styled window, whatever is chosen");
+        _logger.Chat($"  {MainCommand} ledger — copy your progress to the clipboard");
         _logger.Chat($"  {MainCommand} reset — reset the quest tree");
         _logger.Chat($"  {GlanceCommand} — open the at-a-glance window");
+        break;
+
+      // Straight to the clipboard rather than by way of the window. Nothing
+      // leaves the machine either way; this only removes the two clicks between
+      // wanting the figures and having them.
+      case "ledger":
+      case "progress":
+        Copy(_ledgerExport.BuildLedgerJson, "ledger format");
         break;
 
       // Named explicitly so neither window can become unreachable. Choosing the

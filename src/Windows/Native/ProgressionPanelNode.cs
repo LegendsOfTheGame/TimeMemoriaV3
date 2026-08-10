@@ -36,7 +36,6 @@ public class ProgressionPanelNode : TabPanelNode
   public required IClassJobProgressService ProgressService { get; init; }
   public required ILedgerExportService LedgerExport { get; init; }
 
-  private readonly TextButtonNode _copyProgression;
   private readonly TextButtonNode _copyLedger;
   private readonly TextButtonNode _openLedger;
   private readonly TextNode _copyFeedback;
@@ -48,11 +47,9 @@ public class ProgressionPanelNode : TabPanelNode
 
   public ProgressionPanelNode()
   {
-    // The classic window has had these since before the native one existed;
-    // they were simply missed in the port. Same two payloads, same clipboard.
-    _copyProgression = MakeButton("Copy progression",
-      () => Copy(LedgerExport.BuildProgressionJson, "Copied as JSON."));
-
+    // One payload, not two. The ledger export already carries everything the
+    // old progression JSON did, so a second button offered a subset of the
+    // first under a name that suggested otherwise.
     _copyLedger = MakeButton("Copy for the Ledger",
       () => Copy(LedgerExport.BuildLedgerJson, "Copied in ledger format."));
 
@@ -173,14 +170,11 @@ public class ProgressionPanelNode : TabPanelNode
     // Buttons along the bottom, table above them.
     float buttonsY = Height - buttonHeight;
 
-    _copyProgression.Size = new Vector2(buttonWidth, buttonHeight);
-    _copyProgression.Position = new Vector2(0.0f, buttonsY);
-
     _copyLedger.Size = new Vector2(buttonWidth, buttonHeight);
-    _copyLedger.Position = new Vector2(buttonWidth + gap, buttonsY);
+    _copyLedger.Position = new Vector2(0.0f, buttonsY);
 
     _openLedger.Size = new Vector2(buttonWidth, buttonHeight);
-    _openLedger.Position = new Vector2((buttonWidth + gap) * 2.0f, buttonsY);
+    _openLedger.Position = new Vector2(buttonWidth + gap, buttonsY);
 
     _copyFeedback.Size = new Vector2(Width, 18.0f);
     _copyFeedback.Position = new Vector2(0.0f, buttonsY - 20.0f);

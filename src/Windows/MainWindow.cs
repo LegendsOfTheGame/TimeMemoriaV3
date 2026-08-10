@@ -781,6 +781,22 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     ImGui.Spacing();
 
+    // Offered here as well as in the game window's settings: /tmmini can be
+    // opened from either, so the setting that governs it should be reachable
+    // from either.
+    bool alwaysVisible = _configuration.CompanionAlwaysVisible;
+    if (ImGui.Checkbox("Keep /tmmini visible when the game hides the UI", ref alwaysVisible))
+    {
+      _configuration.CompanionAlwaysVisible = alwaysVisible;
+      _configuration.Save();
+    }
+
+    ImGui.TextDisabled(alwaysVisible
+      ? "  Stays up during quest turn-ins — and during cutscenes and screenshots."
+      : "  Hides with the rest of the interface, as the game intends.");
+
+    ImGui.Spacing();
+
     if (ImGui.Button("Open the game window")) _nativeUi.Toggle();
     ImGui.SameLine();
     ImGui.TextDisabled("Opens at this window's current size.");
@@ -1157,11 +1173,6 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private void DrawExportRow()
   {
-    if (ImGui.Button("Copy progression to clipboard"))
-      CopyToClipboard(_ledgerExport.BuildProgressionJson, "Copied as JSON.");
-
-    ImGui.SameLine();
-
     if (ImGui.Button("Copy for Adventurer's Ledger"))
       CopyToClipboard(_ledgerExport.BuildLedgerJson, "Copied in ledger format.");
 

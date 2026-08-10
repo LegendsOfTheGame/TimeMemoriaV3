@@ -46,6 +46,10 @@ public unsafe class CompanionAddon : NativeAddon
   /// </summary>
   public required IDataService DataService { get; init; }
 
+  public required IAlliedSocietyService Societies { get; init; }
+
+  public required Configuration Config { get; init; }
+
   /// <summary>
   /// Raised by the title bar's gear button, which trades this window for the
   /// full one. The addon owns neither side of that swap, so it asks.
@@ -66,6 +70,10 @@ public unsafe class CompanionAddon : NativeAddon
     // Waiting out the throttle here shows a stale figure at precisely the
     // instant someone looks to see whether it counted.
     DataService.UpdateQuestData(true);
+
+    // Set here rather than once at construction: the addon is reallocated every
+    // time it opens, so a flag applied earlier would not survive.
+    InternalAddon->IgnoreUIDisplayMode = Config.CompanionAlwaysVisible;
 
     _list = new VerticalListNode
     {
@@ -143,6 +151,8 @@ public unsafe class CompanionAddon : NativeAddon
     SetRow(ref row, $"This session ({Pacing.SessionQuests})", FormatPace(Pacing.SessionMinutesPerQuest));
     SetRow(ref row, "Overall", FormatPace(Pacing.OverallMinutesPerQuest));
 
+    SetAlliedSociety(ref row);
+
     SetHeading(ref row, "Furthest behind  (lv.progress)");
 
     // Battle jobs only, and not the limited ones. This list answers "what should
@@ -182,6 +192,33 @@ public unsafe class CompanionAddon : NativeAddon
       (TextNode label, TextNode value) = _rows[row];
       label.IsVisible = value.IsVisible = false;
     }
+  }
+
+  /// <summary>
+  /// Allowances, and only the societies worth acting on.
+  ///
+  /// Listing all twenty would fill this window with zeroes, and listing every
+  /// started one grows without limit. What actually changes a decision is: how
+  /// many quests can still be picked up today, and which societies are at their
+  /// point cap — because there, further dailies award nothing until an allied
+  /// society main quest promotes you, and grinding them is wasted.
+  ///
+  /// The allowance is trustworthy except in one case, so it says so only in that
+  /// case: held quests block the count from rolling over at reset until the last
+  /// is handed in.
+  /// </summary>
+  private void SetAlliedSociety(ref int row)
+  {
+    SetHeading(ref row, "Allied society");
+
+    int held = Societies.HeldQuests;
+
+    SetRow(ref row, "Allowances", held > 0
+      ? $"{Societies.Allowances}  ({held} held)"
+      : $"{Societies.Allowances} / 12");
+
+    foreach (SocietyStanding standing in Societies.GetStandings().Where((s) => s.IsCapped))
+      SetRow(ref row, standing.Name, "capped — main quest");
   }
 
   private void SetHeading(ref int row, string text)

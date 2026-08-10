@@ -104,6 +104,12 @@ public class NewsPanelNode : TabPanelNode
     }
 
     SetHeading(ref row, "Pacing");
+
+    // "Counting since" rather than "session started": this is when the baseline
+    // was taken, which a plugin reload resets. Calling it the start of the
+    // session would be a small lie on any day the plugin was reloaded.
+    if (Pacing.CountingSince is { } since) Set(ref row, "Counting since", since.ToString("HH:mm"));
+
     Set(ref row, $"This session ({Pacing.SessionQuests})", Pace(Pacing.SessionMinutesPerQuest));
     Set(ref row, "Overall", Pace(Pacing.OverallMinutesPerQuest));
     Set(ref row, "Main Scenario", Pace(Pacing.MsqMinutesPerQuest));

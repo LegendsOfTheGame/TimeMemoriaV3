@@ -5,6 +5,14 @@ public interface IPacingService : IHostedService
   /// <summary>Quests completed since this session's baseline was taken.</summary>
   int SessionQuests { get; }
 
+  /// <summary>
+  /// Local time the baseline was taken, or null before it has been. This is
+  /// when counting started rather than when play did — a plugin reload resets
+  /// it — so anything showing it should say "counting since", not "session
+  /// started".
+  /// </summary>
+  DateTime? CountingSince { get; }
+
   /// <summary>Minutes per quest for this session, or null before anything is finished.</summary>
   double? SessionMinutesPerQuest { get; }
 
@@ -124,6 +132,7 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
     if (DateTime.UtcNow - _settlingSince < SettleWindow) return;
 
     _sessionBaseline = total;
+    _countingSince = DateTime.Now;
     _anchorDueAt = null;
     _logger.Debug($"[Pacing] Session anchored at {total} completed.");
   }
@@ -134,6 +143,10 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
   /// make the whole session look like progress.
   /// </summary>
   private int? _sessionBaseline;
+
+  private DateTime? _countingSince;
+
+  public DateTime? CountingSince => _countingSince;
 
   public int TotalComplete => _dataService.ExpansionProgress.Sum((e) => e.NumComplete);
 
@@ -188,6 +201,7 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
   public void ResetSession()
   {
     _sessionBaseline = null;
+    _countingSince = null;
 
     // Clear the settling state too, or the next anchor compares against the
     // previous character's total and settles instantly on a wrong figure.

@@ -68,6 +68,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton<IQuestSnapshotService, QuestSnapshotService>();
         collection.AddSingleton<IQuestPatchService, QuestPatchService>();
         collection.AddSingleton<IAchievementService, AchievementService>();
+        collection.AddSingleton<IAlliedSocietyService, AlliedSocietyService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 

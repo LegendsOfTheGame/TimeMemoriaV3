@@ -32,6 +32,19 @@ public class Configuration : IPluginConfiguration
   public bool UseNativeUi { get; set; } = false;
 
   /// <summary>
+  /// Keep the at-a-glance window visible when the game hides its interface.
+  ///
+  /// Off by default, and deliberately: the plugin does not put itself in front
+  /// of anything you did not ask it to. But the game hides addons during quest
+  /// turn-ins, which is exactly when the numbers change, and someone who wants
+  /// it up regardless should be able to have that.
+  ///
+  /// It is the general hide-the-UI mechanism rather than a turn-in specific one,
+  /// so this also keeps the window up during cutscenes and screenshots.
+  /// </summary>
+  public bool CompanionAlwaysVisible { get; set; } = false;
+
+  /// <summary>
   /// Size for the native window, which has no resize handle of its own. Tracked
   /// from the ImGui window, which does, and persisted so the native window does
   /// not depend on the other having been opened this session.
