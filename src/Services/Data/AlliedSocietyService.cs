@@ -36,6 +36,18 @@ public class SocietyStanding
   /// it is when continuing to grind is pointless.
   /// </summary>
   public bool IsCapped => Needed > 0 && Points >= Needed;
+
+  /// <summary>
+  /// No further points are possible at all — the rank has no quota. The four
+  /// A Realm Reborn societies stop here at Trusted, and everything else at
+  /// rank 8; past it lies only that expansion's Intersocietal quests, where
+  /// they exist.
+  ///
+  /// Distinct from <see cref="IsCapped"/>, which means the points are full and
+  /// a main quest will promote you. Both mean "stop grinding dailies", but only
+  /// one of them has something to go and do.
+  /// </summary>
+  public bool IsTerminal => Rank > 0 && Needed == 0;
 }
 
 public interface IAlliedSocietyService

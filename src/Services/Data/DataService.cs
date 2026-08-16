@@ -23,7 +23,7 @@ public interface IDataService : IHostedService
   Types.Quest? FindOldestIncomplete(out string expansion, out string category);
 }
 
-public class DataService(ILogger _logger, Configuration _configuration, IDataManager _dataManager, IClientState _clientState) : IDataService
+public class DataService(ILogger _logger, Configuration _configuration, IDataManager _dataManager, IClientState _clientState, IQuestPatchService _questPatch) : IDataService
 {
   public event System.Action? OnReset;
   public QuestData RawQuestData { get; private set; } = new();
@@ -473,6 +473,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     UpdateQuestData(QuestData);
     RebuildExpansionProgress();
     RebuildCategoryProgress();
+    RebuildOldestIncomplete();
   }
 
   private static readonly TimeSpan QuestUpdateInterval = TimeSpan.FromSeconds(5.0);
@@ -577,34 +578,77 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   }
 
   /// <summary>
-  /// The first incomplete quest in tree order, which is release order — the
-  /// natural "what should I do next" answer.
+  /// The oldest thing still outstanding: earliest patch first, then lowest level.
+  ///
+  /// This used to return the first incomplete quest in tree order, on the belief
+  /// that the tree was in release order. It is not — the tree is the game's own
+  /// journal order, which groups by section before anything else, and sections
+  /// are not chronological within themselves. The Chronicles entries sit at the
+  /// very top of Sidequests, so a patch 3.3 quest was being offered ahead of a
+  /// level 2 one from 2.0. Being wrong by a whole expansion is what makes this
+  /// worth a sort rather than a tweak to the traversal.
+  ///
+  /// Patch leads because it is what "oldest" means; level breaks ties within a
+  /// patch, so the earliest patch's easiest quest comes first.
+  ///
+  /// The answer is computed by <see cref="UpdateQuestData(bool)"/> and cached,
+  /// since the callers ask for it once a frame and this walks every quest.
   /// </summary>
   public Types.Quest? FindOldestIncomplete(out string expansion, out string category)
   {
-    expansion = category = "";
-    return FindOldestIncomplete(QuestData, "", ref expansion, ref category);
+    expansion = _oldestExpansion;
+    category = _oldestCategory;
+    return _oldestIncomplete;
   }
 
-  private Types.Quest? FindOldestIncomplete(QuestData node, string path, ref string expansion, ref string category)
+  private Types.Quest? _oldestIncomplete;
+  private string _oldestExpansion = "";
+  private string _oldestCategory = "";
+
+  private void RebuildOldestIncomplete()
   {
-    foreach (Types.Quest quest in node.Quests)
-    {
-      if (IsQuestComplete(quest)) continue;
-      category = path;
-      expansion = ExpansionName(quest.ExpansionId);
-      return quest;
-    }
+    _oldestIncomplete = null;
+    _oldestExpansion = _oldestCategory = "";
 
-    foreach (QuestData child in node.Categories)
-    {
-      string childPath = path.Length == 0 ? child.Title : $"{path} — {child.Title}";
-      Types.Quest? found = FindOldestIncomplete(child, childPath, ref expansion, ref category);
-      if (found != null) return found;
-    }
+    decimal bestPatch = decimal.MaxValue;
+    int bestLevel = int.MaxValue;
 
-    return null;
+    Scan(QuestData, "");
+
+    if (_oldestIncomplete is not null)
+      _oldestExpansion = ExpansionName(_oldestIncomplete.ExpansionId);
+
+    void Scan(QuestData node, string path)
+    {
+      foreach (Types.Quest quest in node.Quests)
+      {
+        if (IsQuestComplete(quest)) continue;
+
+        decimal patch = PatchOf(quest);
+        if (patch > bestPatch || (patch == bestPatch && quest.Level >= bestLevel)) continue;
+
+        bestPatch = patch;
+        bestLevel = quest.Level;
+        _oldestIncomplete = quest;
+        _oldestCategory = path;
+      }
+
+      foreach (QuestData child in node.Categories)
+        Scan(child, path.Length == 0 ? child.Title : $"{path} — {child.Title}");
+    }
   }
+
+  /// <summary>
+  /// A quest's patch, falling back to its expansion's own launch number when the
+  /// patch table has no entry for it.
+  ///
+  /// The fallback keeps an unlisted quest roughly where it belongs. Sorting it
+  /// first would let one gap in the data hijack the recommendation for everyone;
+  /// sorting it last would bury a genuinely old quest for ever. ExVersion row
+  /// ids run from 0 for A Realm Reborn, which launched at 2.0.
+  /// </summary>
+  private decimal PatchOf(Types.Quest quest)
+    => _questPatch.GetPatchValue(quest.Ids) ?? quest.ExpansionId + 2.0m;
 
   private string ExpansionName(uint id)
   {

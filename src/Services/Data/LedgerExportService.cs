@@ -10,7 +10,7 @@ public interface ILedgerExportService
 /// Builds the clipboard payloads. Local only — output goes to the clipboard and
 /// nowhere else; the plugin makes no outbound requests.
 /// </summary>
-public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies)
+public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements)
   : ILedgerExportService
 {
   public string BuildLedgerJson()
@@ -42,6 +42,14 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       root["gather"] = BuildLevels(progress, "gather");
       root["quests"] = BuildQuests();
       root["societies"] = BuildSocieties();
+      root["classQuests"] = BuildClassQuests();
+
+      JsonObject? collectables = BuildCollectables();
+      if (collectables != null) root["collectables"] = collectables;
+
+      JsonObject? duties = Reading(_achievements.Duties);
+      if (duties != null) root["duties"] = duties;
+
       root["msqBreakdown"] = BuildMsqBreakdown();
 
       JsonObject? msqPatch = BuildMsqPatch();
@@ -112,6 +120,90 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       });
 
     return societies;
+  }
+
+  /// <summary>
+  /// Collectables gathered and synthesised — the two counts the ledger's Trade
+  /// Mentor section has until now asked people to type in.
+  ///
+  /// Unlike everything else here these are not free to read. The game keeps no
+  /// running counter; the number lives in an achievement and the client only
+  /// holds whichever one the player last looked at. So each count carries the
+  /// moment it was seen, and the ledger is expected to show that age rather than
+  /// present a week-old figure as current.
+  ///
+  /// <c>exact</c> is false when the tier that was read is already complete: a
+  /// finished tier reports its own requirement, not the running total, so the
+  /// number is a floor. The distinction matters for a threshold — "300 of 300"
+  /// derived from a floor is not the same claim as reaching 300.
+  ///
+  /// A side never read is omitted entirely rather than sent as zero, for the
+  /// same reason playtime is: a zero here would overwrite a good value the
+  /// ledger already holds. The whole block goes when neither has been read.
+  /// </summary>
+  private JsonObject? BuildCollectables()
+  {
+    JsonObject collectables = [];
+
+    if (Reading(_achievements.Gathered) is { } gathered) collectables["gathered"] = gathered;
+    if (Reading(_achievements.Crafted) is { } crafted) collectables["crafted"] = crafted;
+
+    return collectables.Count > 0 ? collectables : null;
+  }
+
+  /// <summary>
+  /// One achievement-derived figure with everything needed to judge it: the
+  /// number, whether it is exact or a floor, and when it was taken. Null when the
+  /// series has never been read, so the field is omitted rather than sent as a
+  /// zero that would overwrite something better.
+  /// </summary>
+  private static JsonObject? Reading(AchievementReading? reading) => reading is null ? null : new JsonObject
+  {
+    ["count"] = reading.Value,
+    ["exact"] = reading.IsExact,
+    ["asOf"] = reading.TakenUtc.ToString("o")
+  };
+
+  /// <summary>
+  /// Every completed class, job and role quest, by name.
+  ///
+  /// The ledger has these as a hand-ticked checkbox per quest, which is a hundred
+  /// and fifty clicks describing something the game already knows exactly. A flat
+  /// list is enough: the ledger holds its own quest-to-job mapping, so it only
+  /// needs to be told which are done.
+  ///
+  /// Flat also means role quests arrive without being asked for — they share this
+  /// category with job quests — so any the ledger chooses to list will start
+  /// ticking themselves.
+  ///
+  /// Completed only. The full list would be several times longer and every entry
+  /// absent from this one is, by definition, not done.
+  /// </summary>
+  private JsonArray BuildClassQuests()
+  {
+    JsonArray done = [];
+
+    foreach (QuestData expansion in _dataService.QuestData.Categories)
+      foreach (QuestData category in expansion.Categories)
+        if (category.EnglishTitle == "Class & Job Quests")
+          CollectComplete(category, done);
+
+    return done;
+  }
+
+  /// <summary>
+  /// Hide is deliberately not consulted. It carries the Display setting — "show
+  /// only completed" or "show only incomplete" — so under the latter every
+  /// completed quest is hidden and reading it here would export an empty list.
+  /// What a character has finished is not a display preference.
+  /// </summary>
+  private void CollectComplete(QuestData node, JsonArray into)
+  {
+    foreach (Types.Quest quest in node.Quests)
+      if (_dataService.IsQuestComplete(quest))
+        into.Add(quest.Title);
+
+    foreach (QuestData child in node.Categories) CollectComplete(child, into);
   }
 
   /// <summary>

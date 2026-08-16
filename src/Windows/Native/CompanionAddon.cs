@@ -217,8 +217,8 @@ public unsafe class CompanionAddon : NativeAddon
       ? $"{Societies.Allowances}  ({held} held)"
       : $"{Societies.Allowances} / 12");
 
-    foreach (SocietyStanding standing in Societies.GetStandings().Where((s) => s.IsCapped))
-      SetRow(ref row, standing.Name, "capped — main quest");
+    foreach (SocietyStanding standing in Societies.GetStandings().Where((s) => s.IsCapped || s.IsTerminal))
+      SetRow(ref row, standing.Name, standing.IsCapped ? "capped — main quest" : "maxed", muted: standing.IsTerminal);
   }
 
   private void SetHeading(ref int row, string text)
