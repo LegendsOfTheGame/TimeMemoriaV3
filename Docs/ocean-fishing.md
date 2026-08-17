@@ -84,35 +84,61 @@ One number is not in the sheets: which real time corresponds to slot 0.
 Verified anchor: **2026-08-16 22:00 EDT is slot 17.**
 
 Established by matching 16 consecutive voyages of both boats against the game's
-Sailing Schedule window. Three candidate slots (17, 65, 113) reproduce every
-observed destination; they are 48 apart and differ only in which of the three
-same-destination route ids is labelled, so no destination prediction can
-distinguish them. Resolving that needs `IKDRoute.Time`'s values matched against
-the schedule window's time-frame icons — see Open questions.
+Sailing Schedule window, then re-verified against a second, later 16-voyage
+window that had no part in deriving the model.
+
+Three candidate slots — 17, 65 and 113, exactly 48 apart — reproduce every
+observed destination. They cannot be told apart by observation, and that is
+provable rather than merely untried: a rotation of the anchor is
+indistinguishable from a permutation of the `IKDRoute.Time` constants, so all
+three stay consistent with any number of time-frame icons read off the schedule
+window. Checked; all three fit.
+
+**This does not block the feature.** Every candidate predicts identical
+destinations, stops and times of day for ever, so a schedule display is correct
+under any of them. It matters only for naming the route id internally, or for
+joining to per-variant fish data later.
+
+One weak lean: anchor 65 is the only candidate whose `TimeOfDay` numbering comes
+out chronological (1 = day, 2 = sunset, 3 = night). The other two imply orderings
+nobody would choose deliberately. Suggestive, not evidence.
 
 **Prefer reading the current slot from the client if it is exposed at all.** The
 game computes that list already. An anchor shipped as a constant is one
 hand-maintained number, and this codebase has been bitten by that category
 before.
 
-## Why not a website
+## The two community trackers
 
-The plan began as "base it on ffxiv.oceanfishing.boats and pillowfication's
-repo". Both were dropped, for a reason worth recording:
+They are different projects and were confused for each other during this work,
+so the distinction is worth stating:
 
-- That repo's last real commit is 10 September 2023. Patch 7.5 added
-  Thavnairian Coast on 28 April 2026. The site therefore shows Ruby voyages
-  with no Thavnair at all — it is two patches stale, and its maintainer moved
-  on.
-- The game's tables gained Thavnair the day the patch landed.
+| | Status |
+|---|---|
+| `ffxiv.pf-n.co/ocean-fishing` | Dead. Its repo, `pillowfication/ffxiv`, was last touched 10 September 2023 and now holds an unrelated scaffold. No licence, so readable but not copyable. |
+| `ffxiv.oceanfishing.boats` | **Live and current through 7.5.** Carries Thavnairian Coast, real-time countdowns, and per-stop fish tables. Says of itself that it is a work in progress. |
 
-During this work the site was briefly trusted over the sheets and produced a
-wrong conclusion, which the game's own schedule window then overturned. The
-site remains useful as an oracle for content older than 2023 — it was how the
-Indigo anchor was found — and useless for anything newer.
+**The schedule still comes from the game.** Not because the tracker is unreliable
+— it is not — but because a derived schedule cannot drift, needs no request, and
+gains a new route the day a patch adds one. That is the argument that justified
+rebuilding v3, applied again.
 
-This is the same argument that justified rebuilding v3: generated from the game
-beats maintained by hand, and beats maintained by someone else even more.
+**Where the tracker is genuinely better** is everything the sheets do not hold:
+which bait to use, bite-time windows per bait, points and yields, and which fish
+to target for an objective. That is community measurement, not game data, and no
+amount of sheet-reading will produce it.
+
+So: schedule from `IKD*`, strategy from the community, and neither pretending to
+be the other.
+
+### A caution, recorded because it cost an evening
+
+`/schedules/` on the live site showed Ruby voyages with no Thavnair, which was
+taken as evidence the whole site was stale and the sheets were wrong. Both
+inferences were wrong: `/ruby/` on the same site has Thavnair throughout. A
+single unrepresentative page was generalised to a whole source, and then used to
+overturn the game's own tables. Check a second page of a source before
+concluding anything about it.
 
 ## Open questions
 
