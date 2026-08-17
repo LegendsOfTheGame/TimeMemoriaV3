@@ -40,6 +40,8 @@ public class HelpPanelNode : TextLinesPanelNode
     "   community shorthand work — A8S, TEA, DRS and the like are wiki",
     "   redirects, so they land on the right page even though none of them is a",
     "   quest name and searching quests for them finds nothing.",
+    "   With the box empty it opens the wiki's Main Scenario index instead —",
+    "   the story in order, which is the page most often wanted anyway.",
     "Why does Overview show a smaller total than the Quests tree?",
     "   Overview honours the exclusion settings — an excluded category is shown",
     "   greyed and left out of the totals. The tree never excludes anything,",

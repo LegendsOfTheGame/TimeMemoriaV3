@@ -19,13 +19,18 @@ public unsafe class CompanionAddon : NativeAddon
   private const float RowHeight = 20.0f;
   private const float LabelWidth = 132.0f;
   private const float ValueWidth = 150.0f;
+  private const float ListSpacing = 2.0f;
 
   /// <summary>
-  /// Enough for every heading and row with a little headroom. Rows past this
-  /// are silently dropped, which is how the job list fell off the bottom when
-  /// collectables were added.
+  /// The ceiling on rows the window will build. Rows past this are silently
+  /// dropped, which is how the job list fell off the bottom when collectables
+  /// were added — and every allied society capping at once would ask for more
+  /// than this on its own, so the limit is real rather than theoretical.
+  ///
+  /// It is a limit on what gets built, not on what is visible: the content
+  /// scrolls, so a tall list is reachable rather than clipped.
   /// </summary>
-  private const int MaxRows = 22;
+  private const int MaxRows = 34;
 
   /// <summary>Beyond a handful this stops being "what should I level next".</summary>
   private const int LowestJobCount = 5;
@@ -56,9 +61,9 @@ public unsafe class CompanionAddon : NativeAddon
   /// </summary>
   public required System.Action OnSwapRequested { get; init; }
 
-  private VerticalListNode? _list;
+  private ScrollingNode<VerticalListNode>? _scroll;
   private TextureButtonNode? _swapButton;
-  private readonly List<(TextNode Label, TextNode Value)> _rows = [];
+  private readonly List<(HorizontalListNode Container, TextNode Label, TextNode Value)> _rows = [];
 
   protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan)
   {
@@ -75,15 +80,29 @@ public unsafe class CompanionAddon : NativeAddon
     // time it opens, so a flag applied earlier would not survive.
     InternalAddon->IgnoreUIDisplayMode = Config.CompanionAlwaysVisible;
 
-    _list = new VerticalListNode
+    // Scrolled rather than sized to fit. The content has no fixed height and no
+    // useful upper bound — every allied society can cap at once — so a window
+    // tall enough for the worst case would be mostly empty for everyone, and a
+    // window sized to the current contents would change height as you played.
+    // A fixed frame you can place once, with the overflow reachable, is the
+    // behaviour that survives the next row being added.
+    //
+    // ContentNode properties are set before Size, as ScrollingNode requires.
+    _scroll = new ScrollingNode<VerticalListNode>
     {
       Position = ContentStartPosition,
-      Size = ContentSize,
-      ItemSpacing = 2.0f,
-      IsVisible = true
+      IsVisible = true,
+      AutoHideScrollBar = true
     };
 
-    AddNode(_list);
+    // FitContents makes the list measure only its *visible* children, which is
+    // what makes hiding spare rows shrink the scroll range instead of leaving
+    // empty space to scroll through.
+    _scroll.ContentNode.ItemSpacing = ListSpacing;
+    _scroll.ContentNode.FitContents = true;
+    _scroll.Size = ContentSize;
+
+    AddNode(_scroll);
 
     _swapButton = TitleBarButton.Gear(WindowNode, Size.X, "Full window (/tm)", () => OnSwapRequested());
     AddNode(_swapButton);
@@ -102,15 +121,20 @@ public unsafe class CompanionAddon : NativeAddon
       container.AddNode(label);
       container.AddNode(value);
 
-      _list.AddNode(container);
-      _rows.Add((label, value));
+      _scroll.ContentNode.AddNode(container);
+      _rows.Add((container, label, value));
     }
+
+    // Every row is visible at this point, so the list currently measures its
+    // full height. OnUpdate hides the spare ones and re-measures immediately
+    // after; starting at the top means the clamp lands somewhere sensible.
+    _scroll.ScrollToStart();
   }
 
   protected override void OnFinalize(AtkUnitBase* addon)
   {
     _rows.Clear();
-    _list = null;
+    _scroll = null;
     _swapButton = null;
 
     base.OnFinalize(addon);
@@ -164,11 +188,23 @@ public unsafe class CompanionAddon : NativeAddon
     // Ordered by level plus progress within it, so a job most of the way through
     // a level ranks above one that has just reached it -- comparing levels alone
     // put Miner and Botanist in the wrong order once.
-    List<ClassJobProgress> jobs =
+    // Grouped by base class before ranking. Summoner and Scholar share
+    // Arcanist's experience, so they are one level wearing two names — ranked
+    // separately they filled two of the five slots with a single thing to go
+    // and do, and moved in lockstep for ever after. Every other slot holds one
+    // job, so nothing else is affected.
+    //
+    // Both names are kept rather than the class's: "Scholar/Summoner" says what
+    // levelling it gets you, where "Arcanist" reads as a fourth thing to level.
+    List<(string Name, float Progress)> jobs =
     [
       .. ProgressService.GetProgress()
         .Where((j) => j.IsUnlocked && j.Category == "combat" && !j.IsMaxLevel && !j.IsLimitedJob)
-        .OrderBy((j) => j.Level + j.Fraction)
+        .GroupBy((j) => j.ClassName ?? j.Name)
+        .Select((slot) => (
+          Name: string.Join("/", slot.Select((j) => j.Name)),
+          Progress: slot.First().Level + slot.First().Fraction))
+        .OrderBy((slot) => slot.Progress)
         .Take(LowestJobCount)
     ];
 
@@ -181,17 +217,27 @@ public unsafe class CompanionAddon : NativeAddon
       // Level and progress as one number, the way the ledger stores them —
       // 68.230 is level 68, 23% of the way through. A fixed number of decimals
       // also right-aligns cleanly, which "68   23%" cannot.
-      foreach (ClassJobProgress job in jobs)
-        SetRow(ref row, job.Name,
-          Math.Round(job.Level + job.Fraction, 3, MidpointRounding.AwayFromZero).ToString("F3",
+      foreach ((string name, float progress) in jobs)
+        SetRow(ref row, name,
+          Math.Round(progress, 3, MidpointRounding.AwayFromZero).ToString("F3",
             CultureInfo.InvariantCulture));
     }
 
+    // The container has to go, not just its text. FitContents measures visible
+    // children, so a container left visible around two hidden labels still
+    // claims its full height — which is exactly how the scroll range came to
+    // describe thirty-four rows when seventeen were in use.
     for (; row < _rows.Count; row++)
     {
-      (TextNode label, TextNode value) = _rows[row];
-      label.IsVisible = value.IsVisible = false;
+      (HorizontalListNode container, TextNode label, TextNode value) = _rows[row];
+      container.IsVisible = label.IsVisible = value.IsVisible = false;
     }
+
+    // The row count is genuinely variable — collectables appear once read,
+    // societies appear as they cap or max, and the job list shortens as jobs
+    // reach the ceiling. Re-measuring here is what keeps the scroll range
+    // honest; without it the bar describes whatever the window last held.
+    _scroll?.RecalculateSizes();
   }
 
   /// <summary>
@@ -225,7 +271,9 @@ public unsafe class CompanionAddon : NativeAddon
   {
     if (row >= _rows.Count) return;
 
-    (TextNode label, TextNode value) = _rows[row++];
+    (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
+
+    container.IsVisible = true;
 
     label.IsVisible = true;
     label.String = text;
@@ -238,8 +286,9 @@ public unsafe class CompanionAddon : NativeAddon
   {
     if (row >= _rows.Count) return;
 
-    (TextNode label, TextNode value) = _rows[row++];
+    (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
 
+    container.IsVisible = true;
     label.IsVisible = value.IsVisible = true;
 
     label.String = name;

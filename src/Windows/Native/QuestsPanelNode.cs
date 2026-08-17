@@ -52,11 +52,14 @@ public class QuestsPanelNode : TabPanelNode
 
     // The plugin says what is left; the wiki says how to do it. Passing the
     // same words across saves typing them twice.
+    //
+    // With the box empty this opens the Main Scenario index rather than sitting
+    // inert, so the tooltip has to say which of the two it will do.
     _wiki = new TextButtonNode
     {
       String = "Wiki",
       IsVisible = true,
-      TextTooltip = "Search the FFXIV wiki. Shorthand works too — A8S, TEA, DRS.",
+      TextTooltip = WikiTooltip(string.Empty),
       OnClick = () => Windows.MainWindow.OpenWikiSearch(_query)
     };
     _wiki.AttachNode(this);
@@ -139,9 +142,14 @@ public class QuestsPanelNode : TabPanelNode
     ShowQuests();
   }
 
+  private static string WikiTooltip(string query) => query.Trim().Length == 0
+    ? "Open the FFXIV wiki's Main Scenario index. Type something first to search instead."
+    : "Search the FFXIV wiki. Shorthand works too — A8S, TEA, DRS.";
+
   private void OnSearchChanged(ReadOnlySeString input)
   {
     _query = input.ToString();
+    _wiki.TextTooltip = WikiTooltip(_query);
     ShowQuests();
   }
 
@@ -153,6 +161,7 @@ public class QuestsPanelNode : TabPanelNode
   {
     _search.String = string.Empty;
     _query = string.Empty;
+    _wiki.TextTooltip = WikiTooltip(_query);
 
     ShowQuests();
   }

@@ -223,17 +223,28 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
   private bool IsSearching => _searchQuery.Trim().Length >= 2;
 
   /// <summary>
+  /// Where an empty search goes. The Main Scenario is the one article everyone
+  /// wants sooner or later, and it is the wiki's own index of the story in
+  /// order — a better landing place than the search box with nothing in it.
+  /// </summary>
+  private const string MainScenarioArticle = "https://ffxiv.consolegameswiki.com/wiki/Main_Scenario_Quests";
+
+  /// <summary>
   /// Opens the wiki's own search rather than guessing an article URL — a quest
   /// name does not reliably map to a page title, and a search that finds
   /// nothing beats a link that 404s.
+  ///
+  /// With nothing typed this opens the Main Scenario index instead of doing
+  /// nothing. The button previously sat there inert, which reads as broken
+  /// rather than as "type something first".
   /// </summary>
   internal static void OpenWikiSearch(string term)
   {
     string query = Uri.EscapeDataString(term.Trim());
-    if (query.Length == 0) return;
 
-    Dalamud.Utility.Util.OpenLink(
-      $"https://ffxiv.consolegameswiki.com/mediawiki/index.php?search={query}&title=Special%3ASearch&go=Go");
+    Dalamud.Utility.Util.OpenLink(query.Length == 0
+      ? MainScenarioArticle
+      : $"https://ffxiv.consolegameswiki.com/mediawiki/index.php?search={query}&title=Special%3ASearch&go=Go");
   }
 
   private void DrawSearchBar()
@@ -241,15 +252,20 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.SetNextItemWidth(-150.0f * ImGuiHelpers.GlobalScale);
     ImGui.InputTextWithHint("##questSearch", "Search quests...", ref _searchQuery, 128);
 
+    // This plugin answers "what is left"; the wiki answers "how do I do it".
+    // Handing the same words straight across saves retyping them.
+    //
+    // Deliberately outside the disabled block below: with an empty box this goes
+    // to the Main Scenario index, so it always has somewhere to go.
+    ImGui.SameLine();
+    if (ImGui.Button("Wiki")) OpenWikiSearch(_searchQuery);
+    if (ImGui.IsItemHovered())
+      ImGui.SetTooltip(_searchQuery.Trim().Length == 0
+        ? "Open the FFXIV wiki's Main Scenario index. Type something first to search instead."
+        : "Search the FFXIV wiki. Shorthand works too — A8S, TEA, DRS.");
+
     using (ImRaii.DisabledDisposable disabled = ImRaii.Disabled(_searchQuery.Trim().Length == 0))
     {
-      // This plugin answers "what is left"; the wiki answers "how do I do it".
-      // Handing the same words straight across saves retyping them.
-      ImGui.SameLine();
-      if (ImGui.Button("Wiki")) OpenWikiSearch(_searchQuery);
-      if (ImGui.IsItemHovered())
-        ImGui.SetTooltip("Search the FFXIV wiki. Shorthand works too — A8S, TEA, DRS.");
-
       ImGui.SameLine();
       if (ImGui.Button("Clear")) _searchQuery = "";
     }
@@ -863,7 +879,10 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       "jumps straight to a page when the text matches one exactly. That makes",
       "community shorthand work — A8S, TEA, DRS and the like are wiki",
       "redirects, so they land on the right page even though none of them is",
-      "a quest name and searching quests for them finds nothing.");
+      "a quest name and searching quests for them finds nothing.",
+      "",
+      "With the box empty it opens the wiki's Main Scenario index instead —",
+      "the story in order, which is the page most often wanted anyway.");
 
     DrawHelpEntry("Why does Overview show a smaller total than the Quests tree?",
       "Overview honours the exclusion settings — an excluded category is shown",
