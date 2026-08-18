@@ -298,33 +298,31 @@ public unsafe class CompanionAddon : NativeAddon
     if (reading.WellFed)
     {
       TimeSpan left = TimeSpan.FromSeconds(reading.RemainingSeconds);
-      SetRow(ref row, "Well fed", $"{(int)left.TotalMinutes}m {left.Seconds:00}s left");
-      SetRow(ref row, "In bags", Banked(reading.Banked), muted: true);
+
+      SetRow(ref row, "Active food", Name(reading.Active));
+      SetRow(ref row, "Time remaining", $"{(int)left.TotalMinutes}m {left.Seconds:00}s");
+
+      // Zero is a real answer, and the one worth seeing: it means that was the
+      // last of them and the next meal will have to be something else.
+      if (reading.Active is not null)
+        SetRow(ref row, "Still held", $"{reading.Active.Quantity}", muted: true);
 
       return;
     }
 
     if (reading.Best is null)
     {
-      SetRow(ref row, "Not fed", "no food in bags", muted: true);
+      SetRow(ref row, "Recommended", "no food in bags", muted: true);
       return;
     }
 
-    FoodChoice best = reading.Best;
-
-    SetRow(ref row, "Not fed", best.HighQuality ? $"{best.Name} (HQ)" : best.Name);
-
-    // An empty effect means nothing in the bags suits this class, so the
-    // suggestion is the most disposable thing held and the experience bonus is
-    // the whole of the reason to eat it. Saying so stops it reading as a
-    // recommendation that has gone wrong.
-    SetRow(ref row,
-      best.Effect.Length > 0 ? best.Effect : "experience only",
-      $"{best.Quantity} held",
-      muted: true);
-
+    SetRow(ref row, "Recommended", Name(reading.Best));
+    SetRow(ref row, "Held", $"{reading.Best.Quantity}", muted: true);
     SetRow(ref row, "In bags", Banked(reading.Banked), muted: true);
   }
+
+  private static string Name(FoodChoice? food)
+    => food is null ? "unknown" : food.HighQuality ? $"{food.Name} (HQ)" : food.Name;
 
   private static string Banked(TimeSpan banked)
     => banked >= TimeSpan.FromHours(1)

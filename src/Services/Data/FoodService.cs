@@ -10,20 +10,18 @@ namespace TimeMemoria.Services;
 /// <summary>What the player is holding, and whether they are already fed.</summary>
 /// <param name="WellFed">Whether the well-fed status is currently active.</param>
 /// <param name="RemainingSeconds">How long that has left. Zero when not fed.</param>
-/// <param name="StacksHeld">Food stacks across bags and saddlebag.</param>
+/// <param name="Active">
+/// The meal currently granting well-fed, with how many of that same food are
+/// still in the bags. Null when not fed.
+/// </param>
 /// <param name="Banked">
 /// Total well-fed time sitting unused in the bags — every item's own duration
 /// times how many are held. The point of the panel in one number.
 /// </param>
 /// <param name="Best">The suggestion, or null when there is no food at all.</param>
-public record FoodReading(bool WellFed, float RemainingSeconds, int StacksHeld, TimeSpan Banked, FoodChoice? Best);
+public record FoodReading(bool WellFed, float RemainingSeconds, FoodChoice? Active, TimeSpan Banked, FoodChoice? Best);
 
-/// <param name="Effect">
-/// What it grants, already capped against live stats — empty when nothing it
-/// grants applies to the current class, which is a suggestion for the
-/// experience bonus alone.
-/// </param>
-public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantity, string Effect);
+public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantity);
 
 public interface IFoodService
 {
@@ -78,13 +76,13 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
 
     try
     {
-      (bool fed, float remaining) = ReadWellFed();
+      (bool fed, float remaining, ushort param) = ReadWellFed();
       List<Held> held = ReadBags();
 
       return new FoodReading(
         fed,
         remaining,
-        held.Count,
+        fed ? Active(param, held) : null,
         Banked(held),
         held.Count == 0 ? null : Choose(held));
     }
@@ -97,7 +95,66 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     }
   }
 
-  private static FoodReading Empty => new(false, 0, 0, TimeSpan.Zero, null);
+  private static FoodReading Empty => new(false, 0, null, TimeSpan.Zero, null);
+
+  /// <summary>
+  /// Quality is carried in the status parameter as an offset rather than a flag:
+  /// an HQ meal reports its row plus ten thousand.
+  /// </summary>
+  private const ushort HighQualityOffset = 10000;
+
+  /// <summary>ItemFood row to the item that grants it. Built once, on demand.</summary>
+  private Dictionary<ushort, uint>? _mealsByFoodRow;
+
+  /// <summary>
+  /// What is currently being digested.
+  ///
+  /// The status parameter is an **ItemFood row, not an item id** -- reading it as
+  /// an item reported eating a Dated Poison Dagger, because Flatbread's food row
+  /// is 114 and item 114 is a dagger. So it has to be resolved backwards through
+  /// the meals that point at that row.
+  ///
+  /// Quantity is what is still in the bags, so zero is a real answer: it means
+  /// that was the last one and the next meal has to be something else.
+  /// </summary>
+  private FoodChoice? Active(ushort param, List<Held> held)
+  {
+    if (param == 0) return null;
+
+    bool hq = param > HighQualityOffset;
+    ushort foodRow = (ushort)(hq ? param - HighQualityOffset : param);
+
+    _mealsByFoodRow ??= BuildMealIndex();
+
+    if (!_mealsByFoodRow.TryGetValue(foodRow, out uint id)) return null;
+
+    ItemRow? item = _dataManager.GetExcelSheet<ItemRow>().GetRowOrDefault(id);
+    if (item is null) return null;
+
+    int remaining = held
+      .Where((f) => f.Item.RowId == id && f.HighQuality == hq)
+      .Sum((f) => f.Quantity);
+
+    return new FoodChoice(id, item.Value.Name.ToString(), hq, remaining);
+  }
+
+  private Dictionary<ushort, uint> BuildMealIndex()
+  {
+    Dictionary<ushort, uint> map = [];
+
+    foreach (ItemRow item in _dataManager.GetExcelSheet<ItemRow>())
+    {
+      if (!IsMeal(item)) continue;
+
+      Lumina.Excel.Sheets.ItemAction? action = item.ItemAction.ValueNullable;
+      if (action is null || action.Value.Data.Count < 2) continue;
+
+      ushort row = action.Value.Data[1];
+      if (row != 0) map.TryAdd(row, item.RowId);
+    }
+
+    return map;
+  }
 
   /// <summary>
   /// How long the bags could keep you fed. Each item's duration is read rather
@@ -125,21 +182,21 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     return TimeSpan.FromSeconds(seconds);
   }
 
-  private (bool Fed, float Remaining) ReadWellFed()
+  private (bool Fed, float Remaining, ushort Param) ReadWellFed()
   {
     BattleChara* player = Control.GetLocalPlayer();
-    if (player is null) return (false, 0);
+    if (player is null) return (false, 0, 0);
 
     StatusManager* statuses = player->GetStatusManager();
-    if (statuses is null) return (false, 0);
+    if (statuses is null) return (false, 0, 0);
 
     // A fixed sweep rather than a validity count: an off-by-one would silently
     // report "not fed" to someone who just ate.
     for (int i = 0; i < 30; i++)
       if (statuses->Status[i].StatusId == WellFedStatusId)
-        return (true, statuses->Status[i].RemainingTime);
+        return (true, statuses->Status[i].RemainingTime, statuses->Status[i].Param);
 
-    return (false, 0);
+    return (false, 0, 0);
   }
 
   private List<Held> ReadBags()
@@ -189,23 +246,19 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
   {
     HashSet<uint> relevant = RelevantParams();
 
-    List<(Held Food, int Value, string Effect)> useful = [];
+    List<(Held Food, int Value)> useful = [];
 
     foreach (Held food in held)
     {
-      (int value, string effect) = Evaluate(food, relevant);
-      if (value > 0) useful.Add((food, value, effect));
+      int value = Evaluate(food, relevant);
+      if (value > 0) useful.Add((food, value));
     }
 
     if (useful.Count > 0)
-    {
-      (Held best, _, string effect) = useful
+      return Choice(useful
         .OrderByDescending((entry) => entry.Value)
         .ThenByDescending((entry) => entry.Food.HighQuality)
-        .First();
-
-      return Choice(best, effect);
-    }
+        .First().Food);
 
     Held junk = held
       .OrderBy((f) => f.Item.LevelItem.RowId)
@@ -213,11 +266,11 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
       .ThenByDescending((f) => f.Quantity)
       .First();
 
-    return Choice(junk, "");
+    return Choice(junk);
   }
 
-  private static FoodChoice Choice(Held food, string effect)
-    => new(food.Item.RowId, food.Item.Name.ToString(), food.HighQuality, food.Quantity, effect);
+  private static FoodChoice Choice(Held food)
+    => new(food.Item.RowId, food.Item.Name.ToString(), food.HighQuality, food.Quantity);
 
   /// <summary>
   /// Which stats this class actually uses, taken from what the player's own gear
@@ -273,14 +326,17 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
   /// stats this class uses. Above a few hundred in a stat the cap is always what
   /// binds, so in practice this ranks by cap -- but the multiplication still
   /// matters for a low-level character, where it does not.
+  ///
+  /// Used for ordering only. Which stats it grants is not shown: the panel exists
+  /// to say you are not fed and name something to eat, and nobody choosing
+  /// between meals in their own bags is weighing two points of Skill Speed.
   /// </summary>
-  private (int Value, string Effect) Evaluate(Held food, HashSet<uint> relevant)
+  private int Evaluate(Held food, HashSet<uint> relevant)
   {
     ItemFoodRow? effect = FoodRow(food.Item);
-    if (effect is null) return (0, "");
+    if (effect is null) return 0;
 
     int total = 0;
-    List<string> parts = [];
 
     foreach (var entry in effect.Value.Params)
     {
@@ -302,10 +358,9 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
       if (granted <= 0) continue;
 
       total += granted;
-      parts.Add($"{ParamName(param)} +{granted}");
     }
 
-    return (total, string.Join(", ", parts));
+    return total;
   }
 
   private ItemFoodRow? FoodRow(ItemRow item)
@@ -316,10 +371,6 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     ushort row = action.Value.Data[1];
     return row == 0 ? null : _dataManager.GetExcelSheet<ItemFoodRow>().GetRowOrDefault(row);
   }
-
-  private string ParamName(uint id)
-    => _dataManager.GetExcelSheet<Lumina.Excel.Sheets.BaseParam>()
-         .GetRowOrDefault(id)?.Name.ToString() ?? "";
 
   private readonly record struct Held(ItemRow Item, int Quantity, bool HighQuality);
 }
