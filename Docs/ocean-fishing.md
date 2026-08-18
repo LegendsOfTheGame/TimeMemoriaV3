@@ -87,6 +87,27 @@ Established by matching 16 consecutive voyages of both boats against the game's
 Sailing Schedule window, then re-verified against a second, later 16-voyage
 window that had no part in deriving the model.
 
+Re-verified a third time on 18 August 2026, two days on, against a Ruby schedule
+read from a character part-way through Endwalker. All 16 rows agreed — and that
+run was the strongest of the three, because nine of those rows rendered as `???`
+rather than a destination. The model predicted **which entries the game would
+hide**, not merely what it would show, and every hidden one was Thavnairian
+Coast. Passing that by coincidence is far harder than matching visible rows.
+
+## The registration window
+
+A voyage slot is not an instant. Registration opens at **:00:02** past the hour
+and the boat departs when the party fills or at **:15**, whichever comes first.
+The duty itself then runs about 22½ minutes.
+
+So a voyage that departs at 12:15 is still the 12:00 slot, and the destination is
+indexed by the scheduled time rather than the actual one. Anything displaying
+"next voyage" has to show the window rather than a single time, or it will look
+wrong to anyone standing at the dock.
+
+The boat also sails under-full. A two-person voyage is perfectly normal, and that
+has consequences for anything measured aboard — see the bait section.
+
 Three candidate slots — 17, 65 and 113, exactly 48 apart — reproduce every
 observed destination. They cannot be told apart by observation, and that is
 provable rather than merely untried: a rotation of the anchor is
@@ -107,6 +128,75 @@ nobody would choose deliberately. Suggestive, not evidence.
 game computes that list already. An anchor shipped as a constant is one
 hand-maintained number, and this codebase has been bitten by that category
 before.
+
+## Bait
+
+The sheets hold the schedule, the stops and the objectives. They hold **nothing
+about bait**, and bait is the decision that matters: a spectral current is worth
+more than the entire rest of a voyage, and it is gated on catching one specific
+fish, which is gated on using one specific bait.
+
+That is community measurement. It is taken from Distant Seas (NotNite, AGPL-3.0),
+transformed by `tools/Build-OceanBait.py`, and republished as `OceanBait.json` —
+see `NOTICE`. The plugin reads our file and never contacts their repository.
+
+Only two fields per zone are taken: the fish flagged `CanCauseSpectral`, and the
+baits its `BiteTimes` marks `BestOrRequired`. **Bite times are deliberately
+excluded** — they are tuning values that move on patches and hotfixes, and a
+periodically refreshed file would present stale ones as current.
+
+### The tiebreak
+
+Two zones flag two baits each, and shipping both ships the ambiguity rather than
+an answer. The rule is **lowest item id**, which is also the cheapest bait, since
+the ids ascend with tier: Ragworm 29714, Krill 29715, Plump Worm 29716.
+
+Verified at Kugane Coast on 18 August 2026. Distant Seas flags Ragworm and Krill;
+one community site picks the lower and one picks the higher. A spectral wrasse
+landed on Ragworm, and five casts of Krill produced none. The discarded bait is
+kept in the file as `alsoFlagged` rather than dropped, because this rests on a
+single observation.
+
+### Verifying bait: catches, not currents
+
+**A landed fish is the only clean evidence.** A spectral current is party-wide and
+probabilistic — any of up to 24 people catching the trigger fish can set it off,
+and a player in the party confirmed it is a chance per catch rather than a
+certainty. So:
+
+- **current triggered by you** → you caught the trigger fish → that bait works
+- **no current** → proves nothing whatever
+- **current triggered by someone else** → proves nothing; their bait is unknown
+
+Two consequences that cost time before they were understood. A near-empty boat
+generates a fraction of the trigger catches, so procs are rare and their absence
+is meaningless — the noon voyage of 18 August had two people aboard. And a busy
+boat procs *early*, which ends the normal-water window before you can run your
+own test. **An unpopular departure is the better laboratory.**
+
+Only one current is possible per zone. Once it has fired, the trigger bait is
+pointless for the rest of that stop, which makes bait advice stateful within a
+stop rather than fixed:
+
+```
+zone not yet procced   →  trigger bait, from OceanBait.json
+zone already procced   →  bait for whatever the objectives want
+```
+
+### Objectives vary per voyage
+
+Two voyages on 18 August asked for different things — shrimp and squid, then
+crabs. So the seven bonus objectives are **not** fixed per route and slot, and no
+static file can predict them.
+
+They target *categories* rather than individual fish: the results screen tags each
+catch with a small glyph for the category it counts toward, so the game plainly
+knows the membership. That makes the chain `objective → category → fish → bait`,
+and the category field is the one piece not yet located — it is most likely on
+`IKDFishParam`, which `/probe bait` already dumps in full.
+
+This is the half a website cannot do. A site can tell you the route; only
+something inside the game can tell you what your particular boat is asking for.
 
 ## The two community trackers
 
@@ -149,8 +239,48 @@ concluding anything about it.
    the probe printed its type rather than its values. Reconciling it with the
    schedule window's time-frame icons resolves both this and the three-way
    anchor ambiguity.
-3. **What are the objectives per voyage?** The schedule window shows target
-   fish; `IKDContentBonus` and `IKDFishParam` are unexamined.
+3. **Which field carries a fish's objective category?** Answered in part: the
+   objectives target categories, and the game tags each catch with one. The field
+   itself is unlocated. `IKDFishParam` is the candidate and `/probe bait` already
+   dumps it.
+4. **Which route id maps to which stops?** The id ranges are known; the
+   id-to-stops table is not written down. Route 8 is the Bloodbrine Sea route —
+   The Cieldalaes, Northern Strait of Merlthor, The Bloodbrine Sea — established
+   on 18 August. That is one row of a table that should simply be read out of
+   `IKDRoute.Spot`.
+
+## Route names are not stop names
+
+Worth stating because it is a ready-made source of bugs: two of the three Ruby
+route names are also stop names.
+
+| Route | Stops |
+|---|---|
+| One River | Sirensong Sea, Kugane Coast, One River |
+| Ruby Price | Sirensong Sea, Kugane Coast, The Ruby Sea |
+| Thavnairian Coast | Unnamed Island, Sirensong Sea, Thavnair |
+
+A field called `route` holding `"OneRiver"` is ambiguous, and the two meanings
+want different answers — a route has three baits, a stop has one. Refer to routes
+by `IKDRoute` id and to stops by zone key; the ids do not collide. `OceanBait.json`
+is keyed by **stop**, which is correct, since bait is a per-stop fact.
+
+Display names come from `IKDRoute` so the plugin says "Ruby Price" as the game
+does, rather than "Ruby Sea" as the community sites do.
+
+## Do not reveal what the game hides
+
+The Sailing Schedule renders locked destinations as `???`. On a character
+part-way through Endwalker, every Thavnairian Coast voyage shows that way.
+
+A panel announcing "14:00 — Thavnairian Coast" would leak content the client is
+deliberately concealing, to a player who has not reached it. **Mirror the game
+exactly: render locked destinations as `???`.** No invented convention, no
+judgement about how much to hint, and automatically correct when a future
+expansion gates a new route.
+
+The check is the one the gating table above already gives, and is the same shape
+as the expansion gating in `TocService`.
 
 ## What a first version should do
 
@@ -158,11 +288,13 @@ The game already has this window. The only thing wrong with it is that it is
 only reachable at the ferry dock. So: the same information, openable anywhere,
 and nothing more.
 
-- Next N voyages for both boats, in local time
-- Destination, and the three stops in order
+- Next N voyages for both boats, with the registration window, in local time
+- Destination, and the three stops in order — `???` where the route is locked
 - Time of day per stop
+- Bait per stop, from `OceanBait.json`
+- Free inventory slots, because a voyage lands forty-odd fish and filling up
+  mid-voyage silently ends your catches
 - No automation, no queueing, no notifications — the plugin does not interrupt
   play and does not act on the player's behalf
 
-Objectives and fish are a later question, and want the sheets in point 3
-understood first.
+Objective-aware bait wants the category field in point 3 located first.

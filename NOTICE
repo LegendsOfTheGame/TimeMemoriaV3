@@ -57,6 +57,34 @@ Planned, not yet done:
     class with the equivalent PlayerState fields.
 
 
+DERIVED DATA
+============
+
+Ocean fishing bait guidance is derived from Distant Seas, used under AGPL-3.0.
+
+    Distant Seas
+    Copyright (C) NotNite
+    https://github.com/NotNite/DistantSeas
+
+Specifically, the fish that triggers a spectral current in each fishing zone and
+the bait that catches it, extracted from Data/indigo.json and Data/ruby.json.
+That is community measurement: the game's own IKD sheets carry the voyage
+schedule, the stops and the objectives, but hold nothing about bait.
+
+Only the trigger fish and their baits are taken. Bite times are deliberately not
+used — they are tuning values that move on patches and hotfixes, and a
+periodically refreshed file would present them as current when they are not.
+
+The extracted values are transformed and republished by this project, and the
+plugin fetches that file rather than requesting anything from NotNite's
+repository at runtime. Their infrastructure does not serve this plugin's users,
+and a change on their side cannot break it.
+
+Distant Seas is an independent plugin, more capable than this one within ocean
+fishing, and is not affiliated with or endorsed by this project. NotNite was
+told of this use before it was built.
+
+
 ACKNOWLEDGEMENTS
 ================
 
