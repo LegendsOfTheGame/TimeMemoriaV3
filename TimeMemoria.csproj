@@ -10,7 +10,7 @@
          taught: v2 maintained its quest data by hand and stalled on a patch,
          which is why this reads from the game's own tables. Starting at 1.0
          would hide the reason it works the way it does. -->
-    <Version>3.1.2.15</Version>
+    <Version>3.2.0.15</Version>
   </PropertyGroup>
 
   <PropertyGroup>

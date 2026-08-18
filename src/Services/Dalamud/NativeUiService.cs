@@ -41,7 +41,7 @@ public interface INativeUiService : IAsyncDisposable
 public class NativeUiService(ILogger _logger, IClassJobProgressService _classJobProgress, IDataService _dataService,
   Configuration _configuration, IQuestPatchService _questPatch, IPlaytimeService _playtime, IPacingService _pacing,
   IQuestSnapshotService _snapshot, IFestivalService _festivals, INewsService _news, IPlayerState _playerState,
-  ILedgerExportService _ledgerExport, IAchievementService _achievements, IAlliedSocietyService _societies)
+  ILedgerExportService _ledgerExport, IAchievementService _achievements, IAlliedSocietyService _societies, IFoodService _food)
   : INativeUiService
 {
   private MainAddon? _window;
@@ -62,6 +62,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       Playtime = _playtime,
       Pacing = _pacing,
       Achievements = _achievements,
+      Food = _food,
       DataService = _dataService,
       Societies = _societies,
       Config = _configuration,

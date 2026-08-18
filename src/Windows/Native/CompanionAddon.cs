@@ -18,7 +18,17 @@ public unsafe class CompanionAddon : NativeAddon
 {
   private const float RowHeight = 20.0f;
   private const float LabelWidth = 132.0f;
-  private const float ValueWidth = 150.0f;
+
+  /// <summary>
+  /// The scroll bar is drawn over the content rather than beside it, so a row
+  /// sized to the full content width loses its last few pixels underneath it —
+  /// which clipped the closing bracket off "Stuffed Chysahl (HQ)". Right-aligned
+  /// values are the only things that reach that far, so the allowance comes out
+  /// of the value column.
+  /// </summary>
+  private const float ScrollBarWidth = 10.0f;
+
+  private const float ValueWidth = 150.0f - ScrollBarWidth;
   private const float ListSpacing = 2.0f;
 
   /// <summary>
@@ -30,7 +40,7 @@ public unsafe class CompanionAddon : NativeAddon
   /// It is a limit on what gets built, not on what is visible: the content
   /// scrolls, so a tall list is reachable rather than clipped.
   /// </summary>
-  private const int MaxRows = 34;
+  private const int MaxRows = 38;
 
   /// <summary>Beyond a handful this stops being "what should I level next".</summary>
   private const int LowestJobCount = 5;
@@ -43,6 +53,7 @@ public unsafe class CompanionAddon : NativeAddon
   public required IPlaytimeService Playtime { get; init; }
   public required IPacingService Pacing { get; init; }
   public required IAchievementService Achievements { get; init; }
+  public required IFoodService Food { get; init; }
 
   /// <summary>
   /// Only used to keep the totals moving. Session pacing is derived from them,
@@ -145,6 +156,8 @@ public unsafe class CompanionAddon : NativeAddon
     DataService.UpdateQuestData();
 
     int row = 0;
+
+    SetFood(ref row);
 
     SetHeading(ref row, "Playtime");
 
@@ -266,6 +279,57 @@ public unsafe class CompanionAddon : NativeAddon
     foreach (SocietyStanding standing in Societies.GetStandings().Where((s) => s.IsCapped || s.IsTerminal))
       SetRow(ref row, standing.Name, standing.IsCapped ? "capped — main quest" : "maxed", muted: standing.IsTerminal);
   }
+
+  /// <summary>
+  /// First, because it is the only thing here that expires. Everything below is
+  /// a standing figure that reads the same in ten minutes.
+  ///
+  /// The banked total is the point of the section rather than a footnote: the
+  /// game hands out food constantly and almost nobody eats any of it, so the
+  /// useful thing is not a recommendation but the discovery that you are
+  /// carrying hours of unused bonus. It is a floor — see the service.
+  /// </summary>
+  private void SetFood(ref int row)
+  {
+    FoodReading reading = Food.Read();
+
+    SetHeading(ref row, "Food");
+
+    if (reading.WellFed)
+    {
+      TimeSpan left = TimeSpan.FromSeconds(reading.RemainingSeconds);
+      SetRow(ref row, "Well fed", $"{(int)left.TotalMinutes}m {left.Seconds:00}s left");
+      SetRow(ref row, "In bags", Banked(reading.Banked), muted: true);
+
+      return;
+    }
+
+    if (reading.Best is null)
+    {
+      SetRow(ref row, "Not fed", "no food in bags", muted: true);
+      return;
+    }
+
+    FoodChoice best = reading.Best;
+
+    SetRow(ref row, "Not fed", best.HighQuality ? $"{best.Name} (HQ)" : best.Name);
+
+    // An empty effect means nothing in the bags suits this class, so the
+    // suggestion is the most disposable thing held and the experience bonus is
+    // the whole of the reason to eat it. Saying so stops it reading as a
+    // recommendation that has gone wrong.
+    SetRow(ref row,
+      best.Effect.Length > 0 ? best.Effect : "experience only",
+      $"{best.Quantity} held",
+      muted: true);
+
+    SetRow(ref row, "In bags", Banked(reading.Banked), muted: true);
+  }
+
+  private static string Banked(TimeSpan banked)
+    => banked >= TimeSpan.FromHours(1)
+      ? $"{(int)banked.TotalHours}h {banked.Minutes}m of bonus"
+      : $"{(int)banked.TotalMinutes}m of bonus";
 
   private void SetHeading(ref int row, string text)
   {
