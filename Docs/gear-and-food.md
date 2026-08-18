@@ -182,12 +182,14 @@ caching, no background work.
    while "costs purple gatherers' scrips" is directions. The amount is free once
    the field is read, and enables the one line worth having: *you already have
    enough.*
-4. **Mentor counts.** Commendations and duty totals are running counts, not
-   achievements. Nothing has confirmed they are readable.
-5. **Source for items with neither recipe nor shop** — relic steps, quest rewards,
+4. **Source for items with neither recipe nor shop** — relic steps, quest rewards,
    drops. Currently indistinguishable from unobtainable. The wiki corpus is the
    only source that has it, but the field is not uniform across infobox templates,
    so it is not the tidy join it first appeared to be.
+
+**Mentor counts are not on this list.** Commendations have been exportable since
+v2.01 and duty completions since 3.1.1.15 — both already ship in the Ledger
+payload as `comm` and `duties`. Nothing there needs probing.
 
 ## Empty states are the default case
 
