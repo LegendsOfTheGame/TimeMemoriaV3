@@ -251,19 +251,25 @@ concluding anything about it.
 
 ## Route names are not stop names
 
-Worth stating because it is a ready-made source of bugs: two of the three Ruby
-route names are also stop names.
+Worth stating because it is a ready-made source of bugs. Every Ruby route is named
+close to — but not identically to — its final stop:
 
 | Route | Stops |
 |---|---|
-| One River | Sirensong Sea, Kugane Coast, One River |
+| One River | Sirensong Sea, Kugane Coast, **The** One River |
 | Ruby Price | Sirensong Sea, Kugane Coast, The Ruby Sea |
 | Thavnairian Coast | Unnamed Island, Sirensong Sea, Thavnair |
 
-A field called `route` holding `"OneRiver"` is ambiguous, and the two meanings
-want different answers — a route has three baits, a stop has one. Refer to routes
-by `IKDRoute` id and to stops by zone key; the ids do not collide. `OceanBait.json`
-is keyed by **stop**, which is correct, since bait is a per-stop fact.
+An article here, a suffix there. So the strings are distinct, but any fuzzy match,
+article-stripping or "close enough" comparison collapses them — and the two
+meanings want different answers, since a route has three baits and a stop has one.
+
+`OceanBait.json` keys flatten it further: `OneRiver` and `Thavnair` carry no hint
+of which they are. They are stops, which is correct — bait is a per-stop fact —
+but the keys do not say so.
+
+Refer to routes by `IKDRoute` id and to stops by zone key. The ids do not collide
+and no string comparison is involved.
 
 Display names come from `IKDRoute` so the plugin says "Ruby Price" as the game
 does, rather than "Ruby Sea" as the community sites do.
