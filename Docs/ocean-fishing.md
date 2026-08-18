@@ -140,6 +140,17 @@ That is community measurement. It is taken from Distant Seas (NotNite, AGPL-3.0)
 transformed by `tools/Build-OceanBait.py`, and republished as `OceanBait.json` —
 see `NOTICE`. The plugin reads our file and never contacts their repository.
 
+Published alongside `LatestNews.json`, so the plugin already knows how to fetch
+from that host:
+
+```
+https://raw.githubusercontent.com/LegendsOfTheGame/ffxiv-latest-news/main/OceanBait.json
+```
+
+The scheduled workflow in that repository stages only `LatestNews.json`, so it
+will not touch or clobber this file. Regenerate occasionally — monthly is plenty —
+and commit it by hand.
+
 Only two fields per zone are taken: the fish flagged `CanCauseSpectral`, and the
 baits its `BiteTimes` marks `BestOrRequired`. **Bite times are deliberately
 excluded** — they are tuning values that move on patches and hotfixes, and a
