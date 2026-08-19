@@ -48,8 +48,28 @@ than trusted:
   is `65821` = patch 2.0 and `65789` = patch 3.1, so the rule is lowest patch.
 - Misidentified the upstream repository this work descends from.
 - Misread this policy itself, claiming disclosure was required in the README.
+- Read the well-fed status parameter as an item id. It is an `ItemFood` row, so
+  the panel confidently reported the player was digesting a *Dated Poison
+  Dagger* — Flatbread's food row is 114, and item 114 is a dagger. Caught
+  because the human ate a Flatbread specifically to check the display, before it
+  was committed.
+- Claimed an achievement's requirement was available as a number on its sheet
+  row. It is not; it exists only in the description prose. The probe written to
+  prove otherwise scraped a padding column and reported a "floor of 255" for a
+  tier requiring 100.
+- Hypothesised that the client held a table of achievement progress, from
+  misreading a screenshot the human had already supplied showing a single
+  progress bar. Disproved by a probe written for the purpose, which confirmed the
+  original single-slot model.
+- Asserted a trial's boss from memory while a complete local copy of the wiki sat
+  on disk, and had to be corrected.
 
 Each was caught by the human and corrected before it reached anyone.
+
+The pattern worth noting is that none of these were found by review. Every one
+was found by running the plugin in the game and looking at what it said — which
+is why the human's testing is the load-bearing part of this arrangement rather
+than a formality.
 
 ## Assets
 
