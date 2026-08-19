@@ -191,6 +191,38 @@ caching, no background work.
 v2.01 and duty completions since 3.1.1.15 — both already ship in the Ledger
 payload as `comm` and `duties`. Nothing there needs probing.
 
+## The progress slot is volatile, not merely single
+
+Probed 18 August with `/probe table`, which dumped every field on `Achievement`:
+
+```
+0x00C  _completedAchievements   FixedSizeArray510   the completion bitmap, ~3,949 bits
+0x234  ProgressAchievementId
+0x238  ProgressCurrent
+0x23C  ProgressMax              never read before -- the tier's requirement, live
+0x240  _nearCompletionAchievement*   FixedSizeArray2, four of them
+```
+
+**There is no table of progress.** A raw scan of all 2,120 bytes for a known count
+found it in exactly one place, beside its own id. The single-slot model is
+confirmed, and the game renders one progress bar at a time because it only has
+one.
+
+Worse than single, though: it is **overwritten**. The slot held Lifer III at 229
+after the achievement was viewed; after a trial it held an unrelated achievement
+at 0, and **229 no longer existed anywhere in the struct**. Whatever the client
+fetches next takes the slot.
+
+That is the whole argument for persisting readings with an age. The client
+forgets; the plugin does not.
+
+`ProgressMax` is a small win — it arrives with the fetch, so a reading can display
+as `229 / 10,000` without consulting the sheet. It also independently confirmed
+the description parser: parsed 10,000 for Lifer III, and the client agreed.
+
+The four `_nearCompletion` arrays hold **two** achievements the client considers
+close to done. Not general, and we do not choose which, but they exist.
+
 ## Empty states are the default case
 
 For a quest tracker the audience is mid-progression, so "user has none of this" is

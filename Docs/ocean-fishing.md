@@ -250,15 +250,63 @@ concluding anything about it.
    the probe printed its type rather than its values. Reconciling it with the
    schedule window's time-frame icons resolves both this and the three-way
    anchor ambiguity.
-3. **Which field carries a fish's objective category?** Answered in part: the
-   objectives target categories, and the game tags each catch with one. The field
-   itself is unlocated. `IKDFishParam` is the candidate and `/probe bait` already
-   dumps it.
-4. **Which route id maps to which stops?** The id ranges are known; the
-   id-to-stops table is not written down. Route 8 is the Bloodbrine Sea route —
-   The Cieldalaes, Northern Strait of Merlthor, The Bloodbrine Sea — established
-   on 18 August. That is one row of a table that should simply be read out of
-   `IKDRoute.Spot`.
+Questions 3 and 4 were **answered on 18 August** and are written up below.
+
+## Objectives, and which fish serve them
+
+All 63 objectives live in `IKDContentBonus` with their text and their multiplier:
+
+```
+ 5  Give a Man a Fish       Catch 15+ fish during a spectral current    110%
+11  Fabled Fishers          As a party, catch 3+ five-star fish         150%
+21  Crab Boat Crew          As a party, catch 250+ crabs                130%
+41  Squid Squadron          As a party, catch 400+ squid                130%
+```
+
+Several appear three times over, at 10 / 9 / 8 required, scaled to party size.
+
+**Which fish count toward which objective is on `IKDFishParam`**, which carries an
+`IKDContentBonus` pair per fish:
+
+```
+IKDFishParam row 3   Fish=#830  IKDContentBonus=[#15,#0]
+IKDContentBonus #15  "As a party, catch 150 or more jellyfish"
+```
+
+So the chain is complete and needs no prose parsing and no category table of our
+own:
+
+```
+active objective -> IKDContentBonus row -> fish pointing at it -> bait
+```
+
+The sheets hold every objective that *can* appear. What they cannot say is which
+seven are live on a given voyage — two voyages on 18 August asked for different
+things — so that stays a runtime read, and stays the half no website can do.
+
+## Routes to stops
+
+Read straight out of `IKDRoute.Spot`; there is no need for a table of our own.
+
+| Route ids | Name | Spot ids |
+|---|---|---|
+| 1–3 | Northern Strait of Merlthor | 2, 1, 3 |
+| 4–6 | Rhotano Sea | 1, 2, 4 |
+| 7–9 | Bloodbrine Sea | 5, 3, 6 |
+| 10–12 | Rothlyt Sound | 5, 4, 7 |
+| 13–15 | One River | 8, 9, 11 |
+| 16–18 | Ruby Price | 8, 9, 10 |
+| 19–21 | Thavnairian coast | 12, 8, 13 |
+
+Three ids per destination, differing only in `Time` — `[1,2,3]`, `[2,3,1]`,
+`[3,1,2]` — which is the time-of-day rotation, not a different voyage.
+
+Verified against a real voyage: route 8 is spots 5, 3, 6, and the 18 August
+14:00 Indigo departure visited The Cieldalaes, the Northern Strait of Merlthor
+and the Bloodbrine Sea in that order.
+
+Stop names come from `IKDSpot.PlaceName` rather than being reconstructed from the
+route name — the Indigo stops carry definite articles the route names do not.
 
 ## Route names are not stop names
 
