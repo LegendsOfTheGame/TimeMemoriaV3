@@ -173,6 +173,55 @@ splitting on the dot, or map to an ordinal.
 
 ---
 
+## `unlocks` — which features this character actually has
+
+```json
+"unlocks": {
+  "goldSaucer": true, "miniCactpot": true, "jumboCactpot": true,
+  "fashionReport": true, "challengeLog": true, "treasureHunt": true,
+  "deepDungeon": false, "retainerVenture": true, "pvp": false, "leves": true,
+  "huntDaily": true, "eliteHunt": true, "wondrousTails": true,
+  "fauxHollows": false, "customDelivery": true, "domanEnclave": true,
+  "islandSanctuary": false, "cosmicExploration": false,
+  "eureka": true, "bozja": false, "occultCrescent": false,
+  "blueMage": false, "maskedCarnivale": false, "anima": true, "yorha": false,
+  "grandCompany": true, "squadron": true
+}
+```
+
+**This is what `requires` was always approximating.** A main scenario patch was
+the only progress figure the export carried, so the ledger had to express
+"completed Fantastic Mr. Faux" as "reached patch 5.0". That is wrong in both
+directions — it shows Faux Hollows to someone twenty quests into Shadowbringers,
+and no patch number at all can express "owns a Gold Saucer pass".
+
+Every key but the last two is `QuestManager.IsQuestComplete` over the quest that
+unlocks the feature, read from memory at export time. The ids came from the
+wiki's Unlock sections and were checked against the plugin's own
+`quest-patches.json` — all 35 present, patches agreeing. Where an unlock lists
+several ids they are starting-city or Grand Company variants of one quest, and
+the test is any-of.
+
+`grandCompany` is enlistment. `squadron` is Grand Company rank ≥ 9 — Second
+Lieutenant, the rank that opens Adventurer Squadrons, the daily Hunt bills and
+player housing, so one read gates several rows.
+
+**Absent means "this build did not know about that unlock", never false.** Fall
+back to your own patch gate for a missing key. If absent and false meant the same
+thing, adding a key in a later version would read as every character suddenly
+unlocking that feature.
+
+The whole object is omitted when the player is not loaded, since a payload of
+falses would tell the ledger to hide everything.
+
+### Not covered
+
+`zodiac`. "A Relic Reborn" is per weapon — thirteen quests with no shared entry —
+so no single id means "has started the Zodiac line". Anything gated on it (Morbid
+Motivation) stays ungated rather than gated on an arbitrary one.
+
+---
+
 ## Level encoding
 
 `level + (currentExp ÷ expRequiredForThisLevel)`, rounded to **3 decimals**.

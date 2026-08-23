@@ -55,6 +55,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       JsonObject? msqPatch = BuildMsqPatch();
       if (msqPatch != null) root["msqPatch"] = msqPatch;
 
+      JsonObject? unlocks = BuildUnlocks();
+      if (unlocks != null) root["unlocks"] = unlocks;
+
       return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
     catch (Exception ex)
@@ -62,6 +65,41 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       _pluginLog.Error(ex, "[LedgerExport] Failed to build ledger payload");
       return "{}";
     }
+  }
+
+  /// <summary>
+  /// Which features this character has unlocked — see <see cref="LedgerUnlocks"/>
+  /// for where the ids come from and why quest completion is the right question.
+  ///
+  /// Every key is emitted, true or false. An absent key has to mean "this build
+  /// did not know about that unlock" so the ledger can fall back to its own patch
+  /// gate; if false and absent were the same thing, adding a key later would read
+  /// as everyone suddenly unlocking it.
+  ///
+  /// Null when the player is not loaded. Sending a payload of falses for a
+  /// character the client cannot see would tell the ledger to hide everything.
+  /// </summary>
+  private JsonObject? BuildUnlocks()
+  {
+    if (!_playerState.IsLoaded) return null;
+
+    JsonObject unlocks = [];
+
+    foreach ((string key, uint[] ids) in LedgerUnlocks.Quests)
+      unlocks[key] = ids.Any(QuestManager.IsQuestComplete);
+
+    // Squadrons, the daily Hunt bills and player housing all open at Second
+    // Lieutenant, so one rank read gates several ledger rows. Rank is only
+    // meaningful once enlisted — GetGrandCompanyRank wants a company to ask
+    // about, and an unenlisted character has none.
+    uint company = _playerState.GrandCompany.RowId;
+    bool enlisted = company != 0;
+
+    unlocks["grandCompany"] = enlisted;
+    unlocks["squadron"] = enlisted &&
+      _playerState.GetGrandCompanyRank(_playerState.GrandCompany.Value) >= LedgerUnlocks.SecondLieutenantRank;
+
+    return unlocks;
   }
 
   /// <summary>
