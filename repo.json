@@ -3,7 +3,7 @@
     "Author": "Legends of the Game",
     "Name": "Time Memoria",
     "InternalName": "TimeMemoriaV3",
-    "AssemblyVersion": "3.2.0.15",
+    "AssemblyVersion": "3.2.1.15",
     "Description": "Quest progression and pacing \u2014 a reflective notebook for your story journey, not a scoreboard.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/LegendsOfTheGame/TimeMemoriaV3",
@@ -31,6 +31,6 @@
     "DownloadLinkTesting": "https://github.com/LegendsOfTheGame/TimeMemoriaV3/releases/latest/download/latest.zip",
     "IconUrl": "https://raw.githubusercontent.com/LegendsOfTheGame/TimeMemoriaV3/main/assets/icon.png",
     "DownloadCount": 0,
-    "Changelog": "Adds a Food panel: what to eat out of what you are already carrying."
+    "Changelog": "The Adventurer's Ledger export now reports which features you have actually unlocked, so the ledger no longer has to guess from your story progress."
   }
 ]
