@@ -271,15 +271,38 @@ public class QuestsPanelNode : TabPanelNode
   /// the oldest thing left undone, the story, and whichever jobs are actually
   /// being played.
   ///
-  /// Each branch here holds a synthetic node wrapping a single quest rather
-  /// than a real branch of the tree, so selecting it shows that one quest.
+  /// Each branch here holds a synthetic node wrapping quests rather than a real
+  /// branch of the tree, so selecting it shows just those.
+  ///
+  /// Cut when the window opens and when the filter changes, not every frame.
+  /// Rebuilding means reassigning the tree's sections, which rebuilds the whole
+  /// node and takes selection and scroll position with it — a list that
+  /// re-orders under the cursor while it is being read is worse than one that is
+  /// honestly a snapshot. Little is lost: the bundles hold the real quest
+  /// objects and each row re-reads its own completion when it draws, so a quest
+  /// finished with the window open greys within the recount. Membership is the
+  /// snapshot; the state of each row stays live.
   /// </summary>
   private TreeListSection<QuestData>? BuildRecommended()
   {
+    // Everything in this section is by definition unfinished — the oldest thing
+    // left, the next story quest, the job lines still outstanding. Under the
+    // Done filter every branch opens onto an empty pane, and with the list's
+    // no-results placeholder switched off that renders as blankness rather than
+    // as "nothing matches", which reads as a broken window. Better not to offer
+    // it. Exempting these bundles from the filter instead was rejected: that
+    // makes the filter lie about what it is showing.
+    if (_filter == CompletionFilter.Complete) return null;
+
     TreeListSection<QuestData> section = new() { Header = "Recommended" };
 
-    if (DataService.FindOldestIncomplete(out _, out _) is { } oldest)
-      section.Entries.Add(Bundle("Oldest unfinished", [oldest]));
+    // The real, shared quest instances — not clones. Nothing here may touch
+    // Title: see the job quests below, which clone precisely because they
+    // retitle, and would otherwise rename the quest everywhere it appears.
+    List<Types.Quest> oldest = [.. DataService.OldestIncomplete.Select((o) => o.Quest)];
+
+    if (oldest.Count > 0)
+      section.Entries.Add(Bundle($"Oldest unfinished  ({oldest.Count})", oldest));
 
     if (FirstIncompleteIn("Main Scenario") is { } msq)
       section.Entries.Add(Bundle("Next in the Main Scenario", [msq]));

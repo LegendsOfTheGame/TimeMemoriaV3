@@ -21,6 +21,18 @@ public interface IDataService : IHostedService
   IReadOnlyList<ExpansionProgress> MsqProgress { get; }
   List<(Types.Quest Quest, string Path)> Search(string query, int limit = 200);
   Types.Quest? FindOldestIncomplete(out string expansion, out string category);
+
+  /// <summary>
+  /// The oldest quests still outstanding, earliest patch first and lowest level
+  /// breaking ties — at most ten of them. Index 0 is exactly what
+  /// <see cref="FindOldestIncomplete"/> returns.
+  ///
+  /// A property rather than a method taking a count, because a count parameter
+  /// would promise an answer for any N. This is a cache filled by the same walk
+  /// that recounts the tree, and it holds ten; anything larger would need a
+  /// second walk on demand. Naming what is actually cached is the honest shape.
+  /// </summary>
+  IReadOnlyList<OldestQuest> OldestIncomplete { get; }
 }
 
 public class DataService(ILogger _logger, Configuration _configuration, IDataManager _dataManager, IClientState _clientState, IQuestPatchService _questPatch) : IDataService
@@ -593,30 +605,46 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   ///
   /// The answer is computed by <see cref="UpdateQuestData(bool)"/> and cached,
   /// since the callers ask for it once a frame and this walks every quest.
+  ///
+  /// What is cached is now a list of ten rather than a single quest, because the
+  /// Native window offers a shortlist where Classic offers one suggestion. This
+  /// method survives as a projection of its head rather than being deleted with
+  /// its call site rewritten: Classic shows one quest deliberately, and one
+  /// caller wanting ten is no reason to make the other caller reach for an index.
   /// </summary>
   public Types.Quest? FindOldestIncomplete(out string expansion, out string category)
   {
-    expansion = _oldestExpansion;
-    category = _oldestCategory;
-    return _oldestIncomplete;
+    OldestQuest? first = _oldest.Count > 0 ? _oldest[0] : null;
+
+    expansion = first?.Expansion ?? "";
+    category = first?.Category ?? "";
+
+    return first?.Quest;
   }
 
-  private Types.Quest? _oldestIncomplete;
-  private string _oldestExpansion = "";
-  private string _oldestCategory = "";
+  /// <summary>
+  /// How many to keep. Fixed rather than configurable: the count exists to fill a
+  /// list pane that has room for it, which is a property of the window and not a
+  /// preference anyone holds.
+  /// </summary>
+  private const int OldestCount = 10;
+
+  private readonly List<OldestQuest> _oldest = [];
+
+  public IReadOnlyList<OldestQuest> OldestIncomplete => _oldest;
 
   private void RebuildOldestIncomplete()
   {
-    _oldestIncomplete = null;
-    _oldestExpansion = _oldestCategory = "";
-
-    decimal bestPatch = decimal.MaxValue;
-    int bestLevel = int.MaxValue;
+    // Patch, level and path are carried through the scan and only turned into
+    // OldestQuest records at the end, so ExpansionName -- a sheet lookup -- runs
+    // ten times per rebuild instead of once per incomplete quest.
+    List<(decimal Patch, int Level, Types.Quest Quest, string Path)> best = [];
 
     Scan(QuestData, "");
 
-    if (_oldestIncomplete is not null)
-      _oldestExpansion = ExpansionName(_oldestIncomplete.ExpansionId);
+    _oldest.Clear();
+    foreach ((decimal _, int _, Types.Quest quest, string path) in best)
+      _oldest.Add(new OldestQuest(quest, ExpansionName(quest.ExpansionId), path));
 
     void Scan(QuestData node, string path)
     {
@@ -625,12 +653,33 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
         if (IsQuestComplete(quest)) continue;
 
         decimal patch = PatchOf(quest);
-        if (patch > bestPatch || (patch == bestPatch && quest.Level >= bestLevel)) continue;
+        int level = quest.Level;
 
-        bestPatch = patch;
-        bestLevel = quest.Level;
-        _oldestIncomplete = quest;
-        _oldestCategory = path;
+        // Bounded insertion rather than collecting everything and sorting. This
+        // runs on every recount, and on a fresh character almost none of five
+        // thousand quests are complete -- sorting all of them to keep ten would
+        // turn one pass into an O(n log n) one for an answer that discards
+        // 99.8% of its own work. Once the list is full the common case is a
+        // single comparison against the tenth entry.
+        if (best.Count == OldestCount)
+        {
+          (decimal tailPatch, int tailLevel, _, _) = best[^1];
+          if (patch > tailPatch || (patch == tailPatch && level >= tailLevel)) continue;
+        }
+
+        // Insert *after* equals. The single-answer version this replaces tested
+        // `patch == bestPatch && quest.Level >= bestLevel` and skipped, so on an
+        // exact tie the first quest reached in tree order won. Preserving that
+        // is what guarantees index 0 is the same quest Classic has always shown:
+        // its Suggested Quest reads the head of this list, and it must not move
+        // because the Native window wanted nine more behind it.
+        int at = 0;
+        while (at < best.Count &&
+               (best[at].Patch < patch || (best[at].Patch == patch && best[at].Level <= level)))
+          at++;
+
+        best.Insert(at, (patch, level, quest, path));
+        if (best.Count > OldestCount) best.RemoveAt(best.Count - 1);
       }
 
       foreach (QuestData child in node.Categories)
