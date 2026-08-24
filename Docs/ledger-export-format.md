@@ -180,11 +180,18 @@ splitting on the dot, or map to an ordinal.
   "goldSaucer": true, "miniCactpot": true, "jumboCactpot": true,
   "fashionReport": true, "challengeLog": true, "treasureHunt": true,
   "deepDungeon": false, "retainerVenture": true, "pvp": false, "leves": true,
-  "huntDaily": true, "eliteHunt": true, "wondrousTails": true,
+  "huntDaily": true, "eliteHunt": true,
+  "clanHunt": true, "veteranHunt": true, "veteranHuntElite": false,
+  "nutsyHunt": false, "nutsyHuntElite": false,
+  "guildshipHunt": false, "guildshipHuntElite": false,
+  "dawnHunt": false, "dawnHuntElite": false,
+  "wondrousTails": true,
   "fauxHollows": false, "customDelivery": true, "domanEnclave": true,
   "islandSanctuary": false, "cosmicExploration": false,
   "eureka": true, "bozja": false, "occultCrescent": false,
   "blueMage": false, "maskedCarnivale": false, "anima": true, "yorha": false,
+  "zodiacMaps": true, "alliedSociety": true,
+  "arcadion": false, "windurst": false,
   "grandCompany": true, "squadron": true
 }
 ```
@@ -198,13 +205,24 @@ and no patch number at all can express "owns a Gold Saucer pass".
 Every key but the last two is `QuestManager.IsQuestComplete` over the quest that
 unlocks the feature, read from memory at export time. The ids came from the
 wiki's Unlock sections and were checked against the plugin's own
-`quest-patches.json` — all 35 present, patches agreeing. Where an unlock lists
+`quest-patches.json` — every one present, patches agreeing. Where an unlock lists
 several ids they are starting-city or Grand Company variants of one quest, and
 the test is any-of.
 
 `grandCompany` is enlistment. `squadron` is Grand Company rank ≥ 9 — Second
 Lieutenant, the rank that opens Adventurer Squadrons, the daily Hunt bills and
 player housing, so one read gates several rows.
+
+**The Hunt is five hunts.** Each expansion has its own board, its own unlock
+chain and its own weekly elite bill, so there is a daily key and an elite key per
+expansion. A Realm Reborn is the one exception: *Let the Hunt Begin* opens the
+daily bills and the weekly B-rank bill together, so `huntDaily` answers for both
+ARR rows and there is no separate ARR elite key.
+
+`eliteHunt` is **Heavensward**, despite the unqualified name — it is *Elite and
+Dangerous*, level 60, patch 3.0, which the wiki says unlocks Heavensward elite
+marks. The name is kept because published builds already send it and its value
+has never changed; only which row should read it was wrong.
 
 **Absent means "this build did not know about that unlock", never false.** Fall
 back to your own patch gate for a missing key. If absent and false meant the same

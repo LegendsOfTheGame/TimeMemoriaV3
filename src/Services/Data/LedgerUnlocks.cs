@@ -15,8 +15,10 @@ namespace TimeMemoria.Services;
 ///
 /// Every id below was taken from the wiki's own Unlock section for the feature,
 /// via the id-gt field, and then checked against this plugin's own
-/// quest-patches.json — all 35 are present and their patches agree. They are
-/// ordinary quest ids, not magic numbers.
+/// quest-patches.json — every one is present and their patches agree. They are
+/// ordinary quest ids, not magic numbers. A count is deliberately not quoted
+/// here; it goes stale the moment a key is added and proves nothing the check
+/// itself doesn't.
 ///
 /// Several unlocks list more than one id. Those are starting-city or Grand
 /// Company variants of the same quest; a character only ever completes one, so
@@ -64,10 +66,33 @@ public static class LedgerUnlocks
     ["leves"] = [65756, 66223, 66229],            // first levequest, per city
 
     // --- The Hunt ---------------------------------------------------------
-    // The daily bills also need Second Lieutenant; the rank is checked
-    // separately. Elite and Dangerous is what opens the weekly B-rank bills.
+    // Five hunts, not one, and the ledger has a daily row and a weekly B-rank
+    // row for each. Every expansion set is four quests — three daily bill tiers
+    // then an elite one — so the daily row takes the first of its set and the
+    // B-rank row takes the last. Only the middle two are unrepresented, because
+    // the ledger does not split its daily row by bill tier.
+    //
+    // A Realm Reborn is the exception: Let the Hunt Begin opens the daily bills
+    // AND the weekly B-rank bill together, per that quest's own walkthrough, so
+    // both ARR rows read huntDaily. It also needs Second Lieutenant, but the
+    // rank is a requirement of the quest, so completing it proves the rank.
+    //
+    // eliteHunt is Heavensward, despite the unqualified name. Elite and
+    // Dangerous is level 60, patch 3.0, and its page says outright that it
+    // unlocks Heavensward elite marks — it was never the ARR quest the ledger
+    // was reading it as. The name stays: builds already in the wild send it,
+    // and its value has not changed, only which row should be asking.
     ["huntDaily"] = [67099, 67100, 67101],  // Let the Hunt Begin, per Grand Company
-    ["eliteHunt"] = [67658],                // Elite and Dangerous
+    ["eliteHunt"] = [67658],                // Elite and Dangerous — Heavensward
+    ["clanHunt"] = [67655],                 // Let the Clan Hunt Begin
+    ["veteranHunt"] = [68472],              // One-star Veteran Clan Hunt
+    ["veteranHuntElite"] = [68475],         // Elite Veteran Clan Hunt
+    ["nutsyHunt"] = [69133],                // Nuts to You
+    ["nutsyHuntElite"] = [69136],           // Too Many Nutters
+    ["guildshipHunt"] = [69712],            // The Hunt for Specimens
+    ["guildshipHuntElite"] = [69715],       // Perfect Specimens
+    ["dawnHunt"] = [70545],                 // A New Dawn, a New Hunt
+    ["dawnHuntElite"] = [70548],            // The Hunt Goes On
 
     // --- Weekly content ---------------------------------------------------
     ["wondrousTails"] = [67928],        // Keeping Up with the Aliapohs
@@ -91,9 +116,34 @@ public static class LedgerUnlocks
     ["anima"] = [67750],                // Coming into Its Own
     ["yorha"] = [69253],                // A Scandal in Komra
 
-    // Zodiac is deliberately absent. "A Relic Reborn" is per weapon — thirteen
-    // separate quests with no shared entry — so there is no single id that means
-    // "has started the Zodiac line", and Morbid Motivation stays ungated rather
-    // than gated on an arbitrary one.
+    // Zodiac was left out on the reasoning that "A Relic Reborn" is per weapon —
+    // thirteen quests with no shared entry — so nothing means "has started the
+    // Zodiac line". That much is true and stays true. It was the wrong question.
+    // The ledger's row is Morbid Motivation, the repeatable Mysterious Map
+    // turn-in, and the line converges well before it: all thirteen feed Up in
+    // Arms, then Trials of the Braves, Celestial Radiance, and One Man's Trash,
+    // which is Morbid Motivation's immediate prerequisite and one id.
+    //
+    // Gated on One Man's Trash rather than on Morbid Motivation itself, which is
+    // repeatable: "has completed it" would hide the row from everyone who
+    // unlocked the maps and has not yet handed one in — precisely the people the
+    // row exists for.
+    ["zodiacMaps"] = [66676],           // One Man's Trash
+
+    // --- Allied societies -------------------------------------------------
+    // Not per tribe: the wiki is explicit that no allied society quest opens
+    // until this one is done, "even if your character is over level". The
+    // ledger's level 41 floor was reading the level half of that and missing
+    // the quest half, so a level 41 character who had not touched the main
+    // scenario was still offered the row.
+    ["alliedSociety"] = [66488],        // In Pursuit of the Past
+
+    // --- Raid content -----------------------------------------------------
+    // Glory Incarnate opens both the normal fourth floor and the whole Savage
+    // tier — Savage needs no prior Savage clear, only this quest. The Ultimate
+    // is deliberately absent: it wants an M4 (Savage) *clear*, which is a duty
+    // result and not something this export reads.
+    ["arcadion"] = [70976],             // Glory Incarnate
+    ["windurst"] = [71015],             // The Hollow Promise
   };
 }
