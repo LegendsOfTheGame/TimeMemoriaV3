@@ -125,6 +125,13 @@ public class NewsPanelNode : TabPanelNode
 
       // The figure is exactly as old as the last /playtime, and this plugin
       // will not run that for you.
+      //
+      // "recorded" stays, unlike "sample" below. It is not a word invented to
+      // fill a column -- it names what the value is, an age, and it is the same
+      // convention the companion window uses for its Collectables readings
+      // ("Gathered  7  1d ago"). Classic spells the whole timestamp out because
+      // ImGui gives it a full line to do it in; two columns do not have room for
+      // that sentence, and the age is the part that matters.
       Set(ref row, "recorded",
         record.LifetimePlaytimeUpdatedUtc.HasValue
           ? Ago(DateTime.UtcNow - record.LifetimePlaytimeUpdatedUtc.Value)
@@ -149,7 +156,11 @@ public class NewsPanelNode : TabPanelNode
     // What the overall figure is drawn from. Without it "15m per quest" is a
     // number with nothing behind it — it could be six quests or six thousand,
     // and those are not the same claim.
-    Set(ref row, "sample",
+    //
+    // Blank label for the same reason as "recorded" above: Classic writes this
+    // as an unlabelled line under Overall pacing, and "sample" was a word this
+    // window invented to fill a column.
+    Set(ref row, "",
       Pacing.HasLifetimePlaytime
         ? $"across {Pacing.TotalComplete} completed quests"
         : "Run /playtime once to enable overall pacing.",
