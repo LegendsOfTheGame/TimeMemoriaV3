@@ -17,6 +17,9 @@ namespace TimeMemoria.Services;
 /// <param name="TakenUtc">When it was seen. The figure is exactly this old.</param>
 public record AchievementReading(int Value, bool IsExact, int Tier, int TierCount, DateTime TakenUtc);
 
+/// <summary>The three running counts read out of the achievement progress slot.</summary>
+public enum AchievementSeries { Gathered, Crafted, Duties }
+
 public interface IAchievementService : IHostedService
 {
   /// <summary>Collectables gathered or caught, if the client has ever reported it.</summary>
@@ -31,6 +34,15 @@ public interface IAchievementService : IHostedService
   /// the same family as commendations — nothing about how any duty went.
   /// </summary>
   AchievementReading? Duties { get; }
+
+  /// <summary>
+  /// The achievement whose own page has to be opened before a reading can be
+  /// taken. Opening the Achievements window is *not* enough: the client keeps
+  /// the progress of only the last achievement it fetched, so the window can sit
+  /// open indefinitely holding something unrelated. Observed 18/08/2026 with the
+  /// window open and the slot holding the commendations achievement.
+  /// </summary>
+  string SourceFor(AchievementSeries series);
 }
 
 /// <summary>
@@ -73,8 +85,39 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
 
   private readonly Dictionary<uint, (int Tier, int Count, Series Series)> _tiers = [];
 
+  /// <summary>
+  /// How many each tier asks for. Not available as a number anywhere on the
+  /// Achievement row -- every numeric column is icon, order, points or padding --
+  /// so it is parsed out of the description, which is the only place it exists.
+  /// </summary>
+  private readonly Dictionary<uint, int> _requirements = [];
+
+  /// <summary>
+  /// Floors are taken once per session, the first time the completion bitmap
+  /// becomes readable. Completion cannot go stale -- a finished tier stays
+  /// finished -- so unlike a progress reading there is nothing to refresh.
+  /// </summary>
+  private bool _floorsTaken;
+
+  public string SourceFor(AchievementSeries series)
+  {
+    Series wanted = series switch
+    {
+      AchievementSeries.Gathered => Series.Gathered,
+      AchievementSeries.Crafted => Series.Crafted,
+      _ => Series.Duties
+    };
+
+    foreach ((Series candidate, string[] stems) in SeriesStems)
+      if (candidate == wanted && stems.Length > 0)
+        return stems[0];
+
+    return "";
+  }
+
   private uint _lastId;
   private uint _lastValue;
+
 
   public AchievementReading? Gathered { get; private set; }
 
@@ -130,6 +173,8 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
 
       for (int i = 0; i < ids.Count; i++) _tiers[ids[i]] = (i + 1, ids.Count, series);
 
+      RecordRequirements(ids);
+
       _logger.Debug($"[Achievement] {series}: {ids.Count} tiers from {string.Join(", ", stems)}.");
     }
   }
@@ -147,6 +192,94 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
   }
 
   /// <summary>
+  /// The requirement for each tier, read out of its description.
+  ///
+  /// Discarded wholesale unless the parsed numbers ascend with the tiers. A
+  /// description that reads differently than expected -- another language, a
+  /// reworded tier, a sentence with an unrelated number first -- shows up as an
+  /// ordering that makes no sense, and no floor at all is far better than a
+  /// wrong one presented as a guarantee.
+  /// </summary>
+  private void RecordRequirements(List<uint> ids)
+  {
+    List<int> parsed = [];
+
+    foreach (uint id in ids)
+    {
+      AchievementRow? row = _dataManager.GetExcelSheet<AchievementRow>().GetRowOrDefault(id);
+      parsed.Add(row is null ? 0 : FirstNumber(row.Value.Description.ToString()));
+    }
+
+    for (int i = 0; i < parsed.Count; i++)
+      if (parsed[i] <= 0 || (i > 0 && parsed[i] <= parsed[i - 1]))
+      {
+        _logger.Debug($"[Achievement] Requirements for this series did not ascend; no floors from it.");
+        return;
+      }
+
+    for (int i = 0; i < ids.Count; i++) _requirements[ids[i]] = parsed[i];
+  }
+
+  /// <summary>
+  /// The first whole number in a sentence, ignoring digit grouping so that
+  /// "1,000" and "1.000" both read as a thousand.
+  /// </summary>
+  private static int FirstNumber(string text)
+  {
+    int i = 0;
+    while (i < text.Length && !char.IsDigit(text[i])) i++;
+    if (i == text.Length) return 0;
+
+    long value = 0;
+
+    for (; i < text.Length; i++)
+    {
+      if (char.IsDigit(text[i])) value = value * 10 + (text[i] - '0');
+      else if (text[i] is ',' or '.' or ' ' && i + 1 < text.Length && char.IsDigit(text[i + 1])) continue;
+      else break;
+
+      if (value > int.MaxValue) return 0;
+    }
+
+    return (int)value;
+  }
+
+  /// <summary>
+  /// The highest completed tier in each series, as a floor.
+  ///
+  /// Completion is free for every achievement at once as soon as the bitmap has
+  /// loaded, where progress is a single slot holding whatever was fetched last.
+  /// So this needs no server request and no player action beyond whatever made
+  /// the bitmap load -- and a completed tier reporting its own requirement is a
+  /// guarantee rather than a sample.
+  /// </summary>
+  private unsafe void TakeFloors(AchievementState* state)
+  {
+    int found = 0;
+
+    foreach ((uint id, (int tier, int count, Series series)) in _tiers)
+    {
+      if (!_requirements.TryGetValue(id, out int requirement)) continue;
+      if (!state->IsComplete((int)id)) continue;
+
+      AchievementReading floor = new(requirement, false, tier, count, DateTime.UtcNow);
+
+      switch (series)
+      {
+        case Series.Gathered: Gathered = Prefer(Gathered, floor); break;
+        case Series.Crafted: Crafted = Prefer(Crafted, floor); break;
+        case Series.Duties: Duties = Prefer(Duties, floor); break;
+      }
+
+      found++;
+    }
+
+    if (found > 0) Persist();
+
+    _logger.Debug($"[Achievement] Floors from {found} completed tier(s).");
+  }
+
+  /// <summary>
   /// Watches the single progress slot. It holds only the most recently fetched
   /// achievement, so sampling it on demand catches whatever happened to be there
   /// last — which is how asking about gathering returns a crafting number.
@@ -155,6 +288,12 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
   {
     AchievementState* state = AchievementState.Instance();
     if (state is null || !state->IsLoaded()) return;
+
+    if (!_floorsTaken)
+    {
+      _floorsTaken = true;
+      TakeFloors(state);
+    }
 
     uint id = state->ProgressAchievementId;
     uint value = state->ProgressCurrent;

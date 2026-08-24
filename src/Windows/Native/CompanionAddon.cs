@@ -181,8 +181,8 @@ public unsafe class CompanionAddon : NativeAddon
     }
 
     SetHeading(ref row, "Collectables");
-    SetCollectables(ref row, "Gathered", Achievements.Gathered);
-    SetCollectables(ref row, "Crafted", Achievements.Crafted);
+    SetCollectables(ref row, "Gathered", Achievements.Gathered, AchievementSeries.Gathered);
+    SetCollectables(ref row, "Crafted", Achievements.Crafted, AchievementSeries.Crafted);
 
     SetHeading(ref row, "Pacing");
     SetRow(ref row, $"This session ({Pacing.SessionQuests})", FormatPace(Pacing.SessionMinutesPerQuest));
@@ -368,11 +368,19 @@ public unsafe class CompanionAddon : NativeAddon
   /// number is that tier's requirement rather than a running total, so it is
   /// reported as a floor with a nudge toward a later tier.
   /// </summary>
-  private void SetCollectables(ref int row, string label, AchievementReading? reading)
+  /// <summary>
+  /// The hint names the achievement rather than saying "open Achievements",
+  /// which was simply wrong: the window can be open, IsLoaded true, and still
+  /// nothing read, because the client keeps the progress of only the last
+  /// achievement fetched. Opening that one achievement's page is what works.
+  /// </summary>
+  private void SetCollectables(ref int row, string label, AchievementReading? reading, AchievementSeries series)
   {
     if (reading is null)
     {
-      SetRow(ref row, label, "open Achievements once", muted: true);
+      string source = Achievements.SourceFor(series);
+      SetRow(ref row, label, source.Length > 0 ? $"see {source}" : "not read yet", muted: true);
+
       return;
     }
 
