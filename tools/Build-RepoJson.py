@@ -89,6 +89,13 @@ def main(changelog=None):
     manifest = json.loads(BUILT.read_text(encoding='utf-8-sig'))
     check_version(manifest)
 
+    # DownloadLinkTesting deliberately points at the stable zip: there is no
+    # testing channel here, because DalamudPluginsD17 supplies one as a directory
+    # (testing/live -> stable) and that is where the plugin is headed. Dalamud
+    # only follows this link when TestingAssemblyVersion exists and exceeds
+    # AssemblyVersion, so it is inert — but adding that key without also pointing
+    # this at a prerelease artifact would serve testers the stable build under the
+    # test version's name. See Docs/releasing.md.
     manifest.update({
         'CategoryTags': CATEGORY_TAGS,
         'IsHide': False,
