@@ -55,7 +55,7 @@ public unsafe class MainAddon : NativeAddon
     QuestsPanelNode quests = new()
     {
       DataService = DataService, PatchService = PatchService, ProgressService = ProgressService,
-      Logger = Logger
+      Logger = Logger, Config = Config
     };
     NewsPanelNode news = new()
     {
