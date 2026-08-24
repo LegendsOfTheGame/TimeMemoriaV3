@@ -49,8 +49,14 @@ replace it. Bump before committing, not after.
    version and writes a manifest advertising it. Nothing errors. The release
    exists on GitHub, the download link resolves to it, and every installer
    decides there is no update — because `AssemblyVersion` is what Dalamud
-   compares. This happened to 3.0.3.15; check the version the script prints
-   against the tag before committing.
+   compares. This happened to 3.0.3.15.
+
+   **The script now refuses this.** It reads `<Version>` from
+   `TimeMemoria.csproj` and exits non-zero, without touching `repo.json`, if the
+   built manifest disagrees — so a stale `bin/` stops the release instead of
+   shipping an invisible one. The instruction that used to live here was to
+   compare the printed version against the tag by eye, which is the kind of check
+   that holds until the first time someone is in a hurry.
 
 ## When a change does not appear in game
 

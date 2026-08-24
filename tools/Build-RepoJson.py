@@ -15,10 +15,12 @@ Usage:
 
 import json
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BUILT = ROOT / 'bin' / 'Release' / 'TimeMemoriaV3' / 'TimeMemoriaV3.json'
+CSPROJ = ROOT / 'TimeMemoria.csproj'
 OUT = ROOT / 'repo.json'
 
 OWNER = 'LegendsOfTheGame'
@@ -35,11 +37,57 @@ ICON = f'https://raw.githubusercontent.com/{OWNER}/{REPO}/main/assets/icon.png'
 CATEGORY_TAGS = ['utility']
 
 
+def intended_version():
+    """The version this working tree means to release, from the csproj.
+
+    The single source of truth for a release. The built manifest is downstream of
+    it and can lag; this cannot.
+    """
+    text = CSPROJ.read_text(encoding='utf-8-sig')
+    match = re.search(r'<Version>\s*([0-9]+(?:\.[0-9]+)*)\s*</Version>', text)
+    if not match:
+        raise SystemExit(f'no <Version> found in {CSPROJ}')
+    return match.group(1)
+
+
+def check_version(manifest):
+    """Refuse to write a manifest advertising a version nobody meant to ship.
+
+    An ordinary `dotnet build` leaves bin/Release/.../TimeMemoriaV3.json untouched
+    when only <Version> changed, so this script would read the *previous* version
+    and write a repo.json advertising it. Nothing errors anywhere: the tag exists,
+    the release exists, the download link resolves to it — and every installer
+    compares AssemblyVersion, sees no increase, and reports no update. That shipped
+    as 3.0.3.15.
+
+    Docs/releasing.md answers this with `--no-incremental` and an instruction to
+    eyeball the printed version against the tag. This is the same check, made
+    mandatory: correctness that depends on a person remembering to look is
+    correctness that lapses the first time someone is in a hurry.
+    """
+    intended = intended_version()
+    built = str(manifest.get('AssemblyVersion', ''))
+    if built == intended:
+        return
+
+    raise SystemExit(
+        f'refusing to write {OUT.name}: stale build output.\n'
+        f'  csproj <Version>          {intended}\n'
+        f'  built manifest            {built}\n'
+        '\n'
+        'The build predates the version bump, so this manifest would advertise a\n'
+        'version installers already have and the release would be invisible.\n'
+        'Rebuild and run again:\n'
+        '  dotnet build -c Release --no-incremental'
+    )
+
+
 def main(changelog=None):
     if not BUILT.exists():
         raise SystemExit(f'{BUILT} not found — run: dotnet build -c Release')
 
     manifest = json.loads(BUILT.read_text(encoding='utf-8-sig'))
+    check_version(manifest)
 
     manifest.update({
         'CategoryTags': CATEGORY_TAGS,
