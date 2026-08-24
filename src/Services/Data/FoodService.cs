@@ -19,9 +19,25 @@ namespace TimeMemoria.Services;
 /// times how many are held. The point of the panel in one number.
 /// </param>
 /// <param name="Best">The suggestion, or null when there is no food at all.</param>
-public record FoodReading(bool WellFed, float RemainingSeconds, FoodChoice? Active, TimeSpan Banked, FoodChoice? Best);
+/// <param name="Held">
+/// Every distinct food item currently carried, one entry per item id with its
+/// stat bonuses — the answer to "what food do I have and what does it do",
+/// which Active/Best alone do not cover.
+/// </param>
+public record FoodReading(bool WellFed, float RemainingSeconds, FoodChoice? Active, TimeSpan Banked, FoodChoice? Best,
+  IReadOnlyList<FoodStack> Held);
 
 public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantity);
+
+/// <summary>
+/// One food item's stat bonuses, which pursuit it serves, and a rough ranking
+/// within that pursuit — highest cap total first, the same "cap is what
+/// binds" reasoning FoodService already uses to pick a single Best.
+/// </summary>
+public record FoodStack(string Name, string Stats, FoodPursuit Pursuit, int Score, bool HighQuality, int Quantity);
+
+/// <summary>What kind of play a food's stats are for — the axis food actually splits on in this game.</summary>
+public enum FoodPursuit { Combat, Crafting, Gathering }
 
 public interface IFoodService
 {
@@ -84,7 +100,8 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
         remaining,
         fed ? Active(param, held) : null,
         Banked(held),
-        held.Count == 0 ? null : Choose(held));
+        held.Count == 0 ? null : Choose(held),
+        Stacks(held));
     }
     catch (Exception ex)
     {
@@ -95,7 +112,118 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     }
   }
 
-  private static FoodReading Empty => new(false, 0, null, TimeSpan.Zero, null);
+  private static FoodReading Empty => new(false, 0, null, TimeSpan.Zero, null, []);
+
+  /// <summary>
+  /// One row per item id, grouped by quality since NQ and HQ of the same food
+  /// can carry different bonuses.
+  /// </summary>
+  private List<FoodStack> Stacks(List<Held> held)
+  {
+    return held
+      .GroupBy((f) => (f.Item.RowId, f.HighQuality))
+      .Select((group) =>
+      {
+        ItemFoodRow? food = FoodRow(group.First().Item);
+        bool hq = group.Key.HighQuality;
+
+        return new FoodStack(
+          group.First().Item.Name.ToString() + (hq ? " (HQ)" : ""),
+          StatText(food, hq),
+          Pursuit(food),
+          Score(food, hq),
+          hq,
+          group.Sum((f) => f.Quantity));
+      })
+      // Highest score first within a pursuit; ties broken by name so the
+      // ordering doesn't jitter frame to frame among equal scores.
+      .OrderBy((stack) => stack.Pursuit)
+      .ThenByDescending((stack) => stack.Score)
+      .ThenBy((stack) => stack.Name, StringComparer.Ordinal)
+      .ToList();
+  }
+
+  /// <summary>
+  /// A food's bonuses, condensed for a fixed-width column: abbreviated stat
+  /// name, the NQ value (the HQ value only ever differs by a point or two, and
+  /// the cap is what actually binds at any real stat total), and the cap.
+  /// </summary>
+  private string StatText(ItemFoodRow? food, bool hq)
+  {
+    if (food is null) return "no stats";
+
+    List<string> parts = [];
+
+    for (int i = 0; i < food.Value.Params.Count; i++)
+    {
+      var entry = food.Value.Params[i];
+      uint param = entry.BaseParam.RowId;
+      if (param == 0) continue;
+
+      int value = hq ? entry.ValueHQ : entry.Value;
+      int cap = hq ? entry.MaxHQ : entry.Max;
+
+      parts.Add(entry.IsRelative
+        ? $"{FullParamName(param)} +{value}% (Cap {cap})"
+        : $"{FullParamName(param)} +{value}");
+    }
+
+    return parts.Count == 0 ? "no stats" : string.Join(" | ", parts);
+  }
+
+  /// <summary>
+  /// A rough "how good is this" figure for sorting only: the same cap-first
+  /// reasoning Evaluate() uses to pick a single Best, but summed across every
+  /// stat the food grants rather than only ones relevant to the current job —
+  /// Pursuit has already separated combat from crafting from gathering, so
+  /// there is no job-relevance filter left to apply here.
+  /// </summary>
+  private static int Score(ItemFoodRow? food, bool hq)
+  {
+    if (food is null) return 0;
+
+    int total = 0;
+
+    foreach (var entry in food.Value.Params)
+    {
+      if (entry.BaseParam.RowId == 0) continue;
+      total += hq ? (entry.IsRelative ? entry.MaxHQ : entry.ValueHQ) : (entry.IsRelative ? entry.Max : entry.Value);
+    }
+
+    return total;
+  }
+
+  /// <summary>
+  /// Which pursuit a food serves, read from which stats it actually grants
+  /// rather than guessed from its name — no food seen so far mixes crafting or
+  /// gathering stats with combat ones, so the first non-combat stat found
+  /// settles it.
+  /// </summary>
+  private FoodPursuit Pursuit(ItemFoodRow? food)
+  {
+    if (food is not null)
+      foreach (var entry in food.Value.Params)
+      {
+        string name = FullParamName(entry.BaseParam.RowId);
+        if (CraftingStats.Contains(name)) return FoodPursuit.Crafting;
+        if (GatheringStats.Contains(name)) return FoodPursuit.Gathering;
+      }
+
+    return FoodPursuit.Combat;
+  }
+
+  private static readonly HashSet<string> CraftingStats =
+    new(StringComparer.OrdinalIgnoreCase) { "Craftsmanship", "Control", "CP" };
+
+  private static readonly HashSet<string> GatheringStats =
+    new(StringComparer.OrdinalIgnoreCase) { "Gathering", "Perception", "GP" };
+
+  private string FullParamName(uint id)
+  {
+    BaseParam? row = _dataManager.GetExcelSheet<BaseParam>().GetRowOrDefault(id);
+    string name = row?.Name.ToString() ?? "";
+    return name.Length > 0 ? name : $"param{id}";
+  }
 
   /// <summary>
   /// Quality is carried in the status parameter as an offset rather than a flag:

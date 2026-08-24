@@ -84,6 +84,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       Festivals = _festivals,
       News = _news,
       PlayerState = _playerState,
+      Food = _food,
       Config = _configuration,
       Logger = _logger,
       OnSwapRequested = SwapToCompanion

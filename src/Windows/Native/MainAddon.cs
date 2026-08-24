@@ -28,6 +28,7 @@ public unsafe class MainAddon : NativeAddon
   public required IFestivalService Festivals { get; init; }
   public required INewsService News { get; init; }
   public required IPlayerState PlayerState { get; init; }
+  public required IFoodService Food { get; init; }
   public required Configuration Config { get; init; }
   public required ILogger Logger { get; init; }
 
@@ -63,12 +64,14 @@ public unsafe class MainAddon : NativeAddon
       DataService = DataService, Logger = Logger
     };
     WhatsNewPanelNode whatsNew = new() { Snapshot = Snapshot, PatchService = PatchService };
+    NewsAndWhatsNewPanelNode newsAndWhatsNew = new() { News = news, WhatsNew = whatsNew };
+    BonusesPanelNode bonuses = new() { Food = Food };
     ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport };
     SettingsPanelNode settings = new() { Config = Config, DataService = DataService };
     HelpPanelNode help = new();
     CreditsPanelNode credits = new();
 
-    TabPanelNode[] panels = [overview, quests, news, whatsNew, progression, settings, help, credits];
+    TabPanelNode[] panels = [overview, quests, newsAndWhatsNew, bonuses, progression, settings, help, credits];
 
     TabBarNode tabs = new()
     {
@@ -79,8 +82,8 @@ public unsafe class MainAddon : NativeAddon
       [
         new TabBarEntry { Label = "Overview", OnClick = () => Show(overview) },
         new TabBarEntry { Label = "Quests", OnClick = () => Show(quests) },
-        new TabBarEntry { Label = "News", OnClick = () => Show(news) },
-        new TabBarEntry { Label = "What's New", OnClick = () => Show(whatsNew) },
+        new TabBarEntry { Label = "News/What's New", OnClick = () => Show(newsAndWhatsNew) },
+        new TabBarEntry { Label = "Bonuses", OnClick = () => Show(bonuses) },
         new TabBarEntry { Label = "Progression", OnClick = () => Show(progression) },
         new TabBarEntry { Label = "Settings", OnClick = () => Show(settings) },
         new TabBarEntry { Label = "Help", OnClick = () => Show(help) },
