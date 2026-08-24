@@ -769,6 +769,22 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       _dataService.UpdateQuestData(true);
     }
 
+    ImGui.Spacing();
+
+    bool showJobQuestsInOldest = _configuration.ShowJobQuestsInOldest;
+    if (ImGui.Checkbox("Show job quests in \'Oldest unfinished\'", ref showJobQuestsInOldest))
+    {
+      _configuration.ShowJobQuestsInOldest = showJobQuestsInOldest;
+      _configuration.Save();
+      _dataService.UpdateQuestData(true);
+    }
+
+    if (ImGui.IsItemHovered())
+      ImGui.SetTooltip(
+        "Every A Realm Reborn class has a level 1 unlock quest, and they tie on both\n" +
+        "sort keys — so a character who has not taken them all can find the shortlist\n" +
+        "made of nothing else. Turning this off looks past them.");
+
     DrawSpoilerSettings();
     DrawInterfaceSettings();
   }

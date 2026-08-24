@@ -26,6 +26,7 @@ public class SettingsPanelNode : TabPanelNode
   private readonly CheckboxNode _showPercentage;
   private readonly CheckboxNode _excludeOther;
   private readonly CheckboxNode _excludeLeves;
+  private readonly CheckboxNode _showJobQuestsInOldest;
   private readonly CheckboxNode _companionAlwaysVisible;
   private readonly CheckboxNode _spoiler;
   private readonly CheckboxNode _freeTrial;
@@ -70,6 +71,15 @@ public class SettingsPanelNode : TabPanelNode
       DataService.UpdateQuestData(true);
     });
 
+    // Forces a recount, like the two exclusions above: the shortlist is built
+    // during the tree walk, so it does not change until the next one.
+    _showJobQuestsInOldest = AddCheckbox("Show job quests in 'Oldest unfinished'", (value) =>
+    {
+      Config.ShowJobQuestsInOldest = value;
+      Config.Save();
+      DataService.UpdateQuestData(true);
+    });
+
     _companionAlwaysVisible = AddCheckbox("Keep /tmmini visible when the game hides the UI",
       (value) => { Config.CompanionAlwaysVisible = value; Config.Save(); });
 
@@ -105,6 +115,7 @@ public class SettingsPanelNode : TabPanelNode
     Sync(_showPercentage, Config.ShowPercentage);
     Sync(_excludeOther, Config.ExcludeOtherQuests);
     Sync(_excludeLeves, Config.ExcludeLevequests);
+    Sync(_showJobQuestsInOldest, Config.ShowJobQuestsInOldest);
     Sync(_companionAlwaysVisible, Config.CompanionAlwaysVisible);
     Sync(_spoiler, Config.SpoilerMode);
     Sync(_freeTrial, Config.FreeTrialMode);
@@ -122,8 +133,8 @@ public class SettingsPanelNode : TabPanelNode
     _list.Position = new Vector2(0.0f, 0.0f);
 
     foreach (CheckboxNode box in
-      new[] { _showCount, _showPercentage, _excludeOther, _excludeLeves, _companionAlwaysVisible, _spoiler,
-        _freeTrial, _useNative })
+      new[] { _showCount, _showPercentage, _excludeOther, _excludeLeves, _showJobQuestsInOldest,
+        _companionAlwaysVisible, _spoiler, _freeTrial, _useNative })
       box.Size = new Vector2(Width - 12.0f, RowHeight);
 
     _resizeHint.Size = new Vector2(Width - 12.0f, 18.0f);

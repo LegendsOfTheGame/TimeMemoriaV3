@@ -640,14 +640,22 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     // ten times per rebuild instead of once per incomplete quest.
     List<(decimal Patch, int Level, Types.Quest Quest, string Path)> best = [];
 
-    Scan(QuestData, "");
+    Scan(QuestData, "", false);
 
     _oldest.Clear();
     foreach ((decimal _, int _, Types.Quest quest, string path) in best)
       _oldest.Add(new OldestQuest(quest, ExpansionName(quest.ExpansionId), path));
 
-    void Scan(QuestData node, string path)
+    // Carried down the tree rather than tested per quest, because a quest object
+    // says nothing about which journal section it hangs from -- the section is
+    // the branch it was reached through. Matched on EnglishTitle, which is the
+    // same device the export and the totals use: Title is localised, so a client
+    // in any other language would silently match nothing and the setting would
+    // appear to do nothing at all.
+    void Scan(QuestData node, string path, bool inJobQuests)
     {
+      if (inJobQuests && !_configuration.ShowJobQuestsInOldest) return;
+
       foreach (Types.Quest quest in node.Quests)
       {
         if (IsQuestComplete(quest)) continue;
@@ -683,7 +691,9 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       }
 
       foreach (QuestData child in node.Categories)
-        Scan(child, path.Length == 0 ? child.Title : $"{path} — {child.Title}");
+        Scan(child,
+          path.Length == 0 ? child.Title : $"{path} — {child.Title}",
+          inJobQuests || child.EnglishTitle == "Class & Job Quests");
     }
   }
 

@@ -10,6 +10,23 @@ public class Configuration : IPluginConfiguration
   public bool ExcludeOtherQuests { get; set; } = false;
   public bool ExcludeLevequests { get; set; } = false;
 
+  /// <summary>
+  /// Whether class and job quests can appear in "Oldest unfinished".
+  ///
+  /// On by default, because they genuinely are the oldest thing outstanding and
+  /// hiding work by default is not this plugin's habit. But every class in A
+  /// Realm Reborn has a level 1 patch 2.0 unlock quest, and they tie on both
+  /// sort keys, so a character who has not taken every class sees a shortlist
+  /// made of nothing else. Someone who does not intend to level the rest wants
+  /// that corner of the backlog out of the way; someone working through them
+  /// wants it exactly as it is. Neither is wrong, which is why it is a setting.
+  ///
+  /// Scoped to that one list. It is a statement about what to be *recommended*,
+  /// not about what the character has done, so it does not reach the tree, the
+  /// totals, or the export.
+  /// </summary>
+  public bool ShowJobQuestsInOldest { get; set; } = true;
+
   /// <summary>Show story the character has not reached yet.</summary>
   public bool SpoilerMode { get; set; } = false;
 
