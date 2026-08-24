@@ -47,7 +47,7 @@ replace it. Bump before committing, not after.
    needs editing.
 
    **`--no-incremental` is not optional.** An ordinary build leaves
-   `bin/Release/TimeMemoria V3/TimeMemoriaV3.json` untouched when only the
+   `bin/Release/TimeMemoriaV3/TimeMemoriaV3.json` untouched when only the
    version changed, so `Build-RepoJson.py` happily reads the *previous*
    version and writes a manifest advertising it. Nothing errors. The release
    exists on GitHub, the download link resolves to it, and every installer
