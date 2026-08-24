@@ -59,7 +59,8 @@ public unsafe class MainAddon : NativeAddon
     };
     NewsPanelNode news = new()
     {
-      Playtime = Playtime, Pacing = Pacing, Festivals = Festivals, News = News, PlayerState = PlayerState
+      Playtime = Playtime, Pacing = Pacing, Festivals = Festivals, News = News, PlayerState = PlayerState,
+      DataService = DataService, Logger = Logger
     };
     WhatsNewPanelNode whatsNew = new() { Snapshot = Snapshot, PatchService = PatchService };
     ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport };
