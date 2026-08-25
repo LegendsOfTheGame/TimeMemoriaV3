@@ -17,6 +17,17 @@ namespace TimeMemoria.Services;
 /// <param name="TakenUtc">When it was seen. The figure is exactly this old.</param>
 public record AchievementReading(int Value, bool IsExact, int Tier, int TierCount, DateTime TakenUtc);
 
+/// <summary>
+/// Every named achievement, complete versus total — the same grand tally the
+/// game's own Achievements window shows, not a plugin-specific figure.
+/// </summary>
+/// <param name="Complete">Rows with their completion bit set.</param>
+/// <param name="Total">Named rows in the sheet. Some rows in the Achievement
+/// sheet are unused padding with no name; skipping those is what makes this
+/// match the window's own count rather than the raw sheet size.</param>
+/// <param name="TakenUtc">When the completion bitmap was last read.</param>
+public record AchievementTotals(int Complete, int Total, DateTime TakenUtc);
+
 /// <summary>The three running counts read out of the achievement progress slot.</summary>
 public enum AchievementSeries { Gathered, Crafted, Duties }
 
@@ -34,6 +45,14 @@ public interface IAchievementService : IHostedService
   /// the same family as commendations — nothing about how any duty went.
   /// </summary>
   AchievementReading? Duties { get; }
+
+  /// <summary>
+  /// Every named achievement, complete versus total, if the completion bitmap
+  /// has ever been read this login. Unlike the three readings above this needs
+  /// no specific achievement opened — the Achievements window loading at all is
+  /// enough, since completion is one bitmap covering everything at once.
+  /// </summary>
+  AchievementTotals? Totals { get; }
 
   /// <summary>
   /// The achievement whose own page has to be opened before a reading can be
@@ -125,6 +144,8 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
 
   public AchievementReading? Duties { get; private set; }
 
+  public AchievementTotals? Totals { get; private set; }
+
   public Task StartAsync(CancellationToken cancellationToken)
   {
     BuildSeries();
@@ -184,9 +205,19 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     Gathered = null;
     Crafted = null;
     Duties = null;
+    Totals = null;
 
     _lastId = 0;
     _lastValue = 0;
+
+    // The completion bitmap belongs to whichever character is now active, so
+    // "taken already" from the character just left is not evidence anything has
+    // been read for this one. Without this a relog mid-session would silently
+    // skip the free floor/total read for every character but the first, falling
+    // back to the slower per-achievement progress watch for the rest of the
+    // session. Harmless to reset even if the bitmap turns out to already be
+    // loaded — worst case is one extra full scan of ~4,000 cheap bit checks.
+    _floorsTaken = false;
 
     Restore();
   }
@@ -280,6 +311,36 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
   }
 
   /// <summary>
+  /// Every named achievement's completion, all at once — the same shortcut
+  /// TakeFloors uses, just over the whole sheet instead of three tracked
+  /// series. The bitmap is already loaded by the time this runs, so this is a
+  /// few thousand bit checks against memory already resident, not a request.
+  ///
+  /// The empty-name skip is the exact filter MemoriaProbe's AchievementLoadProbe
+  /// verified against a clean login (0 of 3,949) -- some Achievement rows are
+  /// unused padding, and counting them would make the total disagree with what
+  /// the game's own Achievements window shows.
+  /// </summary>
+  private unsafe void TakeTotals(AchievementState* state)
+  {
+    int total = 0;
+    int complete = 0;
+
+    foreach (AchievementRow row in _dataManager.GetExcelSheet<AchievementRow>())
+    {
+      if (row.Name.ToString().Length == 0) continue;
+
+      total++;
+      if (state->IsComplete((int)row.RowId)) complete++;
+    }
+
+    Totals = new AchievementTotals(complete, total, DateTime.UtcNow);
+    Persist();
+
+    _logger.Debug($"[Achievement] Totals: {complete} of {total}.");
+  }
+
+  /// <summary>
   /// Watches the single progress slot. It holds only the most recently fetched
   /// achievement, so sampling it on demand catches whatever happened to be there
   /// last — which is how asking about gathering returns a crafting number.
@@ -293,6 +354,7 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     {
       _floorsTaken = true;
       TakeFloors(state);
+      TakeTotals(state);
     }
 
     uint id = state->ProgressAchievementId;
@@ -355,6 +417,7 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     Gathered = stored.Gathered;
     Crafted = stored.Crafted;
     Duties = stored.Duties;
+    Totals = stored.Totals;
   }
 
   private void Persist()
@@ -362,7 +425,7 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     if (Key is not { } key) return;
 
     _configuration.AchievementReadings[key] =
-      new StoredReadings { Gathered = Gathered, Crafted = Crafted, Duties = Duties };
+      new StoredReadings { Gathered = Gathered, Crafted = Crafted, Duties = Duties, Totals = Totals };
     _configuration.Save();
   }
 }
@@ -380,4 +443,5 @@ public class StoredReadings
   public AchievementReading? Gathered { get; set; }
   public AchievementReading? Crafted { get; set; }
   public AchievementReading? Duties { get; set; }
+  public AchievementTotals? Totals { get; set; }
 }

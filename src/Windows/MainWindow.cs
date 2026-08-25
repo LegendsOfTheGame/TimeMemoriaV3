@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch) : Window("Time Memoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IAchievementService _achievements) : Window("Time Memoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -97,6 +97,21 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
       if (categories.Any((c) => c.Excluded))
         ImGui.TextDisabled("  Greyed categories are shown but not counted in the totals above.");
+    }
+
+    // Absent, not zero, until the Achievements window has loaded this login --
+    // the same distinction "By Category" draws by hiding when there is nothing
+    // to show, rather than printing a heading over a false 0/0.
+    if (_achievements.Totals is { } totals)
+    {
+      ImGui.Spacing();
+      ImGui.Spacing();
+      ImGui.TextColored(HeaderColour, "Achievements");
+      ImGui.Spacing();
+      ImGui.Separator();
+      ImGui.Spacing();
+
+      DrawProgressRow("Overall", totals.Complete, totals.Total);
     }
 
     ImGui.Spacing();

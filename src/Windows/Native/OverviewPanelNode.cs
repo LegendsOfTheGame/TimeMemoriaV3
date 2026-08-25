@@ -29,6 +29,7 @@ public class OverviewPanelNode : TabPanelNode
   private static readonly Vector4 Dimmed = new(0.6f, 0.6f, 0.6f, 1.0f);
 
   public required IDataService DataService { get; init; }
+  public required IAchievementService Achievements { get; init; }
 
   private readonly VerticalListNode _list;
   private readonly List<(TextNode Label, TextNode Count, TextNode Percent)> _rows = [];
@@ -83,6 +84,15 @@ public class OverviewPanelNode : TabPanelNode
       // silently disappears — it is visibly present and visibly not counted.
       foreach (CategoryProgress category in categories)
         SetRow(ref row, category.Name, category.NumComplete, category.Total, category.Excluded);
+    }
+
+    // Absent, not zero, until the Achievements window has loaded this login --
+    // the same distinction "By Category" draws by hiding when there is nothing
+    // to show, rather than printing a heading over a false 0/0.
+    if (Achievements.Totals is { } totals)
+    {
+      SetHeading(ref row, "Achievements");
+      SetRow(ref row, "Overall", totals.Complete, totals.Total);
     }
 
     for (; row < _rows.Count; row++)

@@ -29,6 +29,7 @@ public unsafe class MainAddon : NativeAddon
   public required INewsService News { get; init; }
   public required IPlayerState PlayerState { get; init; }
   public required IFoodService Food { get; init; }
+  public required IAchievementService Achievements { get; init; }
   public required Configuration Config { get; init; }
   public required ILogger Logger { get; init; }
 
@@ -52,7 +53,7 @@ public unsafe class MainAddon : NativeAddon
     Vector2 panelSize = new(ContentSize.X, ContentSize.Y - TabBarHeight - Gap);
     Vector2 panelPosition = ContentStartPosition + new Vector2(0.0f, TabBarHeight + Gap);
 
-    OverviewPanelNode overview = new() { DataService = DataService };
+    OverviewPanelNode overview = new() { DataService = DataService, Achievements = Achievements };
     QuestsPanelNode quests = new()
     {
       DataService = DataService, PatchService = PatchService, ProgressService = ProgressService,
