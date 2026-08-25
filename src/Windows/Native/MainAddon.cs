@@ -61,17 +61,15 @@ public unsafe class MainAddon : NativeAddon
     NewsPanelNode news = new()
     {
       Playtime = Playtime, Pacing = Pacing, Festivals = Festivals, News = News, PlayerState = PlayerState,
-      DataService = DataService, Logger = Logger
+      Snapshot = Snapshot, PatchService = PatchService, DataService = DataService, Logger = Logger
     };
-    WhatsNewPanelNode whatsNew = new() { Snapshot = Snapshot, PatchService = PatchService };
-    NewsAndWhatsNewPanelNode newsAndWhatsNew = new() { News = news, WhatsNew = whatsNew };
     BonusesPanelNode bonuses = new() { Food = Food };
     ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport };
     SettingsPanelNode settings = new() { Config = Config, DataService = DataService };
     HelpPanelNode help = new();
     CreditsPanelNode credits = new();
 
-    TabPanelNode[] panels = [overview, quests, newsAndWhatsNew, bonuses, progression, settings, help, credits];
+    TabPanelNode[] panels = [overview, quests, news, bonuses, progression, settings, help, credits];
 
     TabBarNode tabs = new()
     {
@@ -82,7 +80,7 @@ public unsafe class MainAddon : NativeAddon
       [
         new TabBarEntry { Label = "Overview", OnClick = () => Show(overview) },
         new TabBarEntry { Label = "Quests", OnClick = () => Show(quests) },
-        new TabBarEntry { Label = "News/What's New", OnClick = () => Show(newsAndWhatsNew) },
+        new TabBarEntry { Label = "News/What's New", OnClick = () => Show(news) },
         new TabBarEntry { Label = "Bonuses", OnClick = () => Show(bonuses) },
         new TabBarEntry { Label = "Progression", OnClick = () => Show(progression) },
         new TabBarEntry { Label = "Settings", OnClick = () => Show(settings) },

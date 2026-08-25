@@ -18,12 +18,23 @@ public class NewsPanelNode : TabPanelNode
   private const float ValueWidth = 260.0f;
 
   /// <summary>
-  /// Size of the row pool. Was 26, which fit what this panel used to show and
-  /// nothing more; Story Remaining adds a row per unfinished expansion. The
-  /// headroom is deliberate — Maintenance and the per-event end dates are the
-  /// next parity pass and land in this same panel.
+  /// Size of the row pool. Was 26, then 48; What's New folded in and brought a
+  /// list with it, at two rows a quest. The headroom is deliberate — Maintenance
+  /// and the per-event end dates are the next parity pass and land here too.
   /// </summary>
-  private const int MaxRows = 48;
+  private const int MaxRows = 160;
+
+  /// <summary>
+  /// How many new quests get rows before the rest become a count.
+  ///
+  /// <see cref="IQuestSnapshotService.Additions"/> is never pruned — it is the
+  /// record of everything seen since the baseline, so it grows with every patch
+  /// and nothing ever takes anything out of it. A virtualised list did not care.
+  /// A fixed pool does, so the pool bounds what it draws and says how much it
+  /// left out rather than silently stopping, which is the mistake the old
+  /// twenty-six-row ceiling made.
+  /// </summary>
+  private const int MaxQuestsListed = 60;
 
   private static readonly Vector4 Heading = new(0.6f, 0.8f, 1.0f, 1.0f);
   private static readonly Vector4 Normal = new(1.0f, 1.0f, 1.0f, 1.0f);
@@ -33,6 +44,8 @@ public class NewsPanelNode : TabPanelNode
   public required IPacingService Pacing { get; init; }
   public required IFestivalService Festivals { get; init; }
   public required INewsService News { get; init; }
+  public required IQuestSnapshotService Snapshot { get; init; }
+  public required IQuestPatchService PatchService { get; init; }
   public required IPlayerState PlayerState { get; init; }
   public required IDataService DataService { get; init; }
   public required ILogger Logger { get; init; }
@@ -216,6 +229,49 @@ public class NewsPanelNode : TabPanelNode
           festival.Phase > 0 ? $"running — stage {festival.Phase}" : "running");
     }
 
+    // What's New, folded in from the panel that used to sit below this one.
+    //
+    // It is a quest-table diff, not a feed: the plugin snapshots every quest id
+    // the client knows and reports which ids appeared afterwards. That is worth
+    // keeping — nothing outside the game can tell you either half of it — but
+    // between content patches it has exactly one line to say, and it was being
+    // paid forty percent of the tab's height to say it. Now the line lives here
+    // and the list appears below only when there is something in it.
+    //
+    // Below Active Events rather than above: the line describes the list that
+    // renders directly beneath this panel, and the two reading as one thing is
+    // the whole point. Only this row's position becomes variable — every fixed
+    // row above Active Events keeps the stable position that ordering bought.
+    SetHeading(ref row, "What's New");
+
+    IReadOnlyList<NewQuest> additions = Snapshot.Additions;
+
+    SetWide(ref row, additions.Count == 0
+      ? $"Nothing new since {Snapshot.BaselineDate} — baseline {Snapshot.KnownQuests} quests, build {Snapshot.GameVersion}"
+      : $"{additions.Count} quest{(additions.Count == 1 ? "" : "s")} added since {Snapshot.BaselineDate}");
+
+    // Two rows a quest, title then detail. One row would run a long title
+    // straight through its own detail text, because nothing in this panel clips
+    // — overflow draws rather than truncating, so a collision is silent.
+    foreach (NewQuest quest in additions.Take(MaxQuestsListed))
+    {
+      // Muted for a quest already done, the same distinction the list drew in
+      // colour. Read live rather than stored: the record says when a quest
+      // appeared, not whether you have since finished it.
+      SetWide(ref row, $"  {quest.Title}", muted: QuestManager.IsQuestComplete(quest.Id));
+
+      // "patch unknown" is not a failure state to hide. quest-patches.json is
+      // fetched from Garland Tools after the fact, so a quest is genuinely
+      // unmapped between a patch landing and the map being refreshed, and that
+      // is exactly what separates "new to the game" from "new to this plugin".
+      string patch = PatchService.GetPatch([quest.Id]) is { } p ? $"Patch {p}" : "patch unknown";
+
+      SetWide(ref row, $"    Lv {quest.Level}  •  {quest.Expansion} › {quest.Section}  •  {patch}  •  seen {quest.SeenOn}");
+    }
+
+    if (additions.Count > MaxQuestsListed)
+      SetWide(ref row, $"  …and {additions.Count - MaxQuestsListed} more, not listed here.");
+
     // The container has to go, not just its text. FitContents measures visible
     // children, so a container left visible around two hidden labels still
     // claims its full height — which is exactly how the companion window's
@@ -250,6 +306,31 @@ public class NewsPanelNode : TabPanelNode
     label.IsVisible = true;
     label.String = text;
     label.TextColor = Heading;
+
+    value.IsVisible = false;
+  }
+
+  /// <summary>
+  /// One muted line that starts at the left edge instead of in the value column.
+  ///
+  /// The label column is 190px and the value column begins after it, so a long
+  /// sentence written as a value loses that much of the row before its first
+  /// character. Nothing here clips — MakeText sets no Ellipsis flag and no wrap
+  /// — so text simply draws past its box; putting the sentence in the label node
+  /// and hiding the value gives it the whole width to overflow into, which at the
+  /// 700px minimum window is the difference between fitting and not.
+  /// </summary>
+  private void SetWide(ref int row, string text, bool muted = true)
+  {
+    if (Exhausted(row)) return;
+
+    (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
+
+    container.IsVisible = true;
+
+    label.IsVisible = true;
+    label.String = text;
+    label.TextColor = muted ? Muted : Normal;
 
     value.IsVisible = false;
   }
