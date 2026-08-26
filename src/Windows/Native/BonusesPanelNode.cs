@@ -28,6 +28,19 @@ public class BonusesPanelNode : TabPanelNode
   private static readonly Vector4 Muted = new(0.6f, 0.6f, 0.6f, 1.0f);
   private static readonly Vector4 HighQuality = new(0.45f, 0.85f, 0.45f, 1.0f);
 
+  /// <summary>
+  /// Role colours for the stat column, matching ProgressionPanelNode's palette
+  /// so a food's bonuses read the same way its class levels do.
+  /// </summary>
+  private static readonly Dictionary<string, Vector4> RoleColours = new()
+  {
+    ["Tank"] = new(0.34f, 0.58f, 0.92f, 1.0f),
+    ["Healer"] = new(0.35f, 0.78f, 0.47f, 1.0f),
+    ["DPS"] = new(0.85f, 0.40f, 0.38f, 1.0f),
+    ["Crafter"] = new(0.72f, 0.58f, 0.88f, 1.0f),
+    ["Gatherer"] = new(0.88f, 0.72f, 0.38f, 1.0f)
+  };
+
   public required IFoodService Food { get; init; }
 
   private readonly ScrollingNode<VerticalListNode> _scroll;
@@ -112,7 +125,8 @@ public class BonusesPanelNode : TabPanelNode
         SetHeading(ref row, $"{PursuitName(group.Key)} ({group.Count()})");
 
         foreach (FoodStack stack in group)
-          Set(ref row, $"{stack.Quantity}x {stack.Name}", stack.Stats, highQuality: stack.HighQuality);
+          Set(ref row, $"{stack.Quantity}x {stack.Name}", stack.Stats, highQuality: stack.HighQuality,
+            role: stack.Role);
       }
     }
 
@@ -163,7 +177,8 @@ public class BonusesPanelNode : TabPanelNode
     value.IsVisible = false;
   }
 
-  private void Set(ref int row, string name, string text, bool muted = false, bool highQuality = false)
+  private void Set(ref int row, string name, string text, bool muted = false, bool highQuality = false,
+    string? role = null)
   {
     if (row >= _rows.Count) return;
 
@@ -176,9 +191,10 @@ public class BonusesPanelNode : TabPanelNode
     Vector4 colour = muted ? Muted : Normal;
 
     // Only the name marks quality — the "(HQ)" suffix is already in the text
-    // too, so colouring both columns would just repeat it.
+    // too, so colouring both columns would just repeat it. The stat column is
+    // free to carry a different meaning instead: which role the bonuses suit.
     label.TextColor = highQuality ? HighQuality : colour;
-    value.TextColor = colour;
+    value.TextColor = role is null ? colour : RoleColours.GetValueOrDefault(role, colour);
   }
 
   protected override void OnSizeChanged()

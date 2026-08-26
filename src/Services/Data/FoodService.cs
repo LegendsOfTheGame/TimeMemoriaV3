@@ -2,6 +2,7 @@ using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using PlayerState = FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState;
+using PlayerAttribute = Dalamud.Game.Player.PlayerAttribute;
 using ItemFoodRow = Lumina.Excel.Sheets.ItemFood;
 using ItemRow = Lumina.Excel.Sheets.Item;
 
@@ -30,11 +31,16 @@ public record FoodReading(bool WellFed, float RemainingSeconds, FoodChoice? Acti
 public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantity);
 
 /// <summary>
-/// One food item's stat bonuses, which pursuit it serves, and a rough ranking
-/// within that pursuit — highest cap total first, the same "cap is what
-/// binds" reasoning FoodService already uses to pick a single Best.
+/// One food item's stat bonuses, which pursuit it serves, the role its
+/// bonuses best match (for colour coding), and a ranking within its pursuit —
+/// value to the currently equipped job, the same cap-first reasoning
+/// FoodService uses to pick a single Best. Job-relevant rather than a raw
+/// stat total: Combat isn't one audience the way Crafting and Gathering are,
+/// so a food full of Skill Speed still needs to rank behind a Piety food for
+/// someone playing a healer.
 /// </summary>
-public record FoodStack(string Name, string Stats, FoodPursuit Pursuit, int Score, bool HighQuality, int Quantity);
+public record FoodStack(string Name, string Stats, FoodPursuit Pursuit, string Role, int Score, bool HighQuality,
+  bool IsActive, int Quantity);
 
 /// <summary>What kind of play a food's stats are for — the axis food actually splits on in this game.</summary>
 public enum FoodPursuit { Combat, Crafting, Gathering }
@@ -64,8 +70,34 @@ public interface IFoodService
 ///
 /// See Docs/gear-and-food.md.
 /// </summary>
-public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, IClientState _clientState) : IFoodService
+public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, IClientState _clientState,
+  IPlayerState _playerState) : IFoodService
 {
+  /// <summary>
+  /// BaseParam names to the Dalamud attribute that reads their live total.
+  /// Confirmed against MemoriaProbe's attributes probe: GetAttribute matches the
+  /// Character window exactly, and a fed/unfed A/B on three different foods
+  /// (Pastry Fish, Eft Steak) reproduced min(unfed_base * food%, cap) to the
+  /// point. Only the twelve stats a food can actually grant are listed --
+  /// StatText/Classify never produce a name outside this set.
+  /// </summary>
+  private static readonly Dictionary<string, PlayerAttribute> AttributeByParamName =
+    new(StringComparer.OrdinalIgnoreCase)
+    {
+      ["Vitality"] = PlayerAttribute.Vitality,
+      ["Critical Hit"] = PlayerAttribute.CriticalHit,
+      ["Determination"] = PlayerAttribute.Determination,
+      ["Direct Hit Rate"] = PlayerAttribute.DirectHitRate,
+      ["Skill Speed"] = PlayerAttribute.SkillSpeed,
+      ["Spell Speed"] = PlayerAttribute.SpellSpeed,
+      ["Tenacity"] = PlayerAttribute.Tenacity,
+      ["Piety"] = PlayerAttribute.Piety,
+      ["Craftsmanship"] = PlayerAttribute.Craftsmanship,
+      ["Control"] = PlayerAttribute.Control,
+      ["Gathering"] = PlayerAttribute.Gathering,
+      ["Perception"] = PlayerAttribute.Perception
+    };
+
   /// <summary>The status every meal grants, read out of ItemAction.Data[0].</summary>
   private const uint WellFedStatusId = 48;
 
@@ -94,14 +126,25 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     {
       (bool fed, float remaining, ushort param) = ReadWellFed();
       List<Held> held = ReadBags();
+      FoodChoice? active = fed ? Active(param, held) : null;
+
+      // Read once and shared: Best and the held-food ranking both need to know
+      // which stats this job actually uses, and both should agree on it.
+      HashSet<uint> relevant = RelevantParams();
+
+      // GetAttribute reports whatever food is currently active baked into the
+      // total (confirmed via probe), so multiplying by it while already fed
+      // would double-count that food's own bonus on top of itself. Safe only
+      // when there is nothing active to be counted twice.
+      bool liveStats = !fed;
 
       return new FoodReading(
         fed,
         remaining,
-        fed ? Active(param, held) : null,
+        active,
         Banked(held),
-        held.Count == 0 ? null : Choose(held),
-        Stacks(held));
+        held.Count == 0 ? null : Choose(held, relevant, liveStats),
+        Stacks(held, relevant, active, liveStats));
     }
     catch (Exception ex)
     {
@@ -118,26 +161,34 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
   /// One row per item id, grouped by quality since NQ and HQ of the same food
   /// can carry different bonuses.
   /// </summary>
-  private List<FoodStack> Stacks(List<Held> held)
+  private List<FoodStack> Stacks(List<Held> held, HashSet<uint> relevant, FoodChoice? active, bool liveStats)
   {
     return held
       .GroupBy((f) => (f.Item.RowId, f.HighQuality))
       .Select((group) =>
       {
-        ItemFoodRow? food = FoodRow(group.First().Item);
+        Held first = group.First();
+        ItemFoodRow? food = FoodRow(first.Item);
         bool hq = group.Key.HighQuality;
+        (FoodPursuit pursuit, string role) = Classify(food);
+        bool isActive = active is not null && active.ItemId == first.Item.RowId && active.HighQuality == hq;
 
         return new FoodStack(
-          group.First().Item.Name.ToString() + (hq ? " (HQ)" : ""),
+          first.Item.Name.ToString() + (hq ? " (HQ)" : ""),
           StatText(food, hq),
-          Pursuit(food),
-          Score(food, hq),
+          pursuit,
+          role,
+          Evaluate(first, relevant, liveStats),
           hq,
+          isActive,
           group.Sum((f) => f.Quantity));
       })
-      // Highest score first within a pursuit; ties broken by name so the
-      // ordering doesn't jitter frame to frame among equal scores.
+      // What you're already eating leads its pursuit group -- you're benefiting
+      // from it right now, whether or not it happens to be the top score.
+      // Highest score next; ties broken by name so the ordering doesn't jitter
+      // frame to frame among equal scores.
       .OrderBy((stack) => stack.Pursuit)
+      .ThenByDescending((stack) => stack.IsActive)
       .ThenByDescending((stack) => stack.Score)
       .ThenBy((stack) => stack.Name, StringComparer.Ordinal)
       .ToList();
@@ -172,44 +223,27 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
   }
 
   /// <summary>
-  /// A rough "how good is this" figure for sorting only: the same cap-first
-  /// reasoning Evaluate() uses to pick a single Best, but summed across every
-  /// stat the food grants rather than only ones relevant to the current job —
-  /// Pursuit has already separated combat from crafting from gathering, so
-  /// there is no job-relevance filter left to apply here.
+  /// Which pursuit a food serves and which role its bonuses best match, both
+  /// read from which stats it actually grants rather than guessed from its
+  /// name. Tenacity and Piety appear on no other role's gear (see
+  /// RelevantParams), so a food granting either belongs unambiguously to Tank
+  /// or Healer; every other combat stat — Crit, Determination, Direct Hit,
+  /// the two speeds — is shared across at least two roles, so it settles on
+  /// DPS rather than picking one of the others arbitrarily.
   /// </summary>
-  private static int Score(ItemFoodRow? food, bool hq)
-  {
-    if (food is null) return 0;
-
-    int total = 0;
-
-    foreach (var entry in food.Value.Params)
-    {
-      if (entry.BaseParam.RowId == 0) continue;
-      total += hq ? (entry.IsRelative ? entry.MaxHQ : entry.ValueHQ) : (entry.IsRelative ? entry.Max : entry.Value);
-    }
-
-    return total;
-  }
-
-  /// <summary>
-  /// Which pursuit a food serves, read from which stats it actually grants
-  /// rather than guessed from its name — no food seen so far mixes crafting or
-  /// gathering stats with combat ones, so the first non-combat stat found
-  /// settles it.
-  /// </summary>
-  private FoodPursuit Pursuit(ItemFoodRow? food)
+  private (FoodPursuit Pursuit, string Role) Classify(ItemFoodRow? food)
   {
     if (food is not null)
       foreach (var entry in food.Value.Params)
       {
         string name = FullParamName(entry.BaseParam.RowId);
-        if (CraftingStats.Contains(name)) return FoodPursuit.Crafting;
-        if (GatheringStats.Contains(name)) return FoodPursuit.Gathering;
+        if (CraftingStats.Contains(name)) return (FoodPursuit.Crafting, "Crafter");
+        if (GatheringStats.Contains(name)) return (FoodPursuit.Gathering, "Gatherer");
+        if (name.Equals("Tenacity", StringComparison.OrdinalIgnoreCase)) return (FoodPursuit.Combat, "Tank");
+        if (name.Equals("Piety", StringComparison.OrdinalIgnoreCase)) return (FoodPursuit.Combat, "Healer");
       }
 
-    return FoodPursuit.Combat;
+    return (FoodPursuit.Combat, "DPS");
   }
 
   private static readonly HashSet<string> CraftingStats =
@@ -370,15 +404,13 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
   /// recommending someone eat their only HQ meal for an experience tick is worse
   /// advice than saying nothing.
   /// </summary>
-  private FoodChoice Choose(List<Held> held)
+  private FoodChoice Choose(List<Held> held, HashSet<uint> relevant, bool liveStats)
   {
-    HashSet<uint> relevant = RelevantParams();
-
     List<(Held Food, int Value)> useful = [];
 
     foreach (Held food in held)
     {
-      int value = Evaluate(food, relevant);
+      int value = Evaluate(food, relevant, liveStats);
       if (value > 0) useful.Add((food, value));
     }
 
@@ -451,15 +483,22 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
 
   /// <summary>
   /// What a food is worth right now: min(stat * percent, cap), summed over the
-  /// stats this class uses. Above a few hundred in a stat the cap is always what
-  /// binds, so in practice this ranks by cap -- but the multiplication still
-  /// matters for a low-level character, where it does not.
+  /// stats this class uses.
+  ///
+  /// <paramref name="liveStats"/> gates whether stat is the player's real,
+  /// current total (via IPlayerState.GetAttribute) or just falls back to the
+  /// cap. Live stats are only safe to use unfed -- GetAttribute already
+  /// includes whatever food is currently active, so multiplying by it while
+  /// fed would count that food's own bonus twice. While fed this falls back to
+  /// the cap directly, which above a few hundred in a stat is the binding
+  /// constraint anyway, and overstates the bonus only for a low-level
+  /// character choosing between foods nobody is really choosing between.
   ///
   /// Used for ordering only. Which stats it grants is not shown: the panel exists
   /// to say you are not fed and name something to eat, and nobody choosing
   /// between meals in their own bags is weighing two points of Skill Speed.
   /// </summary>
-  private int Evaluate(Held food, HashSet<uint> relevant)
+  private int Evaluate(Held food, HashSet<uint> relevant, bool liveStats)
   {
     ItemFoodRow? effect = FoodRow(food.Item);
     if (effect is null) return 0;
@@ -475,14 +514,22 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
       int cap = food.HighQuality ? entry.MaxHQ : entry.Max;
       if (amount <= 0) continue;
 
-      // Relative values are a percentage of a live stat total, capped. Those
-      // totals are not readable yet -- gear sums miss a base of several hundred
-      // -- so the cap is used directly. Above a few hundred in a stat that is
-      // the binding constraint anyway, and every food measured on a level 61
-      // gatherer was cap-bound. It overstates the bonus for a low-level
-      // character, which changes the ordering only among foods nobody is
-      // choosing between.
-      int granted = entry.IsRelative ? cap : amount;
+      int granted;
+
+      if (!entry.IsRelative)
+      {
+        granted = amount;
+      }
+      else if (liveStats && AttributeByParamName.TryGetValue(FullParamName(param), out PlayerAttribute attribute))
+      {
+        int stat = _playerState.GetAttribute(attribute);
+        granted = Math.Min((int)(stat * (amount / 100.0)), cap);
+      }
+      else
+      {
+        granted = cap;
+      }
+
       if (granted <= 0) continue;
 
       total += granted;
