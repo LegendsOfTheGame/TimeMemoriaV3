@@ -35,6 +35,14 @@ public class SettingsPanelNode : TabPanelNode
 
   public SettingsPanelNode()
   {
+    // The callbacks below close over Config and DataService, which are `required`
+    // and therefore not yet assigned at this point in construction — the object
+    // initializer sets them only after this constructor returns. The compiler
+    // correctly can't prove that, hence CS8602 on every reference. It is safe in
+    // practice: KamiToolKit only invokes OnClick/OnOptionSelected in response to
+    // user input, never synchronously during construction, so every callback
+    // fires long after the required properties are set.
+#pragma warning disable CS8602
     _list = new VerticalListNode { ItemSpacing = 6.0f, IsVisible = true };
     _list.AttachNode(this);
 
@@ -107,6 +115,7 @@ public class SettingsPanelNode : TabPanelNode
     };
 
     _list.AddNode(_resizeHint);
+#pragma warning restore CS8602
   }
 
   public override void Refresh()

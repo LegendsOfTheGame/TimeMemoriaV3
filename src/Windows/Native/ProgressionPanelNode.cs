@@ -50,8 +50,16 @@ public class ProgressionPanelNode : TabPanelNode
     // One payload, not two. The ledger export already carries everything the
     // old progression JSON did, so a second button offered a subset of the
     // first under a name that suggested otherwise.
+    //
+    // The callback below closes over LedgerExport, a `required` property not
+    // yet assigned at this point in construction (the object initializer sets
+    // it only after this constructor returns) — see SettingsPanelNode's
+    // constructor for the full explanation. Safe here for the same reason:
+    // the button only invokes this on a click, never during construction.
+#pragma warning disable CS8602
     _copyLedger = MakeButton("Copy for the Ledger",
       () => Copy(LedgerExport.BuildLedgerJson, "Copied in ledger format."));
+#pragma warning restore CS8602
 
     _openLedger = MakeButton("Open the Ledger",
       () => Dalamud.Utility.Util.OpenLink(LedgerUrl));
