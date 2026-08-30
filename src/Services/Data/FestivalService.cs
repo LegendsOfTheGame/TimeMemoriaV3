@@ -11,10 +11,20 @@ public record ActiveFestival(uint Id, string Name, ushort Phase)
   public string DisplayName => Name.Length > 0 ? Name : $"Festival #{Id}";
 }
 
-public interface IFestivalService
+public interface IFestivalService : IHostedService
 {
   /// <summary>Festivals the game reports as running right now.</summary>
   List<ActiveFestival> GetActive();
+
+  /// <summary>
+  /// Whether this install has ever observed <paramref name="festivalId"/> in
+  /// <see cref="GetActive"/>'s result, this session or an earlier one.
+  ///
+  /// Deliberately a set rather than a high-water mark — see
+  /// <c>festival-gate-design.md</c> for why assuming festival ids are allocated
+  /// in event order is not safe to build on.
+  /// </summary>
+  bool WasEverActive(uint festivalId);
 }
 
 /// <summary>
@@ -31,11 +41,67 @@ public interface IFestivalService
 /// The Festival sheet ships with every Name blank, so the names come from
 /// festival-names.json instead — a copy of the crowd-sourced list in
 /// Critical-Impact/LuminaSupplemental, which is GPL-3.0.
+///
+/// Also remembers every festival id this install has ever seen active, for
+/// <see cref="WasEverActive"/>. Global rather than per-character — which
+/// festival is running is server-wide state, true for every character on the
+/// account alike, not something that belongs to one of them.
 /// </summary>
-public class FestivalService(ILogger _logger, IDataManager _dataManager, IDalamudPluginInterface _pluginInterface)
-  : IFestivalService
+public class FestivalService(
+  ILogger _logger,
+  IDataManager _dataManager,
+  IDalamudPluginInterface _pluginInterface,
+  Configuration _configuration,
+  IFramework _framework) : IFestivalService
 {
+  private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+
   private readonly Dictionary<uint, string> _names = LoadNames(_logger, _pluginInterface);
+  private DateTime _lastPollUtc = DateTime.MinValue;
+
+  public Task StartAsync(CancellationToken cancellationToken)
+  {
+    _framework.Update += OnFrameworkUpdate;
+    return _logger.ServiceLifecycle();
+  }
+
+  public Task StopAsync(CancellationToken cancellationToken)
+  {
+    _framework.Update -= OnFrameworkUpdate;
+    return _logger.ServiceLifecycle();
+  }
+
+  public bool WasEverActive(uint festivalId) => _configuration.SeenActiveFestivalIds.Contains(festivalId);
+
+  /// <summary>
+  /// Folds whatever is active right now into the seen set. Cheap enough to run
+  /// on every call to <see cref="GetActive"/> as well, but polled independently
+  /// so a festival is recorded even in a session where nothing ever draws the
+  /// windows that call it.
+  /// </summary>
+  private void OnFrameworkUpdate(IFramework framework)
+  {
+    DateTime now = DateTime.UtcNow;
+    if (now - _lastPollUtc < PollInterval) return;
+    _lastPollUtc = now;
+
+    Remember(GetActive());
+  }
+
+  private void Remember(List<ActiveFestival> active)
+  {
+    if (active.Count == 0) return;
+
+    bool changed = false;
+
+    foreach (ActiveFestival festival in active)
+      changed |= _configuration.SeenActiveFestivalIds.Add(festival.Id);
+
+    if (!changed) return;
+
+    _configuration.Save();
+    _logger.Debug($"[Festival] Seen set now {_configuration.SeenActiveFestivalIds.Count} id(s).");
+  }
 
   private static Dictionary<uint, string> LoadNames(ILogger logger, IDalamudPluginInterface pluginInterface)
   {
@@ -117,6 +183,7 @@ public class FestivalService(ILogger _logger, IDataManager _dataManager, IDalamu
       _logger.Error(ex, "[Festival] Failed to read active festivals");
     }
 
+    Remember(result);
     return result;
   }
 }

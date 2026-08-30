@@ -54,6 +54,15 @@ public class Configuration : IPluginConfiguration
   /// </summary>
   public Dictionary<string, CosmicToolReading> CosmicToolReadings { get; set; } = [];
 
+  /// <summary>
+  /// Every festival id this install has ever seen active. Global rather than
+  /// per-character — see <see cref="TimeMemoria.Services.FestivalService"/>.
+  ///
+  /// A set, not a high-water mark: festival ids are not guaranteed to be
+  /// allocated in the order their events run.
+  /// </summary>
+  public HashSet<uint> SeenActiveFestivalIds { get; set; } = [];
+
   /// <summary>Open the game-styled window rather than the ImGui one.</summary>
   public bool UseNativeUi { get; set; } = false;
 
