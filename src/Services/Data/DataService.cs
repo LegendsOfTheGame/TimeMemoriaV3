@@ -556,7 +556,8 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     <= 70 => 2,
     <= 80 => 3,
     <= 90 => 4,
-    _ => 5
+    <= 100 => 5,
+    _ => 6
   };
 
   /// <summary>
