@@ -70,6 +70,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton<IAchievementService, AchievementService>();
         collection.AddSingleton<IFoodService, FoodService>();
         collection.AddSingleton<IAlliedSocietyService, AlliedSocietyService>();
+        collection.AddSingleton<ICosmicToolProgressService, CosmicToolProgressService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
@@ -89,6 +90,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddHostedService(sp => sp.GetRequiredService<IQuestSnapshotService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IQuestPatchService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IAchievementService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<ICosmicToolProgressService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
       }).Build();

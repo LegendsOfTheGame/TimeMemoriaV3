@@ -45,6 +45,15 @@ public class Configuration : IPluginConfiguration
   /// </summary>
   public Dictionary<string, StoredReadings> AchievementReadings { get; set; } = [];
 
+  /// <summary>
+  /// Cosmic Tool research progress per character, keyed the same way playtime is.
+  ///
+  /// Persisted because the module backing it can only be read while physically
+  /// inside a Cosmic Exploration zone. Forgetting it on leaving would mean the
+  /// export omits real progress the moment the character travels anywhere else.
+  /// </summary>
+  public Dictionary<string, CosmicToolReading> CosmicToolReadings { get; set; } = [];
+
   /// <summary>Open the game-styled window rather than the ImGui one.</summary>
   public bool UseNativeUi { get; set; } = false;
 

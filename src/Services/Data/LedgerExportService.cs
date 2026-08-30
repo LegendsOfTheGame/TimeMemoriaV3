@@ -10,7 +10,7 @@ public interface ILedgerExportService
 /// Builds the clipboard payloads. Local only — output goes to the clipboard and
 /// nowhere else; the plugin makes no outbound requests.
 /// </summary>
-public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements)
+public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements, ICosmicToolProgressService _cosmicTools)
   : ILedgerExportService
 {
   public string BuildLedgerJson()
@@ -57,6 +57,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
 
       JsonObject? unlocks = BuildUnlocks();
       if (unlocks != null) root["unlocks"] = unlocks;
+
+      JsonObject? cosmicTools = BuildCosmicTools();
+      if (cosmicTools != null) root["cosmicTools"] = cosmicTools;
 
       return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
@@ -333,6 +336,49 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     }
 
     return breakdown;
+  }
+
+  /// <summary>
+  /// Cosmic Tool research data, per class, in the shape
+  /// <see cref="ICosmicToolProgressService"/> already filters to "worth
+  /// reporting" — see that service for why untouched classes and irrelevant
+  /// types are absent rather than zero.
+  ///
+  /// Carries its own <c>asOf</c> because, unlike most of this export, the value
+  /// is not necessarily current: the underlying module can only be read while
+  /// physically inside a Cosmic Exploration zone, so this may be reporting a
+  /// reading from an earlier session. See
+  /// <see cref="ICosmicToolProgressService"/> for why that is a persisted last
+  /// reading rather than a live-or-nothing value.
+  ///
+  /// Whole section omitted when nothing has ever been read, same reasoning as
+  /// playtime and collectables: a character with no reading yet must not send
+  /// an empty object that would overwrite a good value already on the ledger.
+  /// </summary>
+  private JsonObject? BuildCosmicTools()
+  {
+    List<CosmicToolProgress> progress = _cosmicTools.GetProgress();
+    if (progress.Count == 0 || _cosmicTools.TakenUtc is not { } takenUtc) return null;
+
+    JsonObject jobs = [];
+
+    foreach (CosmicToolProgress job in progress)
+    {
+      JsonArray types = [];
+
+      foreach (CosmicResearchProgress type in job.Types)
+        types.Add(new JsonObject
+        {
+          ["type"] = type.Type,
+          ["current"] = type.Current,
+          ["needed"] = type.Needed,
+          ["max"] = type.Max
+        });
+
+      jobs[job.Job] = types;
+    }
+
+    return new JsonObject { ["asOf"] = takenUtc.ToString("o"), ["jobs"] = jobs };
   }
 
   /// <summary>
