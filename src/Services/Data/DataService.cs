@@ -35,7 +35,7 @@ public interface IDataService : IHostedService
   IReadOnlyList<OldestQuest> OldestIncomplete { get; }
 }
 
-public class DataService(ILogger _logger, Configuration _configuration, IDataManager _dataManager, IClientState _clientState, IQuestPatchService _questPatch) : IDataService
+public class DataService(ILogger _logger, Configuration _configuration, IDataManager _dataManager, IClientState _clientState, IQuestPatchService _questPatch, IFestivalService _festivals) : IDataService
 {
   public event System.Action? OnReset;
   public QuestData RawQuestData { get; private set; } = new();
@@ -314,6 +314,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
             Gc = gc,
             Start = start,
             ExpansionId = quest.Expansion.RowId,
+            FestivalId = quest.Festival.RowId,
           }, sortKey: isSidequestCategory ? quest.PlaceName.RowId : 0);
 
         SkipQuest:
@@ -395,6 +396,8 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
 
     buildTimer.Stop();
     _logger.Debug($"[DataService] Quest tree built in {buildTimer.ElapsedMilliseconds}ms, StartAsync total {phaseTimer.ElapsedMilliseconds}ms");
+
+    LogSeasonalAvailabilitySummary();
 
     return _logger.ServiceLifecycle();
   }
@@ -714,6 +717,48 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     string name = _dataManager.GetExcelSheet<ExVersion>().GetRowOrDefault(id)?.Name.ToString() ?? "";
     if (name.Length == 0) name = id == 0 ? "A Realm Reborn" : $"Expansion {id}";
     return name;
+  }
+
+  /// <summary>
+  /// Pure so the sweep that will eventually hide/mark quests by this (a later
+  /// commit) can call it per-quest without each call re-deriving the active set
+  /// from the client — that set is fetched once by the caller instead.
+  /// </summary>
+  public static SeasonalAvailability ClassifySeasonalAvailability(uint festivalId, bool isActiveNow, bool wasEverActive)
+  {
+    if (festivalId == 0) return SeasonalAvailability.NotSeasonal;
+    if (isActiveNow) return SeasonalAvailability.Available;
+    return wasEverActive ? SeasonalAvailability.Missed : SeasonalAvailability.NotYetAvailable;
+  }
+
+  /// <summary>
+  /// Not wired into the tree or What's New yet — that is a later commit. This
+  /// exists to check the classification itself against the wiki's numbers
+  /// (310 festival-tagged quests, ~5 above the current watermark as of
+  /// 29 Aug 2026) before anything is built on it.
+  /// </summary>
+  private void LogSeasonalAvailabilitySummary()
+  {
+    HashSet<uint> activeNow = [.. _festivals.GetActive().Select((f) => f.Id)];
+    int total = 0, available = 0, missed = 0, notYet = 0;
+
+    foreach (Lumina.Excel.Sheets.Quest quest in _dataManager.GetExcelSheet<Lumina.Excel.Sheets.Quest>())
+    {
+      uint festivalId = quest.Festival.RowId;
+      if (festivalId == 0) continue;
+
+      total++;
+
+      switch (ClassifySeasonalAvailability(festivalId, activeNow.Contains(festivalId), _festivals.WasEverActive(festivalId)))
+      {
+        case SeasonalAvailability.Available: available++; break;
+        case SeasonalAvailability.Missed: missed++; break;
+        case SeasonalAvailability.NotYetAvailable: notYet++; break;
+      }
+    }
+
+    _logger.Debug($"[DataService] Seasonal quests: {total} festival-tagged, " +
+                  $"{available} available, {missed} missed, {notYet} not yet available.");
   }
 
   private void UpdateQuestData(QuestData questData)

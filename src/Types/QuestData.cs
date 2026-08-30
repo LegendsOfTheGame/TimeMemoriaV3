@@ -60,6 +60,9 @@ public class Quest : ICloneable
   /// <summary>The same section in English, for matching against settings.</summary>
   public string EnglishSection { get; set; } = "";
 
+  /// <summary>Quest.Festival row id. 0 for a quest with no seasonal gate.</summary>
+  public uint FestivalId { get; set; }
+
   public object Clone()
   {
     return new Quest
@@ -75,7 +78,8 @@ public class Quest : ICloneable
       IsLeve = IsLeve,
       ExpansionId = ExpansionId,
       Section = Section,
-      EnglishSection = EnglishSection
+      EnglishSection = EnglishSection,
+      FestivalId = FestivalId
     };
   }
 }
