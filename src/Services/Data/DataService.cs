@@ -170,6 +170,12 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     [65603, 65670], // School of Hard Nocks (Retired) | Training with Leih
   ];
 
+  // 71000, 71001, 71003, 71004 (Starlight and All Saints' Wake 2026) used to be
+  // hand-hidden here as future content -- dropped now that SeasonalAvailability
+  // derives that from Quest.Festival for every seasonal quest, not just the
+  // ones someone remembered to list. That also fixes 71002 (Keyward Bound),
+  // which nobody had added and which showed as an outstanding quest for
+  // content that does not exist yet. See festival-gate-design.md.
   private readonly List<uint> _retiredQuests = [
     65603, 65616, 65692, 65695, 65732, 65734, 65841, 65860, 65863, 65871, 65910,
     65918, 65934, 65940, 66000, 66023, 66033, 66034, 66288, 66351, 66352, 66356,
@@ -177,7 +183,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     66575, 66578, 66582, 66713, 66715, 66717, 66718, 66719, 66720, 66721, 66722,
     66723, 66885, 66887, 66890, 66891, 66893, 66964, 66965, 66985, 66986, 66987,
     66990, 66991, 67097, 67098, 67635, 67653, 67752, 67819, 67870, 68629, 68727,
-    69296, 69377, 69508, 69578, 71000, 71001, 71003, 71004
+    69296, 69377, 69508, 69578
   ];
 
   private readonly List<uint> _retiredLeves = [
@@ -485,7 +491,12 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     _expansionTally.Clear();
     _categoryTally.Clear();
     _categoryNames.Clear();
-    UpdateQuestData(QuestData);
+
+    // Fetched once per refresh rather than per quest -- GetActive() walks a
+    // native array and the sheet, and the tree can hold thousands of quests.
+    HashSet<uint> activeFestivalIds = [.. _festivals.GetActive().Select((f) => f.Id)];
+
+    UpdateQuestData(QuestData, activeFestivalIds);
     RebuildExpansionProgress();
     RebuildCategoryProgress();
     RebuildOldestIncomplete();
@@ -733,10 +744,19 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   }
 
   /// <summary>
-  /// Not wired into the tree or What's New yet — that is a later commit. This
-  /// exists to check the classification itself against the wiki's numbers
-  /// (310 festival-tagged quests, ~5 above the current watermark as of
-  /// 29 Aug 2026) before anything is built on it.
+  /// Ids the 29 Aug probe session already knows the answer for, so a specific
+  /// classification can be checked by name rather than only as a tally — the
+  /// tree hiding a quest is otherwise a claim about an absence, which is much
+  /// harder to eyeball than a log line naming exactly what got hidden and why.
+  /// </summary>
+  private static readonly uint[] KnownSeasonalTestIds = [71000, 71001, 71002, 71003, 71004];
+
+  /// <summary>
+  /// Checks the classification against the wiki's numbers (310 festival-tagged
+  /// quests) and names the specific quests this gate replaced a hand-maintained
+  /// list for, including the one — 71002, Keyward Bound — nobody had added to
+  /// that list and which the old code showed as outstanding for content that
+  /// does not exist yet.
   /// </summary>
   private void LogSeasonalAvailabilitySummary()
   {
@@ -750,19 +770,25 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
 
       total++;
 
-      switch (ClassifySeasonalAvailability(festivalId, activeNow.Contains(festivalId), _festivals.WasEverActive(festivalId)))
+      SeasonalAvailability availability =
+        ClassifySeasonalAvailability(festivalId, activeNow.Contains(festivalId), _festivals.WasEverActive(festivalId));
+
+      switch (availability)
       {
         case SeasonalAvailability.Available: available++; break;
         case SeasonalAvailability.Missed: missed++; break;
         case SeasonalAvailability.NotYetAvailable: notYet++; break;
       }
+
+      if (KnownSeasonalTestIds.Contains(quest.RowId))
+        _logger.Debug($"[DataService]   {quest.RowId} '{quest.Name}' (festival {festivalId}): {availability}");
     }
 
     _logger.Debug($"[DataService] Seasonal quests: {total} festival-tagged, " +
                   $"{available} available, {missed} missed, {notYet} not yet available.");
   }
 
-  private void UpdateQuestData(QuestData questData)
+  private void UpdateQuestData(QuestData questData, HashSet<uint> activeFestivalIds)
   {
     questData.NumComplete = questData.Total = 0;
     if (_startArea == "") DetermineStartArea();
@@ -774,7 +800,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       questData.Hide = true;
       foreach (QuestData category in questData.Categories)
       {
-        UpdateQuestData(category);
+        UpdateQuestData(category, activeFestivalIds);
         questData.NumComplete += category.NumComplete;
         questData.Total += category.Total;
         if (!category.Hide) questData.Hide = false;
@@ -829,6 +855,21 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
         }
 
         if (_retiredQuests.Any(quest.Ids.Contains) && !IsQuestComplete(quest))
+        {
+          questData.Quests.Remove(quest);
+          break;
+        }
+
+        // Seasonal content nobody has ever seen switched on. Missed is not
+        // filtered here -- it happened, it is certain, and hiding it would
+        // make it indistinguishable from content that was never released at
+        // all. Only NotYetAvailable hides, and completion is not checked the
+        // way retirement does above: a quest that has never once been active
+        // cannot be complete, so there is nothing to preserve by excluding it.
+        SeasonalAvailability availability = ClassifySeasonalAvailability(
+          quest.FestivalId, activeFestivalIds.Contains(quest.FestivalId), _festivals.WasEverActive(quest.FestivalId));
+
+        if (availability == SeasonalAvailability.NotYetAvailable)
         {
           questData.Quests.Remove(quest);
           break;
