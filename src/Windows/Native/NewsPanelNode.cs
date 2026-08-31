@@ -244,11 +244,19 @@ public class NewsPanelNode : TabPanelNode
     // row above Active Events keeps the stable position that ordering bought.
     SetHeading(ref row, "What's New");
 
-    IReadOnlyList<NewQuest> additions = Snapshot.Additions;
+    List<NewQuest> additions = FilterAvailable(Snapshot.Additions);
 
     SetWide(ref row, additions.Count == 0
       ? $"Nothing new since {Snapshot.BaselineDate} — baseline {Snapshot.KnownQuests} quests, build {Snapshot.GameVersion}"
       : $"{additions.Count} quest{(additions.Count == 1 ? "" : "s")} added since {Snapshot.BaselineDate}");
+
+    // Seasonal quests not yet available are filtered out above by
+    // SeasonalAvailability -- see FilterAvailable. This covers what that gate
+    // cannot see: a non-seasonal quest, with no Festival id to detect it by,
+    // that still shipped before it was actually playable. Only worth stating
+    // when there is a list to qualify.
+    if (additions.Count > 0)
+      SetWide(ref row, "  A quest with no seasonal tag can still ship before it's actually playable — not detectable yet.", muted: true);
 
     // Two rows a quest, title then detail. One row would run a long title
     // straight through its own detail text, because nothing in this panel clips
@@ -293,6 +301,27 @@ public class NewsPanelNode : TabPanelNode
       _lastRowCount = used;
       _scroll.RecalculateSizes();
     }
+  }
+
+  /// <summary>
+  /// Drops any addition still SeasonalAvailability.NotYetAvailable -- shipped
+  /// by a patch but gated behind an event that has never run. Once that event
+  /// starts, the quest is Available and reappears here on its own; nothing
+  /// needs to notice the transition.
+  ///
+  /// Calls TimeMemoria.Services.DataService's static classifier by its full
+  /// name -- this class's own <see cref="DataService"/> property (the plugin's
+  /// data service instance) shadows the type name, so an unqualified reference
+  /// would resolve to the wrong thing.
+  /// </summary>
+  private List<NewQuest> FilterAvailable(IReadOnlyList<NewQuest> additions)
+  {
+    HashSet<uint> activeNow = [.. Festivals.GetActive().Select((f) => f.Id)];
+
+    return [.. additions.Where((q) =>
+      TimeMemoria.Services.DataService.ClassifySeasonalAvailability(
+        q.FestivalId, activeNow.Contains(q.FestivalId), Festivals.WasEverActive(q.FestivalId))
+        != SeasonalAvailability.NotYetAvailable)];
   }
 
   private void SetHeading(ref int row, string text)

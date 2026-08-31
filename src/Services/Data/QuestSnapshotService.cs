@@ -1,7 +1,7 @@
 namespace TimeMemoria.Services;
 
 /// <summary>A quest first seen after the snapshot was taken.</summary>
-public record NewQuest(uint Id, string Title, string Section, string Expansion, int Level, string SeenOn, string GameVersion);
+public record NewQuest(uint Id, string Title, string Section, string Expansion, int Level, string SeenOn, string GameVersion, uint FestivalId = 0);
 
 /// <summary>
 /// The quest set as it stood at a point in time, with the game build it came
@@ -163,7 +163,7 @@ public class QuestSnapshotService(
         uint id = quest.Ids[0];
         if (!wanted.Contains(id) || found.ContainsKey(id)) continue;
 
-        found[id] = new NewQuest(id, quest.Title, quest.Section, expansion, quest.Level, date, version);
+        found[id] = new NewQuest(id, quest.Title, quest.Section, expansion, quest.Level, date, version, quest.FestivalId);
       }
 
       foreach (QuestData child in node.Categories)

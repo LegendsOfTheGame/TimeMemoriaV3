@@ -1736,6 +1736,21 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
   }
 
   /// <summary>
+  /// Drops any addition still SeasonalAvailability.NotYetAvailable -- shipped
+  /// by a patch but gated behind an event that has never run. Once that event
+  /// starts, the quest is Available and reappears here on its own; nothing
+  /// needs to notice the transition.
+  /// </summary>
+  private List<NewQuest> FilterAvailable(IReadOnlyList<NewQuest> additions)
+  {
+    HashSet<uint> activeNow = [.. _festivals.GetActive().Select((f) => f.Id)];
+
+    return [.. additions.Where((q) =>
+      DataService.ClassifySeasonalAvailability(q.FestivalId, activeNow.Contains(q.FestivalId), _festivals.WasEverActive(q.FestivalId))
+        != SeasonalAvailability.NotYetAvailable)];
+  }
+
+  /// <summary>
   /// Quests that have appeared since the plugin first looked. Nothing in the
   /// game files says which patch a quest belongs to, so the only way to know
   /// something is new is to have seen what came before.
@@ -1749,7 +1764,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Separator();
     ImGui.Spacing();
 
-    IReadOnlyList<NewQuest> additions = _snapshot.Additions;
+    List<NewQuest> additions = FilterAvailable(_snapshot.Additions);
 
     if (additions.Count == 0)
     {
@@ -1764,6 +1779,13 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     }
 
     ImGui.TextDisabled($"  {additions.Count} quest{(additions.Count == 1 ? "" : "s")} added since {_snapshot.BaselineDate}");
+    ImGui.Spacing();
+
+    // Seasonal quests not yet available are filtered out above by
+    // SeasonalAvailability -- see FilterAvailable. This covers what that gate
+    // cannot see: a non-seasonal quest, with no Festival id to detect it by,
+    // that still shipped before it was actually playable.
+    ImGui.TextDisabled("  A quest with no seasonal tag can still ship before it's actually playable — not detectable yet.");
     ImGui.Spacing();
 
     using ImRaii.TableDisposable table = ImRaii.Table("##whatsNewTable", 6,
