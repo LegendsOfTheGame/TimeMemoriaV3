@@ -315,7 +315,13 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
             Title = quest.Name.ToString(),
             Ids = ids,
             Area = quest.PlaceName.Value.Name.ToString(),
-            Level = quest.ClassJobLevel[0],
+            // ClassJobLevel[0] alone reads 1 for Allied Society dailies and
+            // similar quests that gate on something other than job level —
+            // the game adds QuestLevelOffset on top to get the level it
+            // actually displays (confirmed against "In Case of Emergency"
+            // [67103]: raw 1 + offset 15 = the Lv. 16 shown in its accept
+            // dialog). Offset is 0 for ordinary quests, so this is additive.
+            Level = quest.ClassJobLevel[0] + quest.QuestLevelOffset,
             SortKey = quest.SortKey,
             Gc = gc,
             Start = start,
