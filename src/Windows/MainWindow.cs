@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IGameGui _gameGui, IDataManager _dataManager, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IAchievementService _achievements) : Window("Time Memoria##TimeMemoriaMainWindow")
+public class MainWindow(Configuration _configuration, IDataService _dataService, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IQuestMapService _questMap, IAchievementService _achievements) : Window("Time Memoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -537,6 +537,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
         ImGui.TableNextColumn();
         ImGui.TextDisabled(quest.Area);
+        if (ImGui.IsItemClicked()) OpenAreaMap(quest);
+        string? mapLabel = _questMap.GetIssuerLabel(quest);
+        if (mapLabel is not null) DrawUrlTooltip(mapLabel);
 
         // Quests finished before the journal existed all share one placeholder
         // date, so they are labelled rather than repeating it on every row --
@@ -621,6 +624,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
         ImGui.TableNextColumn();
         if (ImGui.Selectable($"{quest.Area}##{quest.Ids[0]}"))
           OpenAreaMap(quest);
+        string? mapLabel = _questMap.GetIssuerLabel(quest);
+        if (mapLabel is not null) DrawUrlTooltip(mapLabel);
         ImGui.TableNextColumn();
         ImGui.Text($"{quest.Level}");
         ImGui.TableNextRow();
@@ -713,6 +718,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
         ImGui.Text(quest.Title);
         ImGui.TableNextColumn();
         if (ImGui.Selectable($"{quest.Area}##{quest.Ids[0]}")) OpenAreaMap(quest);
+        string? mapLabel = _questMap.GetIssuerLabel(quest);
+        if (mapLabel is not null) DrawUrlTooltip(mapLabel);
         ImGui.TableNextColumn();
         ImGui.Text($"{quest.Level}");
         ImGui.TableNextRow();
@@ -1121,18 +1128,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private void OpenAreaMap(Types.Quest quest)
   {
-    if (quest.IsLeve)
-    {
-      Level level = _dataManager.GetExcelSheet<Leve>().First(q => quest.Ids.Contains(q.RowId) && q.LevelLevemete.ValueNullable != null).LevelLevemete.Value;
-      MapLinkPayload mapLink = new(level.Territory.RowId, level.Map.RowId, (int)(level.X * 1_000f), (int)(level.Z * 1_000f));
-      _gameGui.OpenMapWithMapLink(mapLink);
-    }
-    else
-    {
-      Level level = _dataManager.GetExcelSheet<Lumina.Excel.Sheets.Quest>().First(q => quest.Ids.Contains(q.RowId) && q.IssuerLocation.ValueNullable != null).IssuerLocation.Value;
-      MapLinkPayload mapLink = new(level.Territory.RowId, level.Map.RowId, (int)(level.X * 1_000f), (int)(level.Z * 1_000f));
-      _gameGui.OpenMapWithMapLink(mapLink);
-    }
+    _questMap.OpenIssuerOnMap(quest);
   }
 
   /// <summary>Role colours, following the game's own tank/healer/DPS convention.</summary>

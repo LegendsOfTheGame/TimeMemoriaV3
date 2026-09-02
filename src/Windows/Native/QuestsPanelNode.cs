@@ -22,6 +22,7 @@ public class QuestsPanelNode : TabPanelNode
 
   public required IDataService DataService { get; init; }
   public required IQuestPatchService PatchService { get; init; }
+  public required IQuestMapService MapService { get; init; }
   public required IClassJobProgressService ProgressService { get; init; }
   public required ILogger Logger { get; init; }
   public required Configuration Config { get; init; }
@@ -135,6 +136,7 @@ public class QuestsPanelNode : TabPanelNode
   {
     QuestListItemNode.DataService = DataService;
     QuestListItemNode.PatchService = PatchService;
+    QuestListItemNode.MapService = MapService;
 
     // Rebuilt when it has never been built, or when the setting it depends on
     // has moved since. Not on every show: that would cost the player their

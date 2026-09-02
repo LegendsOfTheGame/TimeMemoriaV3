@@ -20,6 +20,7 @@ public unsafe class MainAddon : NativeAddon
 
   public required IDataService DataService { get; init; }
   public required IQuestPatchService PatchService { get; init; }
+  public required IQuestMapService MapService { get; init; }
   public required IClassJobProgressService ProgressService { get; init; }
   public required ILedgerExportService LedgerExport { get; init; }
   public required IQuestSnapshotService Snapshot { get; init; }
@@ -56,7 +57,7 @@ public unsafe class MainAddon : NativeAddon
     OverviewPanelNode overview = new() { DataService = DataService, Achievements = Achievements };
     QuestsPanelNode quests = new()
     {
-      DataService = DataService, PatchService = PatchService, ProgressService = ProgressService,
+      DataService = DataService, PatchService = PatchService, MapService = MapService, ProgressService = ProgressService,
       Logger = Logger, Config = Config
     };
     NewsPanelNode news = new()

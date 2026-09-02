@@ -24,6 +24,11 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
   /// </summary>
   public static IQuestPatchService? PatchService { get; set; }
   public static IDataService? DataService { get; set; }
+  public static IQuestMapService? MapService { get; set; }
+
+  /// <summary>The map-flag icon, same id <c>AgentMap.SetFlagMapMarker</c> uses
+  /// for a flag by default — so the button reads as the thing it places.</summary>
+  private const uint FlagIconId = 0xEC91;
 
   private static readonly Vector4 Complete = new(0.55f, 0.55f, 0.55f, 1.0f);
   private static readonly Vector4 Incomplete = new(1.0f, 1.0f, 1.0f, 1.0f);
@@ -31,6 +36,9 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
 
   private TextNode TitleNode { get; }
   private TextNode DetailNode { get; }
+  private IconButtonNode FlagButton { get; }
+
+  private Types.Quest? _current;
 
   public QuestListItemNode()
   {
@@ -39,10 +47,21 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
 
     DetailNode = new TextNode { TextFlags = TextFlags.Ellipsis, FontSize = 11, TextColor = Detail };
     DetailNode.AttachNode(this);
+
+    FlagButton = new IconButtonNode
+    {
+      Size = new Vector2(22.0f, 22.0f),
+      IconId = FlagIconId,
+      IsVisible = false,
+      OnClick = () => { if (_current is not null) MapService?.OpenIssuerOnMap(_current); }
+    };
+    FlagButton.AttachNode(this);
   }
 
   protected override void SetNodeData(Types.Quest itemData)
   {
+    _current = itemData;
+
     bool complete = DataService?.IsQuestComplete(itemData) ?? false;
 
     TitleNode.String = itemData.Title;
@@ -58,16 +77,24 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
     if (patch is not null) parts.Add($"Patch {patch}");
 
     DetailNode.String = string.Join("  •  ", parts);
+
+    string? label = MapService?.GetIssuerLabel(itemData);
+    FlagButton.IsVisible = label is not null;
+    FlagButton.TextTooltip = label ?? "";
   }
 
   protected override void OnSizeChanged()
   {
     base.OnSizeChanged();
 
-    TitleNode.Size = new Vector2(Width - 12.0f, 20.0f);
+    float flagSpace = FlagButton.Width + 6.0f;
+
+    TitleNode.Size = new Vector2(Width - 12.0f - flagSpace, 20.0f);
     TitleNode.Position = new Vector2(10.0f, 2.0f);
 
-    DetailNode.Size = new Vector2(Width - 12.0f, 16.0f);
+    DetailNode.Size = new Vector2(Width - 12.0f - flagSpace, 16.0f);
     DetailNode.Position = new Vector2(10.0f, 21.0f);
+
+    FlagButton.Position = new Vector2(Width - FlagButton.Width - 8.0f, (Height - FlagButton.Height) / 2.0f);
   }
 }
