@@ -72,8 +72,11 @@ releases. We use 24 hours and a second, so the gap is unambiguously over the lin
 under any reading and no arithmetic is needed to check it.
 
 The reason to keep to it regardless of what is enforced: every release is an
-update prompt and a game restart for people who are not you. Fixes batch and
-wait. They do not each earn a version.
+update prompt and an in-place plugin reload for people who are not you — not a
+game restart, though the reload has a ~3-second window where nothing gets
+logged, which makes dalamud.log read like two entries landed at the same
+timestamp. That gap is not a break in the system, just a logging artifact of
+the hot-swap. Fixes batch and wait. They do not each earn a version.
 
 ## When a change does not appear in game
 
