@@ -38,28 +38,42 @@ window height surplus rows *drew over the window chrome* rather than vanishing.
 Adding rows here is now safe, but hide a row's **container**, not just its two
 labels — `FitContents` measures visible children, and that is the `/tmmini` bug.
 
+## Closed in pass 2 (02 September 2026)
+
+**Maintenance.** ✅ Now in Native, between Story Remaining and Active Events:
+state (`[Servers down]`/`[Upcoming]`/`[Completed]`), the countdown, start/end
+times, and the last window with when it ended.
+
+**Active Events reconciliation.** ✅ Native now reads the feed
+(`News.Latest`), which it never did before pass 2 — `News.Poll()` was already
+being called every frame, but nothing consumed the result. Active/upcoming
+events print `Ends in`/`Starts in`, and a festival the client reports running
+that the feed has no entry for still gets its own row (`Running now — end
+date not published to the feed`) plus the summary line explaining the
+discrepancy, exactly as Classic does.
+
+**What pass 2 taught, matching pass 1's lesson exactly:** the reconciliation
+logic (feed events + `Overlaps` title-matching against active festivals) was
+inline inside `MainWindow.DrawEventsSection`, same as Story Remaining's
+arithmetic was inline in `DrawStoryEstimates` before pass 1. Pulled out into
+`MaintenanceStatus.cs` and `EventsSummary.cs` (both in `src/Windows/`,
+alongside `StoryEstimate.cs`), pure data with no rendering, so both windows
+draw the same computed result instead of computing it twice. `TimeFormat.cs`
+holds the two formatters (`Span`, `UnixLocal`) both of those needed.
+
 ## Still missing from Native
 
-**Maintenance.** Upcoming, and the last one with its end date. Native shows
-nothing at all, so a player on Native cannot tell whether the feed is quiet or
-the section is broken.
-
-## Present but degraded
-
-**Active Events.** Native prints `running`. Classic prints `Ends in 7d 18h`, a
-`[read]` link to the Lodestone article, and — for an event the feed does not
-carry — `Running now — end date not published to the feed`, followed by
-`1 event is live in game but absent from the news feed.`
-
-That last line is not decoration. It is the window explaining a discrepancy it
-detected between the game and the feed, and Native drops it silently, which is
-the worst of the three options: no end date, and no reason given.
-
-The row budget for this was reserved in pass 1 — the panel scrolls and holds 48
-rows — so what is left here is the feed/client reconciliation (which lives
-nowhere but inside `MainWindow`'s draw code) and a clickable link node. Native
-has no link-with-tooltip node yet; `ProgressionPanelNode`'s Ledger button is the
-closest thing, and `SelectableTextNode` is the likeliest fit for a row.
+**The Lodestone `[read]` link on Maintenance and Active Events rows.** Native
+has no link-with-tooltip node yet; `ProgressionPanelNode`'s Ledger button is
+the closest thing, and `SelectableTextNode` (`OnClick` + hover highlight, in
+`lib/KamiToolKit/Nodes/SelectableTextNode.cs`) is the likeliest fit, but it
+draws a full list-item hover bar rather than an inline underline — building
+one row type that reads as "clickable label" without that bar is real work,
+not a `Set(...)` call. Deliberately left out of pass 2 rather than shipping
+something that looks clickable and is not. The end date and the discrepancy
+explanation — the two things the old notes called "not decoration" — are both
+in now; the link is the one piece of Classic's Active Events that pass 2 did
+not carry over.
 
 ## Better in Native, keep
 

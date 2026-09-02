@@ -1302,48 +1302,38 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Separator();
     ImGui.Spacing();
 
-    if (data.Maintenance == null)
+    MaintenanceStatus.Result status = MaintenanceStatus.Build(data);
+
+    if (status.Current is null)
     {
       ImGui.TextDisabled("No upcoming maintenance.");
     }
     else
     {
-      MaintenanceWindow m = data.Maintenance;
-      long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-      bool upcoming = m.Start.HasValue && m.Start.Value > now;
-      bool serversDown = m.Start.HasValue && m.Start.Value <= now && m.End.HasValue && m.End.Value > now;
+      MaintenanceStatus.Current m = status.Current;
 
       // Three states, because the useful number differs in each: how long until
       // it starts, how long until servers return, or nothing once it is over.
-      if (serversDown)
-      {
-        ImGui.TextColored(new Vector4(1.0f, 0.6f, 0.4f, 1.0f), $"[Servers down]  {m.Title ?? "Maintenance"}");
-        ImGui.TextDisabled($"  Back in {FormatSpan(TimeSpan.FromSeconds(m.End!.Value - now))}");
-      }
-      else if (upcoming)
-      {
-        ImGui.Text($"[Upcoming]  {m.Title ?? "Maintenance"}");
-        ImGui.TextDisabled($"  Starts in {FormatSpan(TimeSpan.FromSeconds(m.Start!.Value - now))}");
-      }
+      if (m.State == MaintenanceStatus.State.ServersDown)
+        ImGui.TextColored(new Vector4(1.0f, 0.6f, 0.4f, 1.0f), $"[Servers down]  {m.Title}");
+      else if (m.State == MaintenanceStatus.State.Upcoming)
+        ImGui.Text($"[Upcoming]  {m.Title}");
       else
-      {
-        ImGui.Text($"[Completed]  {m.Title ?? "Maintenance"}");
-      }
+        ImGui.Text($"[Completed]  {m.Title}");
 
-      if (m.Start.HasValue) ImGui.TextDisabled($"  Starts: {FormatUnixLocal(m.Start.Value)}");
-      if (m.End.HasValue) ImGui.TextDisabled($"  Ends:   {FormatUnixLocal(m.End.Value)}");
+      if (m.Remaining is not null) ImGui.TextDisabled($"  {m.Remaining}");
+      if (m.StartsAt is not null) ImGui.TextDisabled($"  {m.StartsAt}");
+      if (m.EndsAt is not null) ImGui.TextDisabled($"  {m.EndsAt}");
       DrawLink(m.Url);
     }
 
     ImGui.Spacing();
 
-    if (data.LastMaintenance != null)
+    if (status.Last is not null)
     {
-      ImGui.TextDisabled($"Last:  {data.LastMaintenance.Title ?? "Maintenance"}");
-      if (data.LastMaintenance.End.HasValue)
-        ImGui.TextDisabled($"  Ended: {FormatUnixLocal(data.LastMaintenance.End.Value)}");
-      DrawLink(data.LastMaintenance.Url);
+      ImGui.TextDisabled($"Last:  {status.Last.Title}");
+      if (status.Last.Ended is not null) ImGui.TextDisabled($"  {status.Last.Ended}");
+      DrawLink(status.Last.Url);
     }
   }
 
@@ -1359,64 +1349,24 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Separator();
     ImGui.Spacing();
 
-    long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-    List<string> shown = [];
-    bool any = false;
+    EventsSummary.Result summary = EventsSummary.Build(data, _festivals.GetActive());
 
-    foreach (GameEvent ev in data.Events)
+    foreach (EventsSummary.Line line in summary.Lines)
     {
-      bool active = ev.Start.HasValue && ev.Start.Value <= now && ev.End.HasValue && ev.End.Value > now;
-      bool upcoming = ev.Start.HasValue && ev.Start.Value > now;
-      if (!active && !upcoming) continue;
-
-      any = true;
-      if (ev.Title is not null) shown.Add(ev.Title);
-
-      ImGui.Text($"{(active ? "[Active]" : "[Upcoming]")}  {ev.Title ?? "Event"}");
-
-      if (active && ev.End.HasValue)
-        ImGui.TextDisabled($"  Ends in {FormatSpan(TimeSpan.FromSeconds(ev.End.Value - now))}");
-      else if (upcoming && ev.Start.HasValue)
-        ImGui.TextDisabled($"  Starts in {FormatSpan(TimeSpan.FromSeconds(ev.Start.Value - now))}");
-
-      DrawLink(ev.Url);
+      ImGui.Text($"{(line.State == EventsSummary.State.Active ? "[Active]" : "[Upcoming]")}  {line.Title}");
+      if (line.Timing is not null) ImGui.TextDisabled($"  {line.Timing}");
+      DrawLink(line.Url);
       ImGui.Spacing();
     }
 
-    // Anything the client has switched on that the feed did not mention.
-    List<ActiveFestival> missing = [.. _festivals.GetActive()
-      .Where((f) => !shown.Any((t) => Overlaps(t, f.DisplayName)))];
+    if (summary.Lines.Count == 0) ImGui.TextDisabled("No active or upcoming events.");
 
-    foreach (ActiveFestival festival in missing)
-    {
-      any = true;
-      ImGui.Text($"[Active]  {festival.DisplayName}");
-      ImGui.TextDisabled("  Running now — end date not published to the feed.");
-      ImGui.Spacing();
-    }
-
-    if (!any) ImGui.TextDisabled("No active or upcoming events.");
-
-    if (missing.Count > 0)
+    if (summary.Footer is not null)
     {
       ImGui.Spacing();
-      ImGui.TextDisabled($"  {missing.Count} event{(missing.Count == 1 ? " is" : "s are")} live in game but absent from the news feed.");
-      if (ImGui.IsItemHovered())
-        ImGui.SetTooltip("The feed only recognises events whose titles match a known list.\nThese were read from the game instead.");
+      ImGui.TextDisabled($"  {summary.Footer}");
+      if (ImGui.IsItemHovered()) ImGui.SetTooltip(EventsSummary.Result.FooterTooltip);
     }
-  }
-
-  /// <summary>Loose title match, since feed titles are prose and festival names are short.</summary>
-  private static bool Overlaps(string feedTitle, string festivalName)
-  {
-    // Mapped names are disambiguated by year -- "All Saint's Wake (2026)" --
-    // which no feed title carries. Match on the name alone.
-    int bracket = festivalName.IndexOf('(');
-    if (bracket > 0) festivalName = festivalName[..bracket].TrimEnd();
-
-    if (festivalName.Length < 4) return false;
-    return feedTitle.Contains(festivalName, StringComparison.OrdinalIgnoreCase)
-        || festivalName.Contains(feedTitle, StringComparison.OrdinalIgnoreCase);
   }
 
   private static void DrawLink(string? url)
@@ -1431,18 +1381,6 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       ImGui.SetTooltip(url);
     }
     if (ImGui.IsItemClicked()) Dalamud.Utility.Util.OpenLink(url);
-  }
-
-  /// <summary>Local time with the year, so a stale feed is obvious rather than ambiguous.</summary>
-  private static string FormatUnixLocal(long unixSeconds) =>
-    DateTimeOffset.FromUnixTimeSeconds(unixSeconds).ToLocalTime().ToString("MMM d, yyyy, h:mm tt");
-
-  private static string FormatSpan(TimeSpan span)
-  {
-    if (span.TotalDays >= 1) return $"{(int)span.TotalDays}d {span.Hours}h";
-    if (span.TotalHours >= 1) return $"{(int)span.TotalHours}h {span.Minutes}m";
-    if (span.TotalMinutes >= 1) return $"{(int)span.TotalMinutes}m";
-    return "less than a minute";
   }
 
   /// <summary>

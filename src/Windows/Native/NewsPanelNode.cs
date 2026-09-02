@@ -104,6 +104,7 @@ public class NewsPanelNode : TabPanelNode
   public override void Refresh()
   {
     News.Poll();
+    NewsEvent? newsData = News.Latest;
 
     int row = 0;
 
@@ -212,21 +213,90 @@ public class NewsPanelNode : TabPanelNode
       }
     }
 
-    SetHeading(ref row, "Active Events");
+    // Both sections below need the feed, which Classic's News tab reads and
+    // this panel never did -- Active Events used to be built from
+    // Festivals.GetActive() alone, which is why it could only ever say
+    // "running" and never an end date. See Docs/native-parity.md.
+    SetHeading(ref row, "Maintenance");
 
-    List<ActiveFestival> festivals = Festivals.GetActive();
-    if (festivals.Count == 0)
+    if (newsData is null)
     {
-      Set(ref row, "Nothing running", "", muted: true);
+      Set(ref row, "", News.IsLoading ? "Loading world state..." : "No world state available.", muted: true);
     }
     else
     {
-      // Phase 0 is the ordinary state — most events never have another one, so
-      // printing it reads as an error rather than as information. Only the
-      // events that actually progress through stages say anything here.
-      foreach (ActiveFestival festival in festivals)
-        Set(ref row, festival.DisplayName,
-          festival.Phase > 0 ? $"running — stage {festival.Phase}" : "running");
+      MaintenanceStatus.Result maintenance = MaintenanceStatus.Build(newsData);
+
+      if (maintenance.Current is null)
+      {
+        Set(ref row, "", "No upcoming maintenance.", muted: true);
+      }
+      else
+      {
+        MaintenanceStatus.Current m = maintenance.Current;
+
+        Set(ref row, m.State switch
+        {
+          MaintenanceStatus.State.ServersDown => "[Servers down]",
+          MaintenanceStatus.State.Upcoming => "[Upcoming]",
+          _ => "[Completed]"
+        }, m.Title);
+
+        if (m.Remaining is not null) Set(ref row, "", m.Remaining, muted: true);
+        if (m.StartsAt is not null) Set(ref row, "", m.StartsAt, muted: true);
+        if (m.EndsAt is not null) Set(ref row, "", m.EndsAt, muted: true);
+      }
+
+      if (maintenance.Last is not null)
+      {
+        Set(ref row, "Last", maintenance.Last.Title, muted: true);
+        if (maintenance.Last.Ended is not null) Set(ref row, "", maintenance.Last.Ended, muted: true);
+      }
+    }
+
+    SetHeading(ref row, "Active Events");
+
+    if (newsData is null)
+    {
+      // Falls back to the client-only read pass 1 shipped with, since there is
+      // nothing to reconcile against without the feed.
+      List<ActiveFestival> festivals = Festivals.GetActive();
+      if (festivals.Count == 0)
+      {
+        Set(ref row, "Nothing running", "", muted: true);
+      }
+      else
+      {
+        foreach (ActiveFestival festival in festivals)
+          Set(ref row, festival.DisplayName,
+            festival.Phase > 0 ? $"running — stage {festival.Phase}" : "running");
+      }
+    }
+    else
+    {
+      EventsSummary.Result summary = EventsSummary.Build(newsData, Festivals.GetActive());
+
+      if (summary.Lines.Count == 0)
+      {
+        Set(ref row, "Nothing running", "", muted: true);
+      }
+      else
+      {
+        foreach (EventsSummary.Line line in summary.Lines)
+        {
+          Set(ref row, line.State == EventsSummary.State.Active ? "[Active]" : "[Upcoming]", line.Title);
+          if (line.Timing is not null) Set(ref row, "", line.Timing, muted: true);
+        }
+      }
+
+      // No link node here yet -- see Docs/native-parity.md. The end date and
+      // the discrepancy explanation below are the two things that made
+      // dropping this silently the worst of the three options; a Lodestone
+      // link is worth adding once a clickable text node exists to carry it.
+      if (summary.Footer is not null)
+      {
+        Set(ref row, "", summary.Footer, muted: true);
+      }
     }
 
     // What's New, folded in from the panel that used to sit below this one.
