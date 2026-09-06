@@ -27,6 +27,7 @@ public class SettingsPanelNode : TabPanelNode
   private readonly CheckboxNode _excludeOther;
   private readonly CheckboxNode _excludeLeves;
   private readonly CheckboxNode _showJobQuestsInOldest;
+  private readonly CheckboxNode _showLevequestsInOldest;
   private readonly CheckboxNode _companionAlwaysVisible;
   private readonly CheckboxNode _spoiler;
   private readonly CheckboxNode _freeTrial;
@@ -88,6 +89,13 @@ public class SettingsPanelNode : TabPanelNode
       DataService.UpdateQuestData(true);
     });
 
+    _showLevequestsInOldest = AddCheckbox("Show levequests in 'Oldest unfinished'", (value) =>
+    {
+      Config.ShowLevequestsInOldest = value;
+      Config.Save();
+      DataService.UpdateQuestData(true);
+    });
+
     _companionAlwaysVisible = AddCheckbox("Keep /tmmini visible when the game hides the UI",
       (value) => { Config.CompanionAlwaysVisible = value; Config.Save(); });
 
@@ -125,6 +133,7 @@ public class SettingsPanelNode : TabPanelNode
     Sync(_excludeOther, Config.ExcludeOtherQuests);
     Sync(_excludeLeves, Config.ExcludeLevequests);
     Sync(_showJobQuestsInOldest, Config.ShowJobQuestsInOldest);
+    Sync(_showLevequestsInOldest, Config.ShowLevequestsInOldest);
     Sync(_companionAlwaysVisible, Config.CompanionAlwaysVisible);
     Sync(_spoiler, Config.SpoilerMode);
     Sync(_freeTrial, Config.FreeTrialMode);

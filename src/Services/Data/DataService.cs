@@ -680,6 +680,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       foreach (Types.Quest quest in node.Quests)
       {
         if (IsQuestComplete(quest)) continue;
+        if (!_configuration.ShowLevequestsInOldest && quest.EnglishSection == LevequestsSection) continue;
 
         decimal patch = PatchOf(quest);
         int level = quest.Level;

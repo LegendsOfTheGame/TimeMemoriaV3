@@ -40,8 +40,8 @@ public class QuestsPanelNode : TabPanelNode
   private QuestData? _selected;
 
   /// <summary>
-  /// The job-quest setting the tree was last built against, so a change to it
-  /// can be noticed.
+  /// The job-quest and levequest settings the tree was last built against, so a
+  /// change to either can be noticed.
   ///
   /// The sections are cut once and kept, which is right for a tree the player is
   /// scrolling and selecting in — rebuilding throws their position away. But it
@@ -50,6 +50,7 @@ public class QuestsPanelNode : TabPanelNode
   /// tabs does not rebuild. Nullable so the first show always builds.
   /// </summary>
   private bool? _builtWithJobQuests;
+  private bool? _builtWithLevequests;
 
   private enum CompletionFilter { All, Complete, Incomplete }
 
@@ -141,9 +142,12 @@ public class QuestsPanelNode : TabPanelNode
     // Rebuilt when it has never been built, or when the setting it depends on
     // has moved since. Not on every show: that would cost the player their
     // scroll position and selection every time they glanced at another tab.
-    if (_tree.Sections.Count == 0 || _builtWithJobQuests != Config.ShowJobQuestsInOldest)
+    if (_tree.Sections.Count == 0
+      || _builtWithJobQuests != Config.ShowJobQuestsInOldest
+      || _builtWithLevequests != Config.ShowLevequestsInOldest)
     {
       _builtWithJobQuests = Config.ShowJobQuestsInOldest;
+      _builtWithLevequests = Config.ShowLevequestsInOldest;
       _tree.Sections = BuildSections();
     }
   }

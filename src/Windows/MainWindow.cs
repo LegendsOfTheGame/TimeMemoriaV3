@@ -807,6 +807,20 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
         "sort keys — so a character who has not taken them all can find the shortlist\n" +
         "made of nothing else. Turning this off looks past them.");
 
+    bool showLevequestsInOldest = _configuration.ShowLevequestsInOldest;
+    if (ImGui.Checkbox("Show levequests in \'Oldest unfinished\'", ref showLevequestsInOldest))
+    {
+      _configuration.ShowLevequestsInOldest = showLevequestsInOldest;
+      _configuration.Save();
+      _dataService.UpdateQuestData(true);
+    }
+
+    if (ImGui.IsItemHovered())
+      ImGui.SetTooltip(
+        "Levequests are plentiful and cluster at low levels in the earliest patches,\n" +
+        "so a pile of unclaimed ARR leves can fill the shortlist by itself. Turning\n" +
+        "this off looks past them.");
+
     DrawSpoilerSettings();
     DrawInterfaceSettings();
   }

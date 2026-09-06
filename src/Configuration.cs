@@ -27,6 +27,22 @@ public class Configuration : IPluginConfiguration
   /// </summary>
   public bool ShowJobQuestsInOldest { get; set; } = true;
 
+  /// <summary>
+  /// Whether levequests can appear in "Oldest unfinished".
+  ///
+  /// On by default, for the same reason job quests are: they are genuinely
+  /// outstanding, and this plugin does not hide work by default. But levequests
+  /// are plentiful and cluster at low levels in the earliest patches, so a
+  /// character sitting on a pile of unclaimed ARR leves can find the shortlist
+  /// made almost entirely of them. Someone not chasing levequests wants that
+  /// backlog out of the way; someone working through them wants it as is.
+  ///
+  /// Scoped to that one list, exactly like <see cref="ShowJobQuestsInOldest"/>:
+  /// it does not reach the tree, the totals, or the export — that is what
+  /// <see cref="ExcludeLevequests"/> is for.
+  /// </summary>
+  public bool ShowLevequestsInOldest { get; set; } = true;
+
   /// <summary>Show story the character has not reached yet.</summary>
   public bool SpoilerMode { get; set; } = false;
 
