@@ -560,7 +560,11 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
           }
           else if (done is not null)
           {
-            ImGui.TextDisabled(done);
+            // Stored with seconds for forensic value; shown as just the date,
+            // since the column is about "which day", not "which moment".
+            ImGui.TextDisabled(done[..10]);
+            if (done.Length > 10 && ImGui.IsItemHovered())
+              ImGui.SetTooltip(done);
           }
         }
       }

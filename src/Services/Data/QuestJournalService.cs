@@ -16,8 +16,22 @@ public class QuestJournal
   /// </summary>
   public string PriorDate { get; set; } = "";
 
-  /// <summary>Quest id to ISO-8601 completion date.</summary>
+  /// <summary>
+  /// Quest id to completion timestamp: "yyyy-MM-dd HH:mm:ss" for anything
+  /// actually observed, or a bare "yyyy-MM-dd" equal to PriorDate for anything
+  /// stamped as prior-to-tracking. The two are never ambiguous -- a real
+  /// observation can never land on PriorDate, since sweeps only run once
+  /// tracking has already started.
+  /// </summary>
   public Dictionary<uint, string> Completed { get; set; } = [];
+
+  /// <summary>
+  /// When date-only entries were back-filled to noon, or null if this journal
+  /// has never needed the migration. Entries dated on or before this moment
+  /// that read exactly 12:00:00 are provably back-filled, not a coincidental
+  /// noon observation -- see journal-hardening-plan.md.
+  /// </summary>
+  public string? MigratedAt { get; set; }
 }
 
 public interface IQuestJournalService : IHostedService
@@ -324,7 +338,12 @@ public class QuestJournalService(
       return;
     }
 
-    string date = firstSighting ? _journal.PriorDate : DateTime.Now.ToString("yyyy-MM-dd");
+    // A real observation carries seconds -- sweeps run every 30s, so that is
+    // the actual resolution, and it is what turns "hundreds of entries on one
+    // day" from ambiguous into an unmistakable bug signature if it ever
+    // recurs. The prior-to-tracking placeholder stays bare so it is never
+    // mistaken for one.
+    string date = firstSighting ? _journal.PriorDate : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
     foreach (uint id in newlyComplete)
       _journal.Completed[id] = date;
@@ -367,6 +386,30 @@ public class QuestJournalService(
   private string PathFor(string characterId)
     => Path.Combine(_pluginInterface.ConfigDirectory.FullName, $"journal-{SafeName(characterId)}.json");
 
+  /// <summary>
+  /// Back-fills any date-only entry to noon, once. The Pre-Plugin placeholder
+  /// (any entry equal to PriorDate) is left alone -- it stays bare forever, by
+  /// design, rather than gaining a fabricated time that would suggest it was
+  /// observed.
+  /// </summary>
+  private void MigrateDateOnlyEntries()
+  {
+    if (_journal is null) return;
+
+    List<uint> dateOnly = [.. _journal.Completed
+      .Where((e) => e.Value.Length == 10 && e.Value != _journal.PriorDate)
+      .Select((e) => e.Key)];
+
+    if (dateOnly.Count == 0) return;
+
+    foreach (uint id in dateOnly)
+      _journal.Completed[id] = $"{_journal.Completed[id]} 12:00:00";
+
+    _journal.MigratedAt ??= DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    _dirty = true;
+    _logger.Debug($"[Journal] Back-filled {dateOnly.Count} date-only entr(ies) to noon.");
+  }
+
   private void Load(string identity)
   {
     // Written before the file is touched, so a half-loaded journal can never be
@@ -382,7 +425,11 @@ public class QuestJournalService(
     if (File.Exists(path))
     {
       _journal = JsonSerializer.Deserialize<QuestJournal>(File.ReadAllText(path));
-      if (_journal is not null) return;
+      if (_journal is not null)
+      {
+        MigrateDateOnlyEntries();
+        return;
+      }
     }
 
     DateTime today = DateTime.Now.Date;
