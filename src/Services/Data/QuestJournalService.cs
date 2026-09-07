@@ -30,6 +30,23 @@ public interface IQuestJournalService : IHostedService
 
   /// <summary>Quests observed being completed since watching began.</summary>
   int ObservedCount { get; }
+
+  /// <summary>
+  /// The date currently stamped on everything treated as "before tracking",
+  /// or null if no journal is loaded.
+  /// </summary>
+  string? PriorDate { get; }
+
+  /// <summary>How many recorded completions are dated before <paramref name="cutoff"/>.</summary>
+  int CountBefore(DateOnly cutoff);
+
+  /// <summary>
+  /// Re-stamps every completion dated before <paramref name="cutoff"/> with the
+  /// Pre-Plugin placeholder, one day earlier than <paramref name="cutoff"/>.
+  /// Entries on or after <paramref name="cutoff"/> are untouched. Backs up the
+  /// journal file first, since this cannot be undone from within the plugin.
+  /// </summary>
+  void Rebaseline(DateOnly cutoff);
 }
 
 /// <summary>
@@ -128,6 +145,61 @@ public class QuestJournalService(
 
   public bool IsPriorToTracking(string? date)
     => date is not null && _journal is not null && date == _journal.PriorDate;
+
+  public string? PriorDate => _journal?.PriorDate;
+
+  public int CountBefore(DateOnly cutoff)
+  {
+    if (_journal is null) return 0;
+    string cutoffDate = cutoff.ToString("yyyy-MM-dd");
+    return _journal.Completed.Values.Count((date) => string.CompareOrdinal(date, cutoffDate) < 0);
+  }
+
+  public void Rebaseline(DateOnly cutoff)
+  {
+    if (_journal is null || _characterId is null) return;
+
+    // The one thing this cannot recover from is the mutation itself -- there is
+    // no rotating-backup tier yet (see journal-hardening-plan), so take a single
+    // dated copy before touching anything.
+    BackupBeforeRebaseline();
+
+    string newPrior = cutoff.AddDays(-1).ToString("yyyy-MM-dd");
+    string cutoffDate = cutoff.ToString("yyyy-MM-dd");
+
+    int rewritten = 0;
+    foreach (uint id in _journal.Completed.Keys.ToList())
+    {
+      if (string.CompareOrdinal(_journal.Completed[id], cutoffDate) >= 0) continue;
+      _journal.Completed[id] = newPrior;
+      rewritten++;
+    }
+
+    _journal.PriorDate = newPrior;
+    _dirty = true;
+    Save();
+
+    _logger.Debug($"[Journal] Rebaselined to {newPrior}: {rewritten} entr(ies) before {cutoffDate} now share that date.");
+  }
+
+  private void BackupBeforeRebaseline()
+  {
+    if (_characterId is null) return;
+    string path = PathFor(_characterId);
+    if (!File.Exists(path)) return;
+
+    string backupPath = Path.Combine(_pluginInterface.ConfigDirectory.FullName,
+      $"journal-{SafeName(_characterId)}.pre-rebaseline-{DateTime.Now:yyyy-MM-dd_HHmmss}.bak");
+
+    try
+    {
+      File.Copy(path, backupPath, overwrite: true);
+    }
+    catch (Exception ex)
+    {
+      _logger.Error(ex, "[Journal] Failed to back up before rebaseline");
+    }
+  }
 
   private void OnLogin()
   {
@@ -289,11 +361,11 @@ public class QuestJournalService(
       Collect(child, into, known, complete);
   }
 
+  private static string SafeName(string characterId)
+    => string.Join("_", characterId.Split(Path.GetInvalidFileNameChars()));
+
   private string PathFor(string characterId)
-  {
-    string safe = string.Join("_", characterId.Split(Path.GetInvalidFileNameChars()));
-    return Path.Combine(_pluginInterface.ConfigDirectory.FullName, $"journal-{safe}.json");
-  }
+    => Path.Combine(_pluginInterface.ConfigDirectory.FullName, $"journal-{SafeName(characterId)}.json");
 
   private void Load(string identity)
   {

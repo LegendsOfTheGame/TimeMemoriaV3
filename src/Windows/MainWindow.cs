@@ -10,6 +10,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
   private string _selectedLabel = "";
   private float _leftPanelWidth = 282f;
 
+  private string _rebaselineDate = DateTime.Now.ToString("yyyy-MM-dd");
+
   public override void Draw()
   {
     _dataService.UpdateQuestData();
@@ -823,6 +825,75 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     DrawSpoilerSettings();
     DrawInterfaceSettings();
+    DrawJournalSettings();
+  }
+
+  /// <summary>
+  /// Lets the user widen the "Pre-Plugin" placeholder forward to a chosen date,
+  /// for when some of the journal's real dates are known to be wrong (see the
+  /// 29 Aug 2026 cross-character contamination). Scoped to "everything before
+  /// this date", not a blanket reset, so genuine history past the cutoff
+  /// survives -- see journal-hardening-plan.md for why that scoping matters.
+  /// </summary>
+  private void DrawJournalSettings()
+  {
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Journal");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    string? priorDate = _journal.PriorDate;
+    if (priorDate is null)
+    {
+      ImGui.TextDisabled("No journal loaded yet.");
+      return;
+    }
+
+    ImGui.TextWrapped($"Quests completed on {priorDate} or earlier are currently shown as Pre-Plugin.");
+    ImGui.TextWrapped(
+      "If some of those dates turned out to be wrong, pick a date below: everything " +
+      "completed before it is re-marked Pre-Plugin, and nothing on or after it is " +
+      "touched. The journal is backed up first.");
+
+    ImGui.SetNextItemWidth(120 * ImGuiHelpers.GlobalScale);
+    ImGui.InputTextWithHint("##rebaselineDate", "YYYY-MM-DD", ref _rebaselineDate, 10);
+
+    bool validDate = DateOnly.TryParseExact(_rebaselineDate, "yyyy-MM-dd", null, DateTimeStyles.None, out DateOnly cutoff);
+    bool afterCurrent = validDate && string.CompareOrdinal(cutoff.ToString("yyyy-MM-dd"), priorDate) > 0;
+    int affected = afterCurrent ? _journal.CountBefore(cutoff) : 0;
+
+    ImGui.SameLine();
+    using (ImRaii.DisabledDisposable disabled = ImRaii.Disabled(!afterCurrent || affected == 0))
+    {
+      if (ImGui.Button("Set Baseline"))
+        ImGui.OpenPopup("Confirm Baseline?");
+    }
+
+    if (!validDate)
+      ImGui.TextDisabled("Enter a date as YYYY-MM-DD.");
+    else if (!afterCurrent)
+      ImGui.TextDisabled($"Must be after {priorDate}.");
+    else
+      ImGui.TextDisabled($"{affected} record(s) dated before {_rebaselineDate} will be marked Pre-Plugin.");
+
+    if (ImGui.BeginPopupModal("Confirm Baseline?", ImGuiWindowFlags.AlwaysAutoResize))
+    {
+      ImGui.TextWrapped($"Mark {affected} completion(s) dated before {_rebaselineDate} as Pre-Plugin?");
+      ImGui.TextWrapped("This cannot be undone from inside the plugin, though a backup file is written first.");
+      ImGui.Spacing();
+
+      if (ImGui.Button("Confirm"))
+      {
+        _journal.Rebaseline(cutoff);
+        ImGui.CloseCurrentPopup();
+      }
+
+      ImGui.SameLine();
+      if (ImGui.Button("Cancel"))
+        ImGui.CloseCurrentPopup();
+
+      ImGui.EndPopup();
+    }
   }
 
   /// <summary>
