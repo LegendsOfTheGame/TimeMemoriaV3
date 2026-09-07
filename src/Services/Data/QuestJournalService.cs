@@ -447,6 +447,17 @@ public class QuestJournalService(
   {
     if (_journal is null || _characterId is null) return;
 
+    // A backup failure must never block the actual save -- the two try
+    // blocks are separate on purpose.
+    try
+    {
+      RotateBackupIfDue(_characterId);
+    }
+    catch (Exception ex)
+    {
+      _logger.Error(ex, "[Journal] Failed to rotate backup");
+    }
+
     try
     {
       File.WriteAllText(PathFor(_characterId),
@@ -457,5 +468,66 @@ public class QuestJournalService(
     {
       _logger.Error(ex, "[Journal] Failed to save");
     }
+  }
+
+  /// <summary>
+  /// The number of rotating backups kept at once, at roughly 3/6/9-day
+  /// spacing once the rotation is established.
+  /// </summary>
+  private const int RotatingBackupSlots = 3;
+
+  /// <summary>How long the newest rotating backup must age before another is taken.</summary>
+  private static readonly TimeSpan RotatingBackupInterval = TimeSpan.FromDays(3);
+
+  /// <summary>
+  /// Snapshots the journal as it stands on disk right now -- before this
+  /// Save() overwrites it -- if it has actually changed since the last
+  /// rotating backup and that backup is old enough. Deliberately not a fixed
+  /// calendar rotation: returning after ten idle days must not catch up three
+  /// missed periods and overwrite every slot with today's content, which is
+  /// exactly the day a pre-break snapshot is needed. Backing up before the
+  /// write, not after, matters too -- a bad write is itself a content change,
+  /// and backing up afterwards would faithfully preserve the corruption
+  /// instead of a recovery point. See journal-hardening-plan.md.
+  /// </summary>
+  private void RotateBackupIfDue(string characterId)
+  {
+    string livePath = PathFor(characterId);
+    if (!File.Exists(livePath)) return;
+
+    string prefix = $"journal-{SafeName(characterId)}.";
+    List<string> existing = ListRotatingBackups(prefix);
+    string previousContent = File.ReadAllText(livePath);
+
+    if (existing.Count > 0)
+    {
+      string newest = existing[^1];
+      if (File.ReadAllText(newest) == previousContent) return;
+
+      DateOnly newestDate = DateOnly.ParseExact(
+        Path.GetFileName(newest).Substring(prefix.Length, 10), "yyyy-MM-dd");
+      if (DateTime.Now.Date < newestDate.ToDateTime(TimeOnly.MinValue) + RotatingBackupInterval) return;
+    }
+
+    string todayPath = Path.Combine(_pluginInterface.ConfigDirectory.FullName,
+      $"{prefix}{DateTime.Now:yyyy-MM-dd}.bak");
+    File.WriteAllText(todayPath, previousContent);
+
+    // Backups are named by date, not slot, so "rotating" means pruning
+    // anything past the newest three rather than shifting slots.
+    List<string> all = ListRotatingBackups(prefix);
+    for (int i = 0; i < all.Count - RotatingBackupSlots; i++)
+      File.Delete(all[i]);
+  }
+
+  /// <summary>Rotating backups for one character, oldest first. Excludes the pre-rebaseline copies.</summary>
+  private List<string> ListRotatingBackups(string prefix)
+  {
+    string dir = _pluginInterface.ConfigDirectory.FullName;
+    if (!Directory.Exists(dir)) return [];
+
+    return [.. Directory.GetFiles(dir, $"{prefix}*.bak")
+      .Where((path) => !Path.GetFileName(path).Contains("pre-rebaseline"))
+      .OrderBy((path) => path, StringComparer.Ordinal)];
   }
 }
