@@ -116,12 +116,34 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   }
 
   /// <summary>
-  /// Size is read when the window is built, which happens on open, so this only
-  /// has to run before one. It is a no-op on a window that is already open.
+  /// Size is read when the window is built, which happens on open, so a
+  /// closed window only needs this before it opens.
+  ///
+  /// A window that is already open is a different case: it was sized once,
+  /// at whatever <see cref="MinimumSize"/> was on the day it opened, and nothing
+  /// after that ever shrinks or grows it live — there is no resize handle. If
+  /// <see cref="MinimumSize"/> is raised later (as it was, from 700 to 956, so
+  /// the tab bar and the Help panel's text stop truncating), a window opened
+  /// under the old floor stays stuck below the new one until it happens to
+  /// close and reopen. Growing it here, on every toggle, closes that gap
+  /// immediately instead of waiting on a coincidence.
   /// </summary>
   private void ApplyConfiguredSize()
   {
-    if (_window is null || _window.IsOpen) return;
+    if (_window is null) return;
+
+    if (_window.IsOpen)
+    {
+      Vector2 grown = new(
+        Math.Max(_window.Size.X, MinimumSize.X),
+        Math.Max(_window.Size.Y, MinimumSize.Y));
+
+      if (grown == _window.Size) return;
+
+      _window.SetWindowSize(grown);
+      _logger.Debug($"[NativeUi] Grew open window to {grown.X:F0}x{grown.Y:F0} to meet the minimum size.");
+      return;
+    }
 
     Vector2 size = new(
       Math.Clamp(_configuration.NativeWindowWidth, MinimumSize.X, MaximumSize.X),
@@ -176,8 +198,16 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     _companion.Toggle();
   }
 
-  /// <summary>Below this the tree and quest list stop being usable.</summary>
-  private static readonly Vector2 MinimumSize = new(700.0f, 460.0f);
+  /// <summary>
+  /// Below this the tree and quest list stop being usable. The width also
+  /// matches the shared default in <see cref="Configuration.NativeWindowWidth"/>
+  /// (956, the same number MainWindow opens at) rather than a narrower value,
+  /// because the tab bar splits its width evenly across all eight tabs and the
+  /// Help panel's text cannot wrap — both truncate below the width they were
+  /// written to fit, and this floor stops that at the source instead of at
+  /// whatever width the classic window last saved.
+  /// </summary>
+  private static readonly Vector2 MinimumSize = new(956.0f, 460.0f);
 
   private static readonly Vector2 MaximumSize = new(2400.0f, 1600.0f);
 
