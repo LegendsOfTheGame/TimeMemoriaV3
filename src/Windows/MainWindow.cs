@@ -962,80 +962,43 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     if (!child.Success) return;
 
     DrawHelpEntry("Why is a whole expansion greyed out?",
-      "You have not reached it yet, so its name and counts are hidden.",
-      "Settings > Story Visibility > Spoiler Mode shows them anyway.",
-      "Free Trial Mode is separate and cannot be overridden — there is",
-      "genuinely nothing there to reveal.");
+      "You have not reached this expansion yet. The plugin hides its name and quest count. Go to Settings > Story Visibility > Spoiler Mode to show them.",
+      "Free Trial Mode is different. You cannot turn off this limit. A Free Trial account has no hidden data to show.");
 
     DrawHelpEntry("Why does a quest say \"Pre-Plugin\" instead of a date?",
-      "It was already complete when this plugin was first installed, so",
-      "there is no record of when you did it. Anything completed from",
-      "then on is dated properly.");
+      "You completed this quest before you installed the plugin. The plugin has no record of the date. The plugin records the date for every quest you complete after that.");
 
     DrawHelpEntry("Why is my playtime blank or out of date?",
-      "The game only reveals total playtime in the reply to /playtime,",
-      "and this plugin will not run commands for you. Type /playtime",
-      "yourself and the figure is captured from the response. The",
-      "timestamp beside it is when that happened, not right now.");
+      "The game shows your total playtime only in the reply to the /playtime command. The plugin does not run this command for you. Type /playtime yourself. The plugin then reads the reply and stores the figure. The timestamp beside the figure shows when the plugin last read it, not the current time.");
 
     DrawHelpEntry("Why is session pacing empty?",
-      "It measures quests completed since you logged in. Until you",
-      "finish one this session there is nothing to average.");
+      "Session pacing counts quests you complete after you log in. Complete one quest this session. Then the plugin can calculate an average.");
 
     DrawHelpEntry("Where do the percentages come from?",
-      "Quests your character can never take — the starting city and",
-      "class routes you did not pick, the Grand Company you did not",
-      "join — are left out of the total. Two characters can legitimately",
-      "show different denominators.",
-      "",
-      "Settings also lets you drop Other Quests and Levequests from the",
-      "overall figure, which many people prefer.");
+      "The plugin removes quests your character cannot take from the total. Examples: quests for a starting city you did not pick, quests for a class route you did not pick, and quests for a Grand Company you did not join. Because of this, two characters can correctly show different totals.",
+      "Settings also lets you remove Other Quests and Levequests from the total.");
 
     DrawHelpEntry("Why do collectables say \"open Achievements once\"?",
-      "The game keeps no running count. The number lives in an achievement and",
-      "the client only fetches it for whichever one you are looking at, so the",
-      "plugin waits until you open the Achievements window rather than asking",
-      "the server itself.",
-      "",
-      "A figure with a + is a floor, not a count: a tier you have already",
-      "finished reports its own requirement instead of your total. Look at a",
-      "later tier for the exact number.");
+      "The game does not keep a running count. The count exists only inside an achievement record. The game client downloads an achievement record only when you view that achievement. So the plugin waits until you open the Achievements window. The plugin cannot ask the game server directly.",
+      "A number with a plus sign is a minimum value, not your exact count. This happens on a tier you already completed: the plugin shows that tier's requirement instead of your real total. To see your exact count, open a later tier you have not completed yet.");
 
     DrawHelpEntry("The Wiki button beside the quest search",
-      "Sends whatever you have typed to the FFXIV wiki's own search, which",
-      "jumps straight to a page when the text matches one exactly. That makes",
-      "community shorthand work — A8S, TEA, DRS and the like are wiki",
-      "redirects, so they land on the right page even though none of them is",
-      "a quest name and searching quests for them finds nothing.",
-      "",
-      "With the box empty it opens the wiki's Main Scenario index instead —",
-      "the story in order, which is the page most often wanted anyway.");
+      "This button sends your search text to the FFXIV wiki's search function. If the text matches a page title exactly, the wiki opens that page directly.",
+      "This also works for shorthand terms such as A8S, TEA, and DRS. These terms are not quest names, so the quest search cannot find them. The wiki redirects each term to its correct page.",
+      "If the search box is empty, the button opens the wiki's Main Scenario index. This index lists the main story in order.");
 
     DrawHelpEntry("Why does Overview show a smaller total than the Quests tree?",
-      "Overview honours the exclusion settings — an excluded category is shown",
-      "greyed and left out of the totals. The tree never excludes anything,",
-      "because it is how you reach a quest, and dropping a category from a",
-      "total should not put its quests out of reach.");
+      "The Overview tab applies your exclusion settings. The Overview tab shows an excluded category in grey and removes it from the total. The Quests tree does not apply exclusion settings. You use the Quests tree to open a quest. An excluded category stays visible in the tree, so you can still reach its quests.");
 
     DrawHelpEntry("An event is running in game but not listed. Or the reverse.",
-      "Active Events reads the client, so anything switched on shows up",
-      "even if no article announced it. End dates come from the Lodestone",
-      "feed, so an event the feed missed appears without one.");
+      "The Active Events list reads data from the game client. An event appears in the list as soon as the game turns it on, even before a news article announces it. The plugin gets event end dates from the Lodestone news feed. If the feed does not report an event, the event stays in the list without an end date.");
 
     DrawHelpEntry("What does the Quests tab do that is not obvious?",
-      "Drag the divider between the two panes to resize them. Clicking a",
-      "quest opens its map marker. Search covers every expansion at once,",
-      "including ones the tree is hiding.");
+      "Drag the divider between the two panes to resize them. Click a quest to open its map marker. The search feature covers every expansion at once, including expansions the tree is hiding.");
 
     DrawHelpEntry("Where does my exported data go?",
-      "Onto your clipboard, and nowhere else. Nothing is uploaded, and",
-      "this plugin makes no network requests except fetching the public",
-      "Lodestone news feed.",
-      "",
-      "\"Copy for Adventurer's Ledger\" on the Progression tab is meant to",
-      "be pasted into the Ledger, a separate web tracker for routines and",
-      "Ocean Fishing windows. It stores what you paste in your browser and",
-      "nowhere else. There is a button beside the export to open it.");
+      "Exported data goes to your clipboard only. The plugin sends it nowhere else. The plugin makes one network request: it downloads the public Lodestone news feed.",
+      "The Progression tab has a \"Copy for Adventurer's Ledger\" button. This button copies data for the Adventurer's Ledger, a separate web tracker for routines and Ocean Fishing windows. Paste this data into the Ledger. The Ledger stores what you paste only in your browser. A button beside the export opens the Ledger.");
 
     ImGui.Spacing();
     ImGui.TextColored(HeaderColour, "Commands");
@@ -1047,7 +1010,9 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TextDisabled("  /tmmini         playtime, pacing and jobs, in a small window");
     ImGui.TextDisabled("  /tm reset       rebuild the quest tree");
     ImGui.Spacing();
-    ImGui.TextDisabled("  The plugin registers these; it never sends commands itself.");
+    ImGui.Indent();
+    DrawWrappedDisabled("The plugin registers these commands. The plugin never sends a command itself.");
+    ImGui.Unindent();
 
     ImGui.Spacing();
     ImGui.Spacing();
@@ -1059,29 +1024,48 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TextDisabled("  No toasts or overlays interrupting your play.");
     ImGui.TextDisabled("  No reading of other characters' data.");
     ImGui.Spacing();
-    ImGui.TextDisabled("  It is a notebook, not a scoreboard. If a feature request");
-    ImGui.TextDisabled("  needs any of the above, it will be declined.");
+    ImGui.Indent();
+    DrawWrappedDisabled("This plugin only tracks quest progress. This plugin does not rank your performance. The maintainer declines any feature request that needs an action listed above.");
+    ImGui.Unindent();
 
     ImGui.Spacing();
     ImGui.Spacing();
     ImGui.TextColored(HeaderColour, "Something wrong, or missing?");
     ImGui.Separator();
     ImGui.Spacing();
-    ImGui.TextDisabled("  Miscounts and missing quests are worth reporting — quest data");
-    ImGui.TextDisabled("  changes with every patch and this cannot all be tested by hand.");
+    ImGui.Indent();
+    DrawWrappedDisabled("Report miscounts and missing quests. Quest data changes with every game patch. The maintainer cannot test all of it by hand.");
+    ImGui.Unindent();
     ImGui.Spacing();
 
     if (ImGui.Button("Open the issue tracker")) Dalamud.Utility.Util.OpenLink(IssuesUrl);
     DrawUrlTooltip(IssuesUrl);
   }
 
-  /// <summary>One question and its answer, laid out so the question scans first.</summary>
-  private static void DrawHelpEntry(string question, params string[] answer)
+  /// <summary>
+  /// Each paragraph is one full string, wrapped to the window's current
+  /// width rather than pre-broken into fixed-width lines, so resizing the
+  /// window reflows the text instead of clipping or leaving it ragged.
+  /// </summary>
+  private static void DrawHelpEntry(string question, params string[] paragraphs)
   {
     ImGui.TextColored(HeaderColour, question);
-    foreach (string line in answer) ImGui.TextDisabled(line.Length > 0 ? $"  {line}" : "");
+    ImGui.Indent();
+    using (ImRaii.PushColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]))
+      foreach (string paragraph in paragraphs)
+      {
+        ImGui.TextWrapped(paragraph);
+        ImGui.Spacing();
+      }
+    ImGui.Unindent();
     ImGui.Spacing();
-    ImGui.Spacing();
+  }
+
+  /// <summary>A single disabled-colour paragraph, wrapped to the window's current width.</summary>
+  private static void DrawWrappedDisabled(string text)
+  {
+    using (ImRaii.PushColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]))
+      ImGui.TextWrapped(text);
   }
 
   /// <summary>

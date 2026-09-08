@@ -16,10 +16,21 @@ namespace TimeMemoria.Windows.Native;
 public abstract class TextLinesPanelNode : TabPanelNode
 {
   private readonly ListNode<string, StringListItemNode> _list;
+
+  /// <summary>
+  /// Never shown — exists only so <see cref="WrapParagraph"/> can ask the game
+  /// how wide a candidate line would draw, in the same font a row actually
+  /// uses (<see cref="StringListItemNode"/> takes <see cref="TextNode"/>'s
+  /// defaults, so this needs none of its own).
+  /// </summary>
+  private readonly TextNode _measurer = new() { IsVisible = false };
+
   private bool _built;
 
   protected TextLinesPanelNode()
   {
+    _measurer.AttachNode(this);
+
     _list = new ListNode<string, StringListItemNode>
     {
       IsVisible = true,
@@ -51,6 +62,44 @@ public abstract class TextLinesPanelNode : TabPanelNode
 
   /// <summary>Forces the lines to be rebuilt next time this panel is shown.</summary>
   protected void Invalidate() => _built = false;
+
+  /// <summary>
+  /// Splits <paramref name="text"/> into lines that fit the row width this
+  /// panel actually has, each prefixed with <paramref name="indent"/>.
+  ///
+  /// A row's usable width is this panel's <see cref="Width"/> minus 24: 8 for
+  /// <see cref="ListNode{T,TU}"/>'s scroll bar and the 8-pixel gap it leaves
+  /// beside it, then another 8 for <see cref="StringListItemNode"/>'s own
+  /// left padding of its label. Wrapping to a fixed character count instead
+  /// left the text unable to use a wider window or safe in a narrower one;
+  /// this measures the actual font instead of guessing at it.
+  /// </summary>
+  protected List<string> WrapParagraph(string text, string indent = "   ")
+  {
+    float available = Width - 24.0f - _measurer.GetTextDrawSize(indent).X;
+
+    List<string> lines = [];
+    string current = "";
+
+    foreach (string word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+    {
+      string candidate = current.Length == 0 ? word : $"{current} {word}";
+
+      if (current.Length > 0 && _measurer.GetTextDrawSize(candidate).X > available)
+      {
+        lines.Add(indent + current);
+        current = word;
+      }
+      else
+      {
+        current = candidate;
+      }
+    }
+
+    if (current.Length > 0) lines.Add(indent + current);
+
+    return lines;
+  }
 
   protected override void OnSizeChanged()
   {
