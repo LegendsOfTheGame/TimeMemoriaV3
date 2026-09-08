@@ -460,6 +460,15 @@ public class QuestJournalService(
 
     try
     {
+      MaintainLtsSnapshot(_characterId);
+    }
+    catch (Exception ex)
+    {
+      _logger.Error(ex, "[Journal] Failed to maintain LTS snapshot");
+    }
+
+    try
+    {
       File.WriteAllText(PathFor(_characterId),
         JsonSerializer.Serialize(_journal, new JsonSerializerOptions { WriteIndented = true }));
       _dirty = false;
@@ -520,14 +529,65 @@ public class QuestJournalService(
       File.Delete(all[i]);
   }
 
-  /// <summary>Rotating backups for one character, oldest first. Excludes the pre-rebaseline copies.</summary>
+  /// <summary>
+  /// Rotating backups for one character, oldest first. Matched strictly on
+  /// "prefix + yyyy-MM-dd + .bak" so the pre-rebaseline and LTS files -- which
+  /// share the same prefix and extension -- can never be mistaken for one.
+  /// </summary>
   private List<string> ListRotatingBackups(string prefix)
   {
     string dir = _pluginInterface.ConfigDirectory.FullName;
     if (!Directory.Exists(dir)) return [];
 
     return [.. Directory.GetFiles(dir, $"{prefix}*.bak")
-      .Where((path) => !Path.GetFileName(path).Contains("pre-rebaseline"))
+      .Where((path) => Regex.IsMatch(Path.GetFileName(path)[prefix.Length..], @"^\d{4}-\d{2}-\d{2}\.bak$"))
       .OrderBy((path) => path, StringComparer.Ordinal)];
+  }
+
+  private const int LtsRetentionDays = 32;
+
+  /// <summary>
+  /// A twice-monthly recovery point (the 1st and 15th) independent of the
+  /// 3-day rotation and held far longer, so two anchors are always present
+  /// and three for most of the month. Every period gets a file even when
+  /// nothing changed -- a missing one would be ambiguous (no activity? a
+  /// failed write? deleted by hand?), a present one always means the same
+  /// thing. Labeled by the anchor date it represents, not the day it was
+  /// actually captured: at the first save on or after an anchor, the
+  /// pre-write content *is* the state as of that anchor, so a gap spanning
+  /// it (idle from the 29th to the 3rd, say) still produces a file correctly
+  /// stamped for the 1st with no special-casing needed. See
+  /// journal-hardening-plan.md item 4.
+  /// </summary>
+  private void MaintainLtsSnapshot(string characterId)
+  {
+    string livePath = PathFor(characterId);
+    if (!File.Exists(livePath)) return;
+
+    DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+    DateOnly anchor = new(today.Year, today.Month, today.Day >= 15 ? 15 : 1);
+
+    string prefix = $"journal-{SafeName(characterId)}.";
+    string anchorPath = Path.Combine(_pluginInterface.ConfigDirectory.FullName,
+      $"{prefix}lts-{anchor:yyyy-MM-dd}.bak");
+
+    if (!File.Exists(anchorPath))
+      File.WriteAllText(anchorPath, File.ReadAllText(livePath));
+
+    foreach (string path in ListLtsSnapshots(prefix))
+    {
+      DateOnly date = DateOnly.ParseExact(
+        Path.GetFileName(path).Substring(prefix.Length + 4, 10), "yyyy-MM-dd");
+      if (today.DayNumber - date.DayNumber > LtsRetentionDays)
+        File.Delete(path);
+    }
+  }
+
+  private List<string> ListLtsSnapshots(string prefix)
+  {
+    string dir = _pluginInterface.ConfigDirectory.FullName;
+    if (!Directory.Exists(dir)) return [];
+
+    return [.. Directory.GetFiles(dir, $"{prefix}lts-*.bak")];
   }
 }
