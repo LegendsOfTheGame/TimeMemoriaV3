@@ -42,8 +42,11 @@ public class ProgressionPanelNode : TabPanelNode
 
   private DateTime _copyShownAt = DateTime.MinValue;
 
-  private readonly VerticalListNode _list;
-  private readonly List<(TextNode Name, TextNode Level, TextNode Exp, TextNode Percent)> _rows = [];
+  private readonly ScrollingNode<VerticalListNode> _scroll;
+  private readonly List<(HorizontalListNode Container, TextNode Name, TextNode Level, TextNode Exp, TextNode Percent)> _rows = [];
+
+  /// <summary>Unlocked-job count last time the scroll range was measured.</summary>
+  private int _lastRowCount = -1;
 
   public ProgressionPanelNode()
   {
@@ -73,18 +76,23 @@ public class ProgressionPanelNode : TabPanelNode
     };
     _copyFeedback.AttachNode(this);
 
-    _list = new VerticalListNode { ItemSpacing = 2.0f, IsVisible = true };
-    _list.AttachNode(this);
+    // ContentNode properties are set before Size, as ScrollingNode requires.
+    _scroll = new ScrollingNode<VerticalListNode> { IsVisible = true, AutoHideScrollBar = true };
+    _scroll.ContentNode.ItemSpacing = 2.0f;
+    _scroll.ContentNode.FitContents = true;
+    _scroll.AttachNode(this);
 
-    _list.AddNode(BuildRow("Job", "Lv", "Experience", "%", header: true).Container);
+    _scroll.ContentNode.AddNode(BuildRow("Job", "Lv", "Experience", "%", header: true).Container);
 
     for (int i = 0; i < MaxRows; i++)
     {
       (HorizontalListNode container, TextNode name, TextNode level, TextNode exp, TextNode percent) =
         BuildRow("", "", "", "");
-      _list.AddNode(container);
-      _rows.Add((name, level, exp, percent));
+      _scroll.ContentNode.AddNode(container);
+      _rows.Add((container, name, level, exp, percent));
     }
+
+    _scroll.ScrollToStart();
   }
 
   public override void Refresh()
@@ -107,16 +115,16 @@ public class ProgressionPanelNode : TabPanelNode
 
     for (int i = 0; i < _rows.Count; i++)
     {
-      (TextNode name, TextNode level, TextNode exp, TextNode percent) = _rows[i];
+      (HorizontalListNode container, TextNode name, TextNode level, TextNode exp, TextNode percent) = _rows[i];
 
       if (i >= unlocked.Count)
       {
-        name.IsVisible = level.IsVisible = exp.IsVisible = percent.IsVisible = false;
+        container.IsVisible = name.IsVisible = level.IsVisible = exp.IsVisible = percent.IsVisible = false;
         continue;
       }
 
       ClassJobProgress job = unlocked[i];
-      name.IsVisible = level.IsVisible = exp.IsVisible = percent.IsVisible = true;
+      container.IsVisible = name.IsVisible = level.IsVisible = exp.IsVisible = percent.IsVisible = true;
 
       bool isLowest = lowestByRole.TryGetValue(job.Role, out float lowest)
                       && Math.Abs(Effective(job) - lowest) < 0.0005f;
@@ -129,6 +137,15 @@ public class ProgressionPanelNode : TabPanelNode
       level.String = job.Level.ToString();
       exp.String = job.IsMaxLevel ? "Max level" : $"{job.Experience:N0} / {job.ExperienceToNext:N0}";
       percent.String = job.IsMaxLevel ? "—" : $"{job.Fraction:P1}";
+    }
+
+    // Guarded on the count, since Refresh runs every frame and re-measuring
+    // walks the whole pool. The scroll range only becomes wrong when the
+    // number of unlocked jobs changes.
+    if (unlocked.Count != _lastRowCount)
+    {
+      _lastRowCount = unlocked.Count;
+      _scroll.RecalculateSizes();
     }
   }
 
@@ -187,8 +204,8 @@ public class ProgressionPanelNode : TabPanelNode
     _copyFeedback.Size = new Vector2(Width, 18.0f);
     _copyFeedback.Position = new Vector2(0.0f, buttonsY - 20.0f);
 
-    _list.Size = new Vector2(Width, buttonsY - 24.0f);
-    _list.Position = new Vector2(0.0f, 0.0f);
+    _scroll.Size = new Vector2(Width, buttonsY - 24.0f);
+    _scroll.Position = new Vector2(0.0f, 0.0f);
   }
 
   private static (HorizontalListNode Container, TextNode Name, TextNode Level, TextNode Exp, TextNode Percent)
