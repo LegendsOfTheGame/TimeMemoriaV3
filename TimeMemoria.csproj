@@ -55,6 +55,17 @@
     <Content Remove="lib/**" />
   </ItemGroup>
 
+  <!-- tools/SheetProbe is its own project. The default glob only excludes this
+       project's own obj/bin, not a nested project's, so once SheetProbe has
+       been built its generated AssemblyInfo.cs gets swept into this assembly
+       too and collides with TimeMemoria's own. -->
+  <ItemGroup>
+    <Compile Remove="tools/**" />
+    <None Remove="tools/**" />
+    <EmbeddedResource Remove="tools/**" />
+    <Content Remove="tools/**" />
+  </ItemGroup>
+
   <!-- Native FFXIV UI. Consumed as a submodule because it is not published as a
        package. After cloning, initialise submodules before building. -->
   <ItemGroup>
