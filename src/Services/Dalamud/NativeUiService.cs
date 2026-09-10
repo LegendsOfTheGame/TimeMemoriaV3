@@ -21,7 +21,7 @@ public interface INativeUiService : IAsyncDisposable
   void SwapToMain();
 
   /// <summary>Opens the window (if closed) to the Quests tab, showing every incomplete quest in one expansion.</summary>
-  void ShowUnfinished(string title, List<Types.Quest> quests);
+  void ShowUnfinished(string title, List<Types.Quest> quests, string emptyMessage);
 
   /// <summary>False until <see cref="Create"/> has run.</summary>
   bool IsReady { get; }
@@ -190,7 +190,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     _window.Open();
   }
 
-  public void ShowUnfinished(string title, List<Types.Quest> quests)
+  public void ShowUnfinished(string title, List<Types.Quest> quests, string emptyMessage)
   {
     if (_window is null)
     {
@@ -208,11 +208,11 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       // selection (see TextInputNode.OnInputFocusStarted) and waits a tick for
       // the same reason. Selecting the bundle immediately here would land on
       // whatever OnSetup's own default tab is instead.
-      _framework.RunOnTick(() => _window.ShowUnfinished(title, quests), delayTicks: 1);
+      _framework.RunOnTick(() => _window.ShowUnfinished(title, quests, emptyMessage), delayTicks: 1);
       return;
     }
 
-    _window.ShowUnfinished(title, quests);
+    _window.ShowUnfinished(title, quests, emptyMessage);
   }
 
   public void ToggleCompanion()

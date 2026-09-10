@@ -150,7 +150,17 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         if (ExpansionArgs.TryGetValue(args[0], out (uint Id, string Name) expansion))
         {
           List<Types.Quest> quests = _dataService.IncompleteByExpansion(expansion.Id);
-          _nativeUi.ShowUnfinished($"Unfinished  ({quests.Count})  —  {expansion.Name}", quests);
+
+          // Zero means two different things: every quest is done, or the sheets
+          // don't have the expansion's quests yet (Evercold, today). Whether the
+          // expansion node exists at all is what tells those apart — not the id,
+          // so this reads correctly for whatever ships after Evercold too.
+          bool released = _dataService.QuestData.Categories.Any((e) => e.SortKey == expansion.Id);
+          string emptyMessage = released
+            ? $"Congratulations — every quest in {expansion.Name} is complete."
+            : $"{expansion.Name} hasn't released yet.";
+
+          _nativeUi.ShowUnfinished($"Unfinished  ({quests.Count})  —  {expansion.Name}", quests, emptyMessage);
           break;
         }
 

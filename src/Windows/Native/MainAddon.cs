@@ -55,7 +55,7 @@ public unsafe class MainAddon : NativeAddon
   /// landing on Overview instead. Held here and applied once <see cref="OnSetup"/>
   /// actually runs.
   /// </summary>
-  private (string Title, List<Types.Quest> Quests)? _pendingUnfinished;
+  private (string Title, List<Types.Quest> Quests, string EmptyMessage)? _pendingUnfinished;
 
   protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan)
   {
@@ -128,7 +128,7 @@ public unsafe class MainAddon : NativeAddon
     if (_pendingUnfinished is { } pending)
     {
       _pendingUnfinished = null;
-      ShowUnfinished(pending.Title, pending.Quests);
+      ShowUnfinished(pending.Title, pending.Quests, pending.EmptyMessage);
     }
     else
     {
@@ -156,16 +156,16 @@ public unsafe class MainAddon : NativeAddon
   /// just opened this same call — the request is queued and applied from
   /// <see cref="OnSetup"/> instead of being dropped.
   /// </summary>
-  public void ShowUnfinished(string title, List<Types.Quest> quests)
+  public void ShowUnfinished(string title, List<Types.Quest> quests, string emptyMessage)
   {
     if (_questsPanel is null)
     {
-      _pendingUnfinished = (title, quests);
+      _pendingUnfinished = (title, quests, emptyMessage);
       return;
     }
 
     Show(_questsPanel);
-    _questsPanel.SelectBundle(title, quests);
+    _questsPanel.SelectBundle(title, quests, emptyMessage);
     _tabs?.SelectTab("Quests");
   }
 

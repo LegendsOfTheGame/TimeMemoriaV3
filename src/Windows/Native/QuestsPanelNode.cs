@@ -40,6 +40,15 @@ public class QuestsPanelNode : TabPanelNode
   private QuestData? _selected;
 
   /// <summary>
+  /// Shown in place of the list when a <see cref="SelectBundle"/> bundle comes
+  /// up empty — only ever set by <see cref="SelectBundle"/> and cleared by
+  /// <see cref="OnSectionSelected"/>, so ordinary tree browsing (including the
+  /// "Recommended" bundles, which are empty-by-filter on purpose under Done)
+  /// never picks up a stray message.
+  /// </summary>
+  private string? _emptyMessage;
+
+  /// <summary>
   /// The job-quest and levequest settings the tree was last built against, so a
   /// change to either can be noticed.
   ///
@@ -155,6 +164,7 @@ public class QuestsPanelNode : TabPanelNode
   private void OnSectionSelected(QuestData? node)
   {
     _selected = node;
+    _emptyMessage = null;
     ShowQuests();
   }
 
@@ -163,13 +173,15 @@ public class QuestsPanelNode : TabPanelNode
   /// used by the <c>/tm &lt;expansion&gt;</c> commands, which name a whole
   /// expansion's unfinished quests rather than a category someone clicked to.
   /// Reuses the same bundle/list plumbing "Oldest unfinished" does, so the
-  /// rows render identically.
+  /// rows render identically. <paramref name="emptyMessage"/> is what shows in
+  /// place of the list if the bundle turns out to hold nothing.
   /// </summary>
-  public void SelectBundle(string title, List<Types.Quest> quests)
+  public void SelectBundle(string title, List<Types.Quest> quests, string emptyMessage)
   {
     _query = string.Empty;
     _search.String = string.Empty;
     _selected = Bundle(title, quests);
+    _emptyMessage = emptyMessage;
     ShowQuests();
   }
 
@@ -215,6 +227,7 @@ public class QuestsPanelNode : TabPanelNode
   private void ShowQuests()
   {
     List<Types.Quest> quests = [];
+    bool showEmptyMessage = false;
 
     if (_query.Length > 0)
     {
@@ -227,11 +240,17 @@ public class QuestsPanelNode : TabPanelNode
       _heading.String = _selected.Total > 0
         ? $"{_selected.Title}   {(int)_selected.NumComplete}/{(int)_selected.Total}"
         : _selected.Title;
+      showEmptyMessage = _emptyMessage is not null;
     }
     else
     {
       _heading.String = "Select a section on the left.";
     }
+
+    // Set before OptionsList, which is what actually decides the placeholder's
+    // visibility off the values in place at the moment it is assigned.
+    _list.ShowNoResultsPlaceholder = showEmptyMessage;
+    if (showEmptyMessage) _list.NoResultsTextNode.String = _emptyMessage!;
 
     _list.OptionsList = quests;
     _list.ResetScroll();
