@@ -3,7 +3,7 @@
 Facts the game's own files do not carry. Everything here is shipped beside the
 assembly and read at runtime, except where a section says otherwise.
 
-## `toc.json` — 561 entries — **read by `TocService`**
+## `toc.json` — 566 entries — **read by `TocService`**
 
 Per-patch Main Scenario gates: the `Start` and `Final` quest ids for each patch,
 plus `{Chain}Start` / `{Chain}Final` entries for the Chronicles of a New Era
@@ -32,9 +32,10 @@ closing quest, which is a useful cross-check — "Post-Dawntrail Main Scenario
 Quests II" has 14 quests and ends on *Into the Mist*, matching genre 15 exactly.
 
 Patches use the collapsed `x.y` form, so an `x.yz` patch extends the `x.y` row
-rather than gaining one of its own. **7.56 is expected to continue *Trail to the
-Heavens* — when it ships, move 7.5's `Final` to that arc's last quest instead of
-adding a `7.56` entry.**
+rather than gaining one of its own. **7.56 did continue *Trail to the Heavens*** —
+its `Final` now points to *Windborne* (id `71014`), the last of four quests
+("Winter's Prelude Quests") added after it, confirmed against the client's own
+`Quest` sheet via `tools/SheetProbe` on 8 Sep 2026.
 
 ## `festival-names.json` — 129 entries — **read by `FestivalService`**
 
@@ -80,7 +81,7 @@ the client instead is the reason it is visible now.
 Refresh by re-running `tools/Convert-FestivalNames.py` against a fresh copy of
 the upstream CSV.
 
-## `quest-patches.json` — 5,326 ids — **read by `QuestPatchService`**
+## `quest-patches.json` — 5,343 ids — **read by `QuestPatchService`**
 
 Quest id to the patch that introduced it:
 
