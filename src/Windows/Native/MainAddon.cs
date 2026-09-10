@@ -43,6 +43,19 @@ public unsafe class MainAddon : NativeAddon
   private readonly List<TabPanelNode> _panels = [];
   private TabPanelNode? _active;
   private TextureButtonNode? _swapButton;
+  private QuestsPanelNode? _questsPanel;
+  private TabBarNode? _tabs;
+
+  /// <summary>
+  /// A bundle asked for before the addon finished allocating. Native addon
+  /// creation is not synchronous with <see cref="KamiToolKit.BaseTypes.NativeAddon.Open"/>
+  /// — the actual <see cref="OnSetup"/> callback lands on a later frame — so a
+  /// caller opening a closed window and asking for a bundle in the same breath
+  /// would otherwise race <see cref="OnSetup"/>'s own default tab and lose,
+  /// landing on Overview instead. Held here and applied once <see cref="OnSetup"/>
+  /// actually runs.
+  /// </summary>
+  private (string Title, List<Types.Quest> Quests)? _pendingUnfinished;
 
   protected override void OnSetup(AtkUnitBase* addon, Span<AtkValue> atkValueSpan)
   {
@@ -71,6 +84,8 @@ public unsafe class MainAddon : NativeAddon
     HelpPanelNode help = new();
     CreditsPanelNode credits = new();
 
+    _questsPanel = quests;
+
     TabPanelNode[] panels = [overview, quests, news, bonuses, progression, settings, help, credits];
 
     TabBarNode tabs = new()
@@ -91,6 +106,7 @@ public unsafe class MainAddon : NativeAddon
       ]
     };
 
+    _tabs = tabs;
     AddNode(tabs);
 
     _swapButton = TitleBarButton.Gear(WindowNode, Size.X, "At-a-glance window (/tmmini)", () => OnSwapRequested());
@@ -107,8 +123,17 @@ public unsafe class MainAddon : NativeAddon
     }
 
     // The tab bar starts on its first entry without raising a click, so the
-    // matching panel has to be shown here or the window opens blank.
-    Show(overview);
+    // matching panel has to be shown here or the window opens blank — unless
+    // something asked for a bundle before setup finished, which wins instead.
+    if (_pendingUnfinished is { } pending)
+    {
+      _pendingUnfinished = null;
+      ShowUnfinished(pending.Title, pending.Quests);
+    }
+    else
+    {
+      Show(overview);
+    }
   }
 
   /// <summary>
@@ -123,6 +148,25 @@ public unsafe class MainAddon : NativeAddon
 
     panel.OnShown();
     panel.Refresh();
+  }
+
+  /// <summary>
+  /// Switches to the Quests tab already showing one synthetic bundle, for
+  /// <c>/tm &lt;expansion&gt;</c>. If setup has not run yet — the window was
+  /// just opened this same call — the request is queued and applied from
+  /// <see cref="OnSetup"/> instead of being dropped.
+  /// </summary>
+  public void ShowUnfinished(string title, List<Types.Quest> quests)
+  {
+    if (_questsPanel is null)
+    {
+      _pendingUnfinished = (title, quests);
+      return;
+    }
+
+    Show(_questsPanel);
+    _questsPanel.SelectBundle(title, quests);
+    _tabs?.SelectTab("Quests");
   }
 
   /// <summary>

@@ -20,6 +20,9 @@ public interface INativeUiService : IAsyncDisposable
   /// <summary>Closes the at-a-glance window and opens the full one in its place.</summary>
   void SwapToMain();
 
+  /// <summary>Opens the window (if closed) to the Quests tab, showing every incomplete quest in one expansion.</summary>
+  void ShowUnfinished(string title, List<Types.Quest> quests);
+
   /// <summary>False until <see cref="Create"/> has run.</summary>
   bool IsReady { get; }
 }
@@ -42,7 +45,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   Configuration _configuration, IQuestPatchService _questPatch, IPlaytimeService _playtime, IPacingService _pacing,
   IQuestSnapshotService _snapshot, IFestivalService _festivals, INewsService _news, IPlayerState _playerState,
   ILedgerExportService _ledgerExport, IAchievementService _achievements, IAlliedSocietyService _societies,
-  IFoodService _food, IQuestMapService _questMap)
+  IFoodService _food, IQuestMapService _questMap, IFramework _framework)
   : INativeUiService
 {
   private MainAddon? _window;
@@ -185,6 +188,31 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
 
     ApplyConfiguredSize();
     _window.Open();
+  }
+
+  public void ShowUnfinished(string title, List<Types.Quest> quests)
+  {
+    if (_window is null)
+    {
+      _logger.Error("[NativeUi] ShowUnfinished called before the window was created.");
+      return;
+    }
+
+    if (!_window.IsOpen)
+    {
+      ApplyConfiguredSize();
+      _window.Open();
+
+      // A freshly allocated native addon does not finish settling within this
+      // same call — KamiToolKit hits the same gap opening a text input's
+      // selection (see TextInputNode.OnInputFocusStarted) and waits a tick for
+      // the same reason. Selecting the bundle immediately here would land on
+      // whatever OnSetup's own default tab is instead.
+      _framework.RunOnTick(() => _window.ShowUnfinished(title, quests), delayTicks: 1);
+      return;
+    }
+
+    _window.ShowUnfinished(title, quests);
   }
 
   public void ToggleCompanion()

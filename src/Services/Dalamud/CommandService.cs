@@ -20,6 +20,30 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
   private const string MainAlias = "/tm";
   private const string GlanceCommand = "/tmmini";
 
+  /// <summary>
+  /// Both "sb" and "stb" resolve to Stormblood: which one a player reaches for
+  /// depends on when they started — pre-Shadowbringers players call it SB,
+  /// anyone who started at Shadowbringers or later calls it StB. Case
+  /// insensitive, since these are typed shorthand rather than the exact-case
+  /// literal keywords the rest of the command uses.
+  /// </summary>
+  private static readonly Dictionary<string, (uint Id, string Name)> ExpansionArgs =
+    new(StringComparer.OrdinalIgnoreCase)
+    {
+      ["arr"] = (0, "A Realm Reborn"),
+      ["hw"] = (1, "Heavensward"),
+      ["sb"] = (2, "Stormblood"),
+      ["stb"] = (2, "Stormblood"),
+      ["shb"] = (3, "Shadowbringers"),
+      ["ew"] = (4, "Endwalker"),
+      ["dt"] = (5, "Dawntrail"),
+
+      // Not released yet (due January 2027) — nothing under expansion id 6 will
+      // match anything until then, so this just sits ready rather than needing
+      // a same-day patch when it ships.
+      ["ec"] = (6, "Evercold")
+    };
+
   public Task StartAsync(CancellationToken cancellationToken)
   {
     _commandManager.AddHandler(MainCommand, new CommandInfo(OnCommand)
@@ -96,6 +120,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _logger.Chat($"  {MainCommand} native — the game-styled window, whatever is chosen");
         _logger.Chat($"  {MainCommand} ledger — copy your progress to the clipboard");
         _logger.Chat($"  {MainCommand} reset — reset the quest tree");
+        _logger.Chat($"  {MainCommand} arr | hw | sb/stb | shb | ew | dt | ec — open every unfinished quest in that expansion (Native UI)");
         _logger.Chat($"  {GlanceCommand} — open the at-a-glance window");
         break;
 
@@ -122,6 +147,13 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         break;
 
       default:
+        if (ExpansionArgs.TryGetValue(args[0], out (uint Id, string Name) expansion))
+        {
+          List<Types.Quest> quests = _dataService.IncompleteByExpansion(expansion.Id);
+          _nativeUi.ShowUnfinished($"Unfinished  ({quests.Count})  —  {expansion.Name}", quests);
+          break;
+        }
+
         _logger.Chat("Invalid command:");
         _logger.Chat($"  {command} {arguments}");
         goto case "help";

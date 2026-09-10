@@ -158,6 +158,21 @@ public class QuestsPanelNode : TabPanelNode
     ShowQuests();
   }
 
+  /// <summary>
+  /// Jumps straight to a synthetic bundle without going through the tree —
+  /// used by the <c>/tm &lt;expansion&gt;</c> commands, which name a whole
+  /// expansion's unfinished quests rather than a category someone clicked to.
+  /// Reuses the same bundle/list plumbing "Oldest unfinished" does, so the
+  /// rows render identically.
+  /// </summary>
+  public void SelectBundle(string title, List<Types.Quest> quests)
+  {
+    _query = string.Empty;
+    _search.String = string.Empty;
+    _selected = Bundle(title, quests);
+    ShowQuests();
+  }
+
   private void SetFilter(CompletionFilter filter)
   {
     _filter = filter;

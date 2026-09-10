@@ -33,6 +33,15 @@ public interface IDataService : IHostedService
   /// second walk on demand. Naming what is actually cached is the honest shape.
   /// </summary>
   IReadOnlyList<OldestQuest> OldestIncomplete { get; }
+
+  /// <summary>
+  /// Every incomplete quest under one expansion (0 = A Realm Reborn, matching
+  /// <see cref="Types.Quest.ExpansionId"/>), unfiltered — no job-quest or
+  /// levequest exclusion, since "all of it" is the point of asking. Walks the
+  /// same <see cref="QuestData"/> tree the panels already read, so it can
+  /// never disagree with what the category breakdown shows.
+  /// </summary>
+  List<Types.Quest> IncompleteByExpansion(uint expansionId);
 }
 
 public class DataService(ILogger _logger, Configuration _configuration, IDataManager _dataManager, IClientState _clientState, IQuestPatchService _questPatch, IFestivalService _festivals) : IDataService
@@ -653,6 +662,33 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   private readonly List<OldestQuest> _oldest = [];
 
   public IReadOnlyList<OldestQuest> OldestIncomplete => _oldest;
+
+  public List<Types.Quest> IncompleteByExpansion(uint expansionId)
+  {
+    List<Types.Quest> result = [];
+
+    QuestData? expansion = QuestData.Categories.FirstOrDefault((e) => e.SortKey == expansionId);
+    if (expansion is not null) Collect(expansion);
+
+    // Oldest first, the same tiebreak "Oldest unfinished" uses — patch order is
+    // what "oldest" means here, and level only decides ties within a patch.
+    result.Sort((a, b) =>
+    {
+      int byPatch = PatchOf(a).CompareTo(PatchOf(b));
+      return byPatch != 0 ? byPatch : a.Level.CompareTo(b.Level);
+    });
+
+    return result;
+
+    void Collect(QuestData node)
+    {
+      foreach (Types.Quest quest in node.Quests)
+        if (!IsQuestComplete(quest)) result.Add(quest);
+
+      foreach (QuestData category in node.Categories)
+        Collect(category);
+    }
+  }
 
   private void RebuildOldestIncomplete()
   {
