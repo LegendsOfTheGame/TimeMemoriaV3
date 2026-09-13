@@ -44,9 +44,14 @@ public class CategoryTreeItemNode : TreeListItemNode<QuestData>, ITreeListItemNo
     bool finished = itemData.Total > 0 && itemData.NumComplete >= itemData.Total;
     NameNode.TextColor = finished ? Complete : Normal;
 
+    // Blank rather than an em dash where there is no percentage to show. The dash
+    // was meant to read as "not applicable", but the only rows without a total are
+    // the synthetic bundles — Oldest unfinished, Job Quests — where a reader is not
+    // wondering about a missing figure in the first place. It just added a column of
+    // marks down a panel whose other rows all carry real numbers.
     PercentNode.String = itemData.Total > 0
       ? $"{itemData.NumComplete / itemData.Total:P0}"
-      : "—";
+      : "";
   }
 
   protected override void OnSizeChanged()

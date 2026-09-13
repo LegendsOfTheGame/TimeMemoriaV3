@@ -44,6 +44,22 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
       ["ec"] = (6, "Evercold")
     };
 
+  /// <summary>
+  /// The short keyword for an expansion, so the All Unfinished rows can print the
+  /// command they stand for and teach it by being clicked.
+  ///
+  /// Derived from the table above rather than listed again: a second copy would
+  /// drift, and a row advertising a command that no longer works is worse than a
+  /// row with no command on it. Shortest wins where an expansion has aliases, so
+  /// Stormblood shows "sb" and not "stb".
+  /// </summary>
+  public static string? KeywordFor(uint expansionId)
+    => ExpansionArgs
+      .Where((pair) => pair.Value.Id == expansionId)
+      .OrderBy((pair) => pair.Key.Length)
+      .Select((pair) => pair.Key)
+      .FirstOrDefault();
+
   public Task StartAsync(CancellationToken cancellationToken)
   {
     _commandManager.AddHandler(MainCommand, new CommandInfo(OnCommand)

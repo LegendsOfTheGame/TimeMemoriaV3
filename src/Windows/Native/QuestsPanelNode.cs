@@ -266,6 +266,15 @@ public class QuestsPanelNode : TabPanelNode
 
     if (BuildRecommended() is { } recommended) sections.Add(recommended);
 
+    // Above the expansions, not below them. The first draft put it under
+    // Dawntrail on the reasoning that a shortcut through the tree should sit
+    // after the tree — which ignored that the tree arrives fully expanded.
+    // KamiToolKit collapses only what the player has collapsed, and that state
+    // is private to the node, so a section below six open expansions is a long
+    // scroll away from a window that just opened. It belongs beside Recommended
+    // anyway: both are shortcuts, and neither is somewhere you browse to.
+    if (BuildAllUnfinished() is { } allUnfinished) sections.Add(allUnfinished);
+
     foreach (QuestData expansion in DataService.QuestData.Categories)
     {
       if (expansion.Hide) continue;
@@ -291,6 +300,63 @@ public class QuestsPanelNode : TabPanelNode
     }
 
     return sections;
+  }
+
+  /// <summary>
+  /// One bundle per expansion holding everything still outstanding in it — the
+  /// same answer <c>/tm arr</c> gives, in the window people already have open.
+  ///
+  /// That is the whole point of it. The command has existed since 3.6 and is
+  /// listed in the help text, which is where features go to be never found: a
+  /// thing reachable only by someone who reads documentation is, for most
+  /// players, a thing that does not exist. The rows are labelled with the
+  /// expansion so clicking one teaches that <c>/tm hw</c> is there.
+  ///
+  /// It sits below the expansions rather than above because it is a shortcut
+  /// through the tree, not a replacement for it — someone browsing Heavensward
+  /// should meet Heavensward first. Under the Done filter it is withheld for the
+  /// same reason Recommended is: every branch would open onto an empty pane.
+  ///
+  /// Built from the expansions the quest data actually holds, so one that has
+  /// not shipped contributes no row, and a new one appears on release day
+  /// without a patch.
+  /// </summary>
+  private TreeListSection<QuestData>? BuildAllUnfinished()
+  {
+    if (_filter == CompletionFilter.Complete) return null;
+
+    TreeListSection<QuestData> section = new() { Header = "All Unfinished" };
+
+    foreach (QuestData expansion in DataService.QuestData.Categories)
+    {
+      if (expansion.Hide) continue;
+
+      // The shared quest instances, as Recommended uses — not clones. Nothing
+      // here retitles a quest, so there is nothing to protect against.
+      List<Types.Quest> quests = DataService.IncompleteByExpansion(expansion.SortKey);
+
+      if (quests.Count == 0) continue;
+
+      // The command sits in the label so that using the row teaches the command
+      // exists.
+      string keyword = Services.CommandService.KeywordFor(expansion.SortKey) is { } key
+        ? $"  (/tm {key})"
+        : "";
+
+      // The percentage is not part of the title. CategoryTreeItemNode draws it
+      // itself, right-aligned in its own column, from NumComplete and Total —
+      // so a bundle that leaves those at zero renders an em dash there and prints
+      // its figures inline instead, which is the row disagreeing with every other
+      // row in the tree. Carrying the expansion's own numbers puts the percentage
+      // in the column the rest of the panel uses.
+      QuestData bundle = Bundle($"{expansion.Title}{keyword}   {(int)expansion.NumComplete}/{(int)expansion.Total}", quests);
+      bundle.NumComplete = expansion.NumComplete;
+      bundle.Total = expansion.Total;
+
+      section.Entries.Add(bundle);
+    }
+
+    return section.Entries.Count > 0 ? section : null;
   }
 
   protected override void OnSizeChanged()
@@ -588,10 +654,15 @@ public class QuestsPanelNode : TabPanelNode
     return total;
   }
 
-  private static string Label(QuestData node)
+  /// <summary>
+  /// A branch's label: name, progress, percentage. <paramref name="suffix"/> rides
+  /// between the name and the figures, so the All Unfinished rows can carry their
+  /// command without printing their numbers in a second format.
+  /// </summary>
+  private static string Label(QuestData node, string suffix = "")
     => node.Total > 0
-      ? $"{node.Title}   {(int)node.NumComplete}/{(int)node.Total}   {node.NumComplete / node.Total:P0}"
-      : node.Title;
+      ? $"{node.Title}{suffix}   {(int)node.NumComplete}/{(int)node.Total}   {node.NumComplete / node.Total:P0}"
+      : $"{node.Title}{suffix}";
 
   private bool Include(Types.Quest quest)
   {
