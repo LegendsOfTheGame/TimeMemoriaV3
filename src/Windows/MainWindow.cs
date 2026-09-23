@@ -947,6 +947,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private const string RepoUrl = "https://github.com/LegendsOfTheGame/TimeMemoriaV3";
   private const string IssuesUrl = RepoUrl + "/issues";
+  private const string KofiUrl = "https://ko-fi.com/legendsofthegame";
 
   /// <summary>Where the ledger export is meant to be pasted.</summary>
   private const string LedgerUrl = "https://legendsofthegame.github.io/pandora-lunar/";
@@ -1120,6 +1121,13 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
     if (ImGui.Button("Open the repository")) Dalamud.Utility.Util.OpenLink(RepoUrl);
     DrawUrlTooltip(RepoUrl);
+
+    // Sits under the repository button, not in a banner: it is offered, never
+    // asked for, and nothing in the plugin changes for people who do not use it.
+    ImGui.Spacing();
+    ImGui.TextDisabled("  Free, and staying free. Support is optional.");
+    if (ImGui.Button("Support on Ko-fi")) Dalamud.Utility.Util.OpenLink(KofiUrl);
+    DrawUrlTooltip(KofiUrl);
 
     ImGui.Spacing();
     ImGui.Spacing();
@@ -1566,7 +1574,7 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.Spacing();
 
     DrawLabelled("Commendations:", _playerState.PlayerCommendations.ToString());
-    DrawLabelled("Custom Deliveries:", $"rank {_playerState.DeliveryLevel}");
+    DrawLabelled("Delivery Moogle:", $"carrier level {_playerState.DeliveryLevel}");
 
     List<string> standing = [];
     if (_playerState.IsBattleMentor) standing.Add("Battle Mentor");

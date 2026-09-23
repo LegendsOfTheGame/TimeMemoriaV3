@@ -113,7 +113,7 @@ public class NewsPanelNode : TabPanelNode
     if (PlayerState.IsLoaded)
     {
       Set(ref row, "Commendations", PlayerState.PlayerCommendations.ToString());
-      Set(ref row, "Custom Deliveries", $"rank {PlayerState.DeliveryLevel}");
+      Set(ref row, "Delivery Moogle", $"carrier level {PlayerState.DeliveryLevel}");
 
       List<string> standing = [];
       if (PlayerState.IsBattleMentor) standing.Add("Battle Mentor");

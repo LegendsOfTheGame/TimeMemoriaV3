@@ -22,7 +22,7 @@ public class OverviewPanelNode : TabPanelNode
   /// Fixed pool rather than one derived from live data, which would be zero if
   /// this were built before a character loaded.
   /// </summary>
-  private const int MaxRows = 28;
+  private const int MaxRows = 32;
 
   private static readonly Vector4 Heading = new(0.6f, 0.8f, 1.0f, 1.0f);
   private static readonly Vector4 Normal = new(1.0f, 1.0f, 1.0f, 1.0f);
@@ -31,13 +31,21 @@ public class OverviewPanelNode : TabPanelNode
   public required IDataService DataService { get; init; }
   public required IAchievementService Achievements { get; init; }
 
-  private readonly VerticalListNode _list;
-  private readonly List<(TextNode Label, TextNode Count, TextNode Percent)> _rows = [];
+  // Scrolls because the rows outgrew the window: with every category and the
+  // achievements line showing, the last rows were cut off at the bottom edge.
+  private readonly ScrollingNode<VerticalListNode> _scroll;
+  private readonly List<(HorizontalListNode Container, TextNode Label, TextNode Count, TextNode Percent)> _rows = [];
+
+  /// <summary>Rows in use last time the scroll range was measured.</summary>
+  private int _lastRowCount = -1;
 
   public OverviewPanelNode()
   {
-    _list = new VerticalListNode { ItemSpacing = 1.0f, IsVisible = true };
-    _list.AttachNode(this);
+    // ContentNode properties are set before Size, as ScrollingNode requires.
+    _scroll = new ScrollingNode<VerticalListNode> { IsVisible = true, AutoHideScrollBar = true };
+    _scroll.ContentNode.ItemSpacing = 1.0f;
+    _scroll.ContentNode.FitContents = true;
+    _scroll.AttachNode(this);
 
     for (int i = 0; i < MaxRows; i++)
     {
@@ -55,9 +63,11 @@ public class OverviewPanelNode : TabPanelNode
       container.AddNode(count);
       container.AddNode(percent);
 
-      _list.AddNode(container);
-      _rows.Add((label, count, percent));
+      _scroll.ContentNode.AddNode(container);
+      _rows.Add((container, label, count, percent));
     }
+
+    _scroll.ScrollToStart();
   }
 
   public override void Refresh()
@@ -95,10 +105,25 @@ public class OverviewPanelNode : TabPanelNode
       SetRow(ref row, "Overall", totals.Complete, totals.Total);
     }
 
+    // One empty row after the last item, so it does not sit on the border.
+    SetHeading(ref row, "");
+    int used = row;
+
+    // The container is hidden with its text: a hidden label in a visible
+    // container still claims its height, and the scroll range would then
+    // describe every pooled row rather than the ones in use.
     for (; row < _rows.Count; row++)
     {
-      (TextNode label, TextNode count, TextNode percent) = _rows[row];
-      label.IsVisible = count.IsVisible = percent.IsVisible = false;
+      (HorizontalListNode container, TextNode label, TextNode count, TextNode percent) = _rows[row];
+      container.IsVisible = label.IsVisible = count.IsVisible = percent.IsVisible = false;
+    }
+
+    // Guarded on the count, since Refresh runs every frame and re-measuring
+    // walks the whole pool.
+    if (used != _lastRowCount)
+    {
+      _lastRowCount = used;
+      _scroll.RecalculateSizes();
     }
   }
 
@@ -106,9 +131,9 @@ public class OverviewPanelNode : TabPanelNode
   {
     if (row >= _rows.Count) return;
 
-    (TextNode label, TextNode count, TextNode percent) = _rows[row++];
+    (HorizontalListNode container, TextNode label, TextNode count, TextNode percent) = _rows[row++];
 
-    label.IsVisible = true;
+    container.IsVisible = label.IsVisible = true;
     label.String = text;
     label.TextColor = Heading;
 
@@ -119,9 +144,9 @@ public class OverviewPanelNode : TabPanelNode
   {
     if (row >= _rows.Count) return;
 
-    (TextNode label, TextNode count, TextNode percent) = _rows[row++];
+    (HorizontalListNode container, TextNode label, TextNode count, TextNode percent) = _rows[row++];
 
-    label.IsVisible = count.IsVisible = percent.IsVisible = true;
+    container.IsVisible = label.IsVisible = count.IsVisible = percent.IsVisible = true;
 
     label.String = name;
     count.String = $"{complete}/{total}";
@@ -135,8 +160,9 @@ public class OverviewPanelNode : TabPanelNode
   {
     base.OnSizeChanged();
 
-    _list.Size = new Vector2(Width, Height);
-    _list.Position = new Vector2(0.0f, 0.0f);
+    _scroll.Size = new Vector2(Width, Height);
+    _scroll.Position = new Vector2(0.0f, 0.0f);
+    _scroll.RecalculateSizes();
   }
 
   private static TextNode MakeText(float width, AlignmentType alignment) => new()

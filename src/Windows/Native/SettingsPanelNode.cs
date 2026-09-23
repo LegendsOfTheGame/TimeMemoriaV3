@@ -20,7 +20,7 @@ public class SettingsPanelNode : TabPanelNode
   public required Configuration Config { get; init; }
   public required IDataService DataService { get; init; }
 
-  private readonly VerticalListNode _list;
+  private readonly ScrollingNode<VerticalListNode> _scroll;
   private readonly StringDropDownNode _display;
   private readonly CheckboxNode _showCount;
   private readonly CheckboxNode _showPercentage;
@@ -33,6 +33,9 @@ public class SettingsPanelNode : TabPanelNode
   private readonly CheckboxNode _freeTrial;
   private readonly CheckboxNode _useNative;
   private readonly TextNode _resizeHint;
+  private readonly TextButtonNode _kofi;
+
+  private const string KofiUrl = "https://ko-fi.com/legendsofthegame";
 
   public SettingsPanelNode()
   {
@@ -44,9 +47,8 @@ public class SettingsPanelNode : TabPanelNode
     // user input, never synchronously during construction, so every callback
     // fires long after the required properties are set.
 #pragma warning disable CS8602
-    _list = new VerticalListNode { ItemSpacing = 6.0f, IsVisible = true };
-    _list.AttachNode(this);
-
+    // The dropdown sits above the scroll, not inside it: the scroll clips its
+    // content, and an open option list would be cut off at the scroll's edge.
     _display = new StringDropDownNode
     {
       Size = new Vector2(220.0f, RowHeight),
@@ -61,7 +63,14 @@ public class SettingsPanelNode : TabPanelNode
       }
     };
 
-    _list.AddNode(_display);
+    _display.AttachNode(this);
+
+    // The list outgrew the window once the Ko-fi button joined it. ContentNode
+    // properties are set before Size, as ScrollingNode requires.
+    _scroll = new ScrollingNode<VerticalListNode> { IsVisible = true, AutoHideScrollBar = true };
+    _scroll.ContentNode.ItemSpacing = 6.0f;
+    _scroll.ContentNode.FitContents = true;
+    _scroll.AttachNode(this);
 
     _showCount = AddCheckbox("Show count", (value) => { Config.ShowCount = value; Config.Save(); });
     _showPercentage = AddCheckbox("Show percentage", (value) => { Config.ShowPercentage = value; Config.Save(); });
@@ -122,7 +131,19 @@ public class SettingsPanelNode : TabPanelNode
       IsVisible = true
     };
 
-    _list.AddNode(_resizeHint);
+    _scroll.ContentNode.AddNode(_resizeHint);
+
+    // Last in the list, below every real setting: it is offered, never asked
+    // for, and opens the default browser only when clicked.
+    _kofi = new TextButtonNode
+    {
+      Size = new Vector2(180.0f, RowHeight),
+      String = "Support on Ko-fi",
+      IsVisible = true,
+      OnClick = () => Dalamud.Utility.Util.OpenLink(KofiUrl)
+    };
+
+    _scroll.ContentNode.AddNode(_kofi);
 #pragma warning restore CS8602
   }
 
@@ -147,15 +168,22 @@ public class SettingsPanelNode : TabPanelNode
   {
     base.OnSizeChanged();
 
-    _list.Size = new Vector2(Width, Height);
-    _list.Position = new Vector2(0.0f, 0.0f);
+    _display.Position = new Vector2(0.0f, 0.0f);
+
+    float scrollY = RowHeight + 6.0f;
+    _scroll.Size = new Vector2(Width, Height - scrollY);
+    _scroll.Position = new Vector2(0.0f, scrollY);
 
     foreach (CheckboxNode box in
       new[] { _showCount, _showPercentage, _excludeOther, _excludeLeves, _showJobQuestsInOldest,
-        _companionAlwaysVisible, _spoiler, _freeTrial, _useNative })
-      box.Size = new Vector2(Width - 12.0f, RowHeight);
+        _showLevequestsInOldest, _companionAlwaysVisible, _spoiler, _freeTrial, _useNative })
+      box.Size = new Vector2(Width - 24.0f, RowHeight);
 
-    _resizeHint.Size = new Vector2(Width - 12.0f, 18.0f);
+    _resizeHint.Size = new Vector2(Width - 24.0f, 18.0f);
+
+    // The content never changes height at run time, so one measure per resize
+    // is enough to set the scroll range.
+    _scroll.RecalculateSizes();
   }
 
   private static void Sync(CheckboxNode node, bool value)
@@ -173,7 +201,7 @@ public class SettingsPanelNode : TabPanelNode
       OnClick = onClick
     };
 
-    _list.AddNode(node);
+    _scroll.ContentNode.AddNode(node);
     return node;
   }
 }

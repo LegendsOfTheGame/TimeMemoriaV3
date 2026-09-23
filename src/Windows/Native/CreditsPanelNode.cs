@@ -25,6 +25,7 @@ public class CreditsPanelNode : TextLinesPanelNode
     "   Licensed AGPL-3.0. The source, including the data files, is public —",
     "   nothing needed to rebuild it is held back.",
     "   github.com/LegendsOfTheGame/TimeMemoriaV3",
+    "   Free, and staying free. Support is optional: ko-fi.com/legendsofthegame",
     "   For clickable links, open the classic window: /tm classic",
     "FINAL FANTASY XIV © SQUARE ENIX CO., LTD.",
     "   This plugin is unaffiliated with and unendorsed by Square Enix."
