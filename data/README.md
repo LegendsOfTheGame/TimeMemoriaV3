@@ -68,6 +68,9 @@ The naming carries meaning worth knowing before "tidying" any of it away:
   the event it accompanies is switched on separately under its own name. So
   `FestivalService` hides it: listing both shows the same thing twice, once
   under a label that means nothing to a player.
+- **Zone world-state ids** are not events. They switch on scenery and NPCs in
+  one zone. `FestivalService.WorldStateIds` hides them by id, because this file
+  is regenerated from upstream. Festival 256 is the Unmoored Isle (patch 7.56).
 - **Not every festival is a seasonal event.** Id 101 is `Ocean Fishing`, which
   the client switches on only while you are aboard the boat and off the moment
   you leave. It is deliberately *not* filtered — it is unique and briefly true.

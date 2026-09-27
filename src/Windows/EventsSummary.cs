@@ -59,13 +59,32 @@ public static class EventsSummary
     }
 
     // Anything the client has switched on that the feed did not mention.
-    List<ActiveFestival> missing = [.. activeFestivals.Where((f) => !shownTitles.Any((t) => Overlaps(t, f.DisplayName)))];
+    List<ActiveFestival> missing = [.. activeFestivals.Where((f) => !shownTitles.Any((t) => Matches(t, f)))];
 
     foreach (ActiveFestival festival in missing)
       lines.Add(new Line(State.Active, festival.DisplayName, "Running now — end date not published to the feed.", null));
 
     return new Result(lines, missing.Count);
   }
+
+  /// <summary>
+  /// Feed wording for festivals whose mapped name never appears in the feed.
+  /// Collaborations reuse one id each time they return, under the name of the
+  /// first run, while Lodestone titles each run fresh. Kept here rather than in
+  /// festival-names.json, which is regenerated from upstream.
+  /// </summary>
+  private static readonly Dictionary<uint, string[]> FeedAliases = new()
+  {
+    // "FFXV Crossover (2019)". 2026 ran as "A Nocturne for Heroes"; the topic
+    // says "FINAL FANTASY XV Collaboration Event". "FINAL FANTASY XIV" does
+    // not contain "FINAL FANTASY XV", so this cannot match every title.
+    [84] = ["FINAL FANTASY XV", "Nocturne for Heroes"],
+  };
+
+  private static bool Matches(string feedTitle, ActiveFestival festival)
+    => Overlaps(feedTitle, festival.DisplayName)
+    || (FeedAliases.TryGetValue(festival.Id, out string[]? aliases)
+        && aliases.Any((a) => feedTitle.Contains(a, StringComparison.OrdinalIgnoreCase)));
 
   /// <summary>Loose title match, since feed titles are prose and festival names are short.</summary>
   private static bool Overlaps(string feedTitle, string festivalName)

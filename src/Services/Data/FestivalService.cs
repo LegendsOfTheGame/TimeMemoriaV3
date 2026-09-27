@@ -143,7 +143,20 @@ public class FestivalService(
   /// under a name that means nothing to a player.
   /// </summary>
   private bool IsInternalFlag(uint id)
-    => _names.TryGetValue(id, out string? name) && name == "Special Event Flag";
+    => WorldStateIds.Contains(id)
+    || (_names.TryGetValue(id, out string? name) && name == "Special Event Flag");
+
+  /// <summary>
+  /// Festival ids that switch on zone scenery rather than an event, found by
+  /// reading the zone layout files (LGB) for layers tagged with the id.
+  ///
+  /// 256: the Unmoored Isle (territory 1365, patch 7.56 MSQ). Phases 1-3 each
+  /// swap in a scenery layer and an NPC layer (Alphinaud, Estinien, Visna);
+  /// phase 3 adds the world tree. No Excel sheet references it. Checked
+  /// 24 Sep 2026. Kept here rather than in festival-names.json, which
+  /// tools/Convert-FestivalNames.py regenerates from upstream.
+  /// </summary>
+  private static readonly HashSet<uint> WorldStateIds = [256];
 
   public unsafe List<ActiveFestival> GetActive()
   {
