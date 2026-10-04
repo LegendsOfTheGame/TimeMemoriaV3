@@ -44,7 +44,14 @@ public unsafe class MainAddon : NativeAddon
   private TabPanelNode? _active;
   private TextureButtonNode? _swapButton;
   private QuestsPanelNode? _questsPanel;
+  private SettingsPanelNode? _settingsPanel;
   private TabBarNode? _tabs;
+
+  /// <summary>
+  /// The Settings tab asked for before <see cref="OnSetup"/> ran. Same race as
+  /// <see cref="_pendingUnfinished"/>, same fix.
+  /// </summary>
+  private bool _pendingSettings;
 
   /// <summary>
   /// A bundle asked for before the addon finished allocating. Native addon
@@ -85,6 +92,7 @@ public unsafe class MainAddon : NativeAddon
     CreditsPanelNode credits = new();
 
     _questsPanel = quests;
+    _settingsPanel = settings;
 
     TabPanelNode[] panels = [overview, quests, news, bonuses, progression, settings, help, credits];
 
@@ -128,7 +136,13 @@ public unsafe class MainAddon : NativeAddon
     if (_pendingUnfinished is { } pending)
     {
       _pendingUnfinished = null;
+      _pendingSettings = false;
       ShowUnfinished(pending.Title, pending.Quests, pending.EmptyMessage);
+    }
+    else if (_pendingSettings)
+    {
+      _pendingSettings = false;
+      OpenSettings();
     }
     else
     {
@@ -170,6 +184,22 @@ public unsafe class MainAddon : NativeAddon
   }
 
   /// <summary>
+  /// Switches to the Settings tab, for the installer's Settings button. Queued
+  /// for <see cref="OnSetup"/> if the window was opened in this same call.
+  /// </summary>
+  public void OpenSettings()
+  {
+    if (_settingsPanel is null)
+    {
+      _pendingSettings = true;
+      return;
+    }
+
+    Show(_settingsPanel);
+    _tabs?.SelectTab("Settings");
+  }
+
+  /// <summary>
   /// Only the visible panel is refreshed; a hidden one has nothing worth
   /// recomputing.
   ///
@@ -190,6 +220,10 @@ public unsafe class MainAddon : NativeAddon
     _panels.Clear();
     _active = null;
     _swapButton = null;
+
+    // Cleared so that a request made after the window closes is queued for the
+    // next OnSetup, instead of acting on a panel that no longer exists.
+    _settingsPanel = null;
 
     base.OnFinalize(addon);
   }

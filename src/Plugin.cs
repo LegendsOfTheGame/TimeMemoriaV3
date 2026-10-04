@@ -18,15 +18,13 @@ public sealed class Plugin : IAsyncDalamudPlugin
   public Plugin(
     IChatGui chatGui,
     IGameGui gameGui,
-    IToastGui toastGui,
     IPluginLog pluginLog,
     IFramework framework,
     IPlayerState playerState,
     IClientState clientState,
     IDataManager dataManager,
     ICommandManager commandManager,
-    IDalamudPluginInterface pluginInterface,
-    INotificationManager notificationManager
+    IDalamudPluginInterface pluginInterface
   )
   {
     _framework = framework;
@@ -43,7 +41,6 @@ public sealed class Plugin : IAsyncDalamudPlugin
       {
         collection.AddSingleton(chatGui);
         collection.AddSingleton(gameGui);
-        collection.AddSingleton(toastGui);
         collection.AddSingleton(pluginLog);
         collection.AddSingleton(framework);
         collection.AddSingleton(playerState);
@@ -51,7 +48,6 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton(dataManager);
         collection.AddSingleton(commandManager);
         collection.AddSingleton(pluginInterface);
-        collection.AddSingleton(notificationManager);
 
         collection.AddSingleton<MainWindow>();
 

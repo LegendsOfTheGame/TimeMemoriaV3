@@ -66,11 +66,11 @@ failed. Numbering it 1.0 would hide that.
 | Class & job progression | ✅ with clipboard export |
 | Patch attribution | ✅ patch column on quests and What's New |
 | Native game windows | ✅ every tab, plus a companion window |
-| Ocean Fishing helper | ❌ future |
+| Ocean Fishing helper | 🔜 Soon™ |
 
 ### Versioning
 
-`MAJOR.MINOR.PATCH.API` — releasing at **`3.0.0.15`**.
+`MAJOR.MINOR.PATCH.API` — first released at **`3.0.0.15`**.
 
 The last digit is the Dalamud API level the build targets, so you can tell which
 game version a build is for without opening the manifest. It is safe in the last
@@ -159,6 +159,13 @@ It does **not**:
 - Integrate with ACT, FFLogs, or any combat log format
 - Automate any in-game interaction
 - Transmit your data anywhere — the clipboard export is local and user-initiated
+
+One network request exists. The News tab downloads one public file,
+`LatestNews.json`, from this project's own
+[ffxiv-latest-news](https://github.com/LegendsOfTheGame/ffxiv-latest-news)
+repository on GitHub. It does this once when the plugin loads, then at most once
+every 60 seconds while the News tab is open. The request sends no character or
+account data.
 
 Saved data is limited to quest IDs, completion counts, timestamps, pacing
 aggregates, and class/job levels. Nothing it stores can be repurposed as a

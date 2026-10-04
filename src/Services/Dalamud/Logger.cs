@@ -2,8 +2,6 @@ namespace TimeMemoria.Services;
 
 public interface ILogger
 {
-  void DalamudToast(NotificationType type, string title, string text, int durationSeconds = 5);
-  void Toast(string pre = "", string italic = "", string post = "");
   void Chat(string uncolored = "", string pre = "", string italic = "", string post = "", string name = "", XivChatType type = XivChatType.Debug, bool addPrefix = true, ushort preColor = 2, ushort italicColor = 2, ushort postColor = 2);
 
   void Error(string text,
@@ -32,36 +30,13 @@ public interface ILogger
       [CallerLineNumber] int lineNumber = -1);
 }
 
-public class Logger(IPluginLog _pluginLog, IToastGui _toastGui, IChatGui _chatGui, INotificationManager _notificationManager) : ILogger
+/// <summary>
+/// No toast or notification methods, on purpose. The plugin never shows either
+/// (no toasts, overlays or alerts is part of its scope), so they were removed
+/// rather than left unused.
+/// </summary>
+public class Logger(IPluginLog _pluginLog, IChatGui _chatGui) : ILogger
 {
-  public void DalamudToast(NotificationType type, string title, string text, int durationSeconds = 5)
-  {
-    _notificationManager.AddNotification(new()
-    {
-      Content = text,
-      Title = title,
-      Type = type,
-      Minimized = false,
-      InitialDuration = TimeSpan.FromSeconds(durationSeconds)
-    });
-  }
-
-  public void Toast(string pre = "", string italic = "", string post = "")
-  {
-    _toastGui.ShowNormal(
-      new SeStringBuilder()
-        .AddText(pre)
-        .AddItalics(italic)
-        .AddText(post)
-        .Build(),
-      new ToastOptions
-      {
-        Position = ToastPosition.Bottom,
-        Speed = ToastSpeed.Fast,
-      }
-    );
-  }
-
   public void Chat(string uncolored = "", string pre = "", string italic = "", string post = "", string name = "", XivChatType type = XivChatType.Debug, bool addPrefix = true, ushort preColor = 2, ushort italicColor = 2, ushort postColor = 2)
   {
     XivChatEntry chatMessage = new()

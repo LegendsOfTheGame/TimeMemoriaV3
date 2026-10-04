@@ -12,6 +12,20 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
 
   private string _rebaselineDate = DateTime.Now.ToString("yyyy-MM-dd");
 
+  /// <summary>Set by <see cref="OpenSettings"/>, used by the next draw only.</summary>
+  private bool _selectSettingsTab;
+
+  /// <summary>
+  /// For the installer's Settings button. Opens instead of toggles, because
+  /// that button must never close the window, and goes to the Settings tab
+  /// instead of whichever tab was last open.
+  /// </summary>
+  public void OpenSettings()
+  {
+    IsOpen = true;
+    _selectSettingsTab = true;
+  }
+
   public override void Draw()
   {
     _dataService.UpdateQuestData();
@@ -48,7 +62,10 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Progression"))
         if (tabItem.Success) DrawProgressionTab();
 
-      using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Settings"))
+      ImGuiTabItemFlags settingsFlags = _selectSettingsTab ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
+      _selectSettingsTab = false;
+
+      using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Settings", settingsFlags))
         if (tabItem.Success) DrawSettingsTab();
 
       using (ImRaii.TabItemDisposable tabItem = ImRaii.TabItem("Help"))

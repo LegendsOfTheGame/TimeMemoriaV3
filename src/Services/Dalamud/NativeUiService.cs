@@ -11,6 +11,12 @@ public interface INativeUiService : IAsyncDisposable
   /// <summary>Shows or hides the native window.</summary>
   void Toggle();
 
+  /// <summary>Opens the native window if it is closed. Never closes it.</summary>
+  void Open();
+
+  /// <summary>Opens the native window (if closed) to the Settings tab.</summary>
+  void OpenSettings();
+
   /// <summary>Shows or hides the small at-a-glance window.</summary>
   void ToggleCompanion();
 
@@ -188,6 +194,32 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
 
     ApplyConfiguredSize();
     _window.Open();
+  }
+
+  public void Open()
+  {
+    if (_window is null)
+    {
+      _logger.Error("[NativeUi] Open called before the window was created.");
+      return;
+    }
+
+    if (_window.IsOpen) return;
+
+    ApplyConfiguredSize();
+    _window.Open();
+  }
+
+  public void OpenSettings()
+  {
+    if (_window is null)
+    {
+      _logger.Error("[NativeUi] OpenSettings called before the window was created.");
+      return;
+    }
+
+    Open();
+    _window.OpenSettings();
   }
 
   public void ShowUnfinished(string title, List<Types.Quest> quests, string emptyMessage)

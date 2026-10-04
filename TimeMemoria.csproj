@@ -30,6 +30,9 @@
     <Description>Quest progression and pacing — a reflective notebook for your story journey, not a scoreboard.</Description>
     <RepoUrl>https://github.com/LegendsOfTheGame/TimeMemoriaV3</RepoUrl>
     <Tags>quest;quests;progression;pacing;tracker</Tags>
+    <!-- Here, not only in tools/Build-RepoJson.py: the official repository
+         builds the manifest from these properties and never runs that script. -->
+    <CategoryTags>utility</CategoryTags>
   </PropertyGroup>
 
   <ItemGroup>

@@ -5,7 +5,8 @@ public interface IWindowService : IHostedService
   void Toggle();
 }
 
-public class WindowService(ILogger _logger, IDataService _dataService, MainWindow _mainWindow, WindowSystem _windowSystem, IDalamudPluginInterface _pluginInterface) : IWindowService
+public class WindowService(ILogger _logger, IDataService _dataService, MainWindow _mainWindow, WindowSystem _windowSystem,
+  IDalamudPluginInterface _pluginInterface, INativeUiService _nativeUi, Configuration _configuration) : IWindowService
 {
   public Task StartAsync(CancellationToken cancellationToken)
   {
@@ -13,8 +14,8 @@ public class WindowService(ILogger _logger, IDataService _dataService, MainWindo
 
     _pluginInterface.UiBuilder.DisableCutsceneUiHide = true;
     _pluginInterface.UiBuilder.Draw += UiBuilderOnDraw;
-    _pluginInterface.UiBuilder.OpenConfigUi += Toggle;
-    _pluginInterface.UiBuilder.OpenMainUi += Toggle;
+    _pluginInterface.UiBuilder.OpenConfigUi += OpenSettings;
+    _pluginInterface.UiBuilder.OpenMainUi += OpenMain;
 
     _dataService.OnReset += _mainWindow.Reset;
 
@@ -27,8 +28,8 @@ public class WindowService(ILogger _logger, IDataService _dataService, MainWindo
 
   public Task StopAsync(CancellationToken cancellationToken)
   {
-    _pluginInterface.UiBuilder.OpenConfigUi -= Toggle;
-    _pluginInterface.UiBuilder.OpenMainUi -= Toggle;
+    _pluginInterface.UiBuilder.OpenConfigUi -= OpenSettings;
+    _pluginInterface.UiBuilder.OpenMainUi -= OpenMain;
     _pluginInterface.UiBuilder.Draw -= UiBuilderOnDraw;
 
     _windowSystem.RemoveAllWindows();
@@ -40,6 +41,24 @@ public class WindowService(ILogger _logger, IDataService _dataService, MainWindo
   public void Toggle()
   {
     _mainWindow.Toggle();
+  }
+
+  /// <summary>
+  /// The installer's Open button. Opens the window chosen in Settings, the same
+  /// one <c>/tm</c> opens, and never closes it. The classic window is the
+  /// fallback until the native one exists, so the button always does something.
+  /// </summary>
+  private void OpenMain()
+  {
+    if (_configuration.UseNativeUi && _nativeUi.IsReady) _nativeUi.Open();
+    else _mainWindow.IsOpen = true;
+  }
+
+  /// <summary>The installer's Settings button: the chosen window, on its Settings tab.</summary>
+  private void OpenSettings()
+  {
+    if (_configuration.UseNativeUi && _nativeUi.IsReady) _nativeUi.OpenSettings();
+    else _mainWindow.OpenSettings();
   }
 
   private void UiBuilderOnDraw()

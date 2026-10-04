@@ -49,10 +49,10 @@ proceeds.
   * Grouped the Excel sheets once at startup instead of filtering whole sheets
     inside nested loops, which reduced plugin load from roughly 2,230ms to
     roughly 220ms on a warm reload.
+  * Added MSQ progression gating, spoiler mode and free-trial mode.
 
 Planned, not yet done:
 
-  * MSQ progression gating, spoiler mode and free-trial mode.
   * Replace quest-ID probing for starting city, Grand Company and starting
     class with the equivalent PlayerState fields.
 
@@ -75,10 +75,11 @@ Only the trigger fish and their baits are taken. Bite times are deliberately not
 used — they are tuning values that move on patches and hotfixes, and a
 periodically refreshed file would present them as current when they are not.
 
-The extracted values are transformed and republished by this project, and the
-plugin fetches that file rather than requesting anything from NotNite's
-repository at runtime. Their infrastructure does not serve this plugin's users,
-and a change on their side cannot break it.
+The extracted values are transformed and republished by this project. The
+Ocean Fishing helper is not built yet (Soon™). When it is, the plugin will
+fetch this project's file, never anything from NotNite's repository at runtime.
+Their infrastructure will not serve this plugin's users, and a change on their
+side cannot break it.
 
 Distant Seas is an independent plugin, more capable than this one within ocean
 fishing, and is not affiliated with or endorsed by this project. NotNite was
