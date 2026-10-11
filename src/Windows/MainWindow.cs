@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public class MainWindow(Configuration _configuration, IDataService _dataService, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IQuestMapService _questMap, IAchievementService _achievements) : Window("Time Memoria##TimeMemoriaMainWindow")
+public partial class MainWindow(Configuration _configuration, IDataService _dataService, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IQuestMapService _questMap, IAchievementService _achievements) : Window("Time Memoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -274,12 +274,18 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
   /// </summary>
   internal static void OpenWikiSearch(string term)
   {
-    string query = Uri.EscapeDataString(term.Trim());
+    // Quest names from the sheet can start with a game icon glyph from the
+    // private-use range (U+E0BF on "For Want of a Memory"). The wiki title has
+    // no such character, so leaving it in turns an exact match into a search.
+    string query = Uri.EscapeDataString(PrivateUseGlyphs().Replace(term, "").Trim());
 
     Dalamud.Utility.Util.OpenLink(query.Length == 0
       ? MainScenarioArticle
       : $"https://ffxiv.consolegameswiki.com/mediawiki/index.php?search={query}&title=Special%3ASearch&go=Go");
   }
+
+  [GeneratedRegex(@"[-]")]
+  private static partial Regex PrivateUseGlyphs();
 
   private void DrawSearchBar()
   {
@@ -1026,7 +1032,8 @@ public class MainWindow(Configuration _configuration, IDataService _dataService,
     ImGui.TextDisabled("  /tm classic     this window, whichever is chosen");
     ImGui.TextDisabled("  /tm native      the game-styled window, whichever is chosen");
     ImGui.TextDisabled("  /tmmini         playtime, pacing and jobs, in a small window");
-    ImGui.TextDisabled("  /tm reset       rebuild the quest tree");
+    ImGui.TextDisabled("  /tmwiki         your accepted quests, linked to the wiki");
+    ImGui.TextDisabled("  /tm reset      rebuild the quest tree");
     ImGui.Spacing();
     ImGui.Indent();
     DrawWrappedDisabled("The plugin registers these commands. The plugin never sends a command itself.");

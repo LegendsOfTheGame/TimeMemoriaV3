@@ -3,14 +3,17 @@ namespace TimeMemoria.Services;
 public interface IWindowService : IHostedService
 {
   void Toggle();
+  void ToggleWiki();
 }
 
-public class WindowService(ILogger _logger, IDataService _dataService, MainWindow _mainWindow, WindowSystem _windowSystem,
-  IDalamudPluginInterface _pluginInterface, INativeUiService _nativeUi, Configuration _configuration) : IWindowService
+public class WindowService(ILogger _logger, IDataService _dataService, MainWindow _mainWindow, WikiWindow _wikiWindow,
+  WindowSystem _windowSystem, IDalamudPluginInterface _pluginInterface, INativeUiService _nativeUi,
+  Configuration _configuration) : IWindowService
 {
   public Task StartAsync(CancellationToken cancellationToken)
   {
     _windowSystem.AddWindow(_mainWindow);
+    _windowSystem.AddWindow(_wikiWindow);
 
     _pluginInterface.UiBuilder.DisableCutsceneUiHide = true;
     _pluginInterface.UiBuilder.Draw += UiBuilderOnDraw;
@@ -41,6 +44,11 @@ public class WindowService(ILogger _logger, IDataService _dataService, MainWindo
   public void Toggle()
   {
     _mainWindow.Toggle();
+  }
+
+  public void ToggleWiki()
+  {
+    _wikiWindow.Toggle();
   }
 
   /// <summary>

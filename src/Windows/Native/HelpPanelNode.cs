@@ -59,7 +59,7 @@ public class HelpPanelNode : TextLinesPanelNode
     ]),
     ("Commands",
     [
-      "/timememoria    the window chosen in Settings  (/tm for short)\n/tm classic     the classic window, whichever is chosen\n/tm native      this window, whichever is chosen\n/tmmini         playtime, pacing and jobs, in a small window\n/tm reset       rebuild the quest tree",
+      "/timememoria    the window chosen in Settings  (/tm for short)\n/tm classic     the classic window, whichever is chosen\n/tm native      this window, whichever is chosen\n/tmmini         playtime, pacing and jobs, in a small window\n/tmwiki         your accepted quests, linked to the wiki\n/tm reset       rebuild the quest tree",
       "The plugin registers these commands. The plugin never sends a command itself."
     ]),
     ("What this plugin will never do",

@@ -50,6 +50,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton(pluginInterface);
 
         collection.AddSingleton<MainWindow>();
+        collection.AddSingleton<WikiWindow>();
 
         collection.AddSingleton<ILogger, Logger>();
         collection.AddSingleton<IDataService, DataService>();

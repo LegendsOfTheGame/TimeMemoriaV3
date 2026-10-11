@@ -19,6 +19,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
   private const string MainCommand = "/timememoria";
   private const string MainAlias = "/tm";
   private const string GlanceCommand = "/tmmini";
+  private const string WikiCommand = "/tmwiki";
 
   /// <summary>
   /// Both "sb" and "stb" resolve to Stormblood: which one a player reaches for
@@ -80,6 +81,12 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
       ShowInHelp = true
     });
 
+    _commandManager.AddHandler(WikiCommand, new CommandInfo((_, _) => _windowService.ToggleWiki())
+    {
+      HelpMessage = "Open your accepted quests, each linked to its wiki page.",
+      ShowInHelp = true
+    });
+
     return _logger.ServiceLifecycle();
   }
 
@@ -88,6 +95,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
     _commandManager.RemoveHandler(MainCommand);
     _commandManager.RemoveHandler(MainAlias);
     _commandManager.RemoveHandler(GlanceCommand);
+    _commandManager.RemoveHandler(WikiCommand);
 
     return _logger.ServiceLifecycle();
   }
@@ -138,6 +146,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _logger.Chat($"  {MainCommand} reset — reset the quest tree");
         _logger.Chat($"  {MainCommand} arr | hw | sb/stb | shb | ew | dt | ec — open every unfinished quest in that expansion (Native UI)");
         _logger.Chat($"  {GlanceCommand} — open the at-a-glance window");
+        _logger.Chat($"  {WikiCommand} — open your accepted quests, linked to the wiki");
         break;
 
       // Straight to the clipboard rather than by way of the window. Nothing
