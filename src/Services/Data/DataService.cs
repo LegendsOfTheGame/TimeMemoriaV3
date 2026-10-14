@@ -352,6 +352,34 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
           if (_uldahStartLeves.Contains(leve.RowId)) start = "Ul'dah";
 
           if (_retiredLeves.Contains(leve.RowId)) continue;
+
+          // Delivery leves (tradecraft and fisher) point at a CraftLeve row.
+          // Its Repeats column is how many extra hand-ins the leve allows:
+          // 2 on every Charity and Sincerity leve, 5 on their Heavensward
+          // "(L)" versions, 0 on everything else — checked against the wiki's
+          // plate category for every leve on 14 Oct 2026, no exceptions.
+          bool isDelivery = leve.DataId.TryGetValue<CraftLeve>(out CraftLeve craftLeve);
+          int turnIns = isDelivery ? craftLeve.Repeats + 1 : 1;
+
+          // The sheet has fixed item slots; unused ones read item 0.
+          List<string> requiredItems = [];
+          if (isDelivery)
+          {
+            for (int i = 0; i < craftLeve.Item.Count; i++)
+            {
+              if (craftLeve.Item[i].RowId == 0 || craftLeve.ItemCount[i] == 0) continue;
+              requiredItems.Add($"{craftLeve.ItemCount[i]}x {craftLeve.Item[i].Value.Name}");
+            }
+          }
+
+          // Crafting and gathering leves belong to one job, which
+          // LeveAssignmentType names in full. Battlecraft and Grand Company
+          // leves name a guild or company there instead, so the class/job
+          // category ("Disciples of War or Magic") is the honest answer.
+          string job = isDelivery || leve.DataId.Is<GatheringLeve>()
+            ? leve.LeveAssignmentType.Value.Name.ToString()
+            : leve.ClassJobCategory.Value.Name.ToString();
+
           AddQuest(ExpansionOf(ExpansionFromLevel(leve.ClassJobLevel), lang), (mainCategory, englishMainCategory), (subCategory, englishSubCategory), section, new()
           {
             Title = leve.Name.ToString(),
@@ -361,7 +389,10 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
             SortKey = leve.RowId,
             Start = start,
             ExpansionId = ExpansionFromLevel(leve.ClassJobLevel),
-            IsLeve = true
+            IsLeve = true,
+            Job = job,
+            TurnIns = turnIns,
+            RequiredItems = requiredItems
           }, leve.PlaceNameStart.RowId);
         }
       }

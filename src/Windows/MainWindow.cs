@@ -506,13 +506,19 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     ImGui.Separator();
     ImGui.Spacing();
 
-    using ImRaii.TableDisposable table = ImRaii.Table("##questTable", 6,
+    // The turn-in column only exists where some leve takes repeat hand-ins.
+    // Everywhere else it would be an empty strip. A different table id per
+    // shape keeps ImGui from carrying column widths across the two layouts.
+    bool turnInColumn = _selectedCategory.Categories.Any((g) => g.Quests.Any((q) => q.TurnIns > 1));
+
+    using ImRaii.TableDisposable table = ImRaii.Table(turnInColumn ? "##questTableTurnIns" : "##questTable", turnInColumn ? 7 : 6,
       ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV, ImGui.GetContentRegionAvail());
     if (!table.Success) return;
 
     ImGui.TableSetupScrollFreeze(0, 1);
     ImGui.TableSetupColumn("##check", ImGuiTableColumnFlags.WidthFixed, 22f);
     ImGui.TableSetupColumn("##level", ImGuiTableColumnFlags.WidthFixed, 36f);
+    if (turnInColumn) ImGui.TableSetupColumn("##turnIns", ImGuiTableColumnFlags.WidthFixed, 24f);
     ImGui.TableSetupColumn("Title", ImGuiTableColumnFlags.WidthStretch);
     ImGui.TableSetupColumn("Patch", ImGuiTableColumnFlags.WidthFixed, 46f);
     ImGui.TableSetupColumn("Area", ImGuiTableColumnFlags.WidthFixed, 140f);
@@ -530,6 +536,7 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
         ImGui.TableNextRow();
         ImGui.TableNextColumn();
         ImGui.TableNextColumn();
+        if (turnInColumn) ImGui.TableNextColumn();
         ImGui.TableNextColumn();
         ImGui.TextColored(HeaderColour, genre.Title);
         ImGui.TableNextColumn();
@@ -552,10 +559,23 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
         ImGui.TableNextColumn();
         ImGui.TextDisabled(quest.Level.ToString());
 
+        if (turnInColumn)
+        {
+          ImGui.TableNextColumn();
+          if (quest.TurnIns > 1)
+          {
+            ImGui.TextDisabled($"x{quest.TurnIns}");
+            if (ImGui.IsItemHovered())
+              ImGui.SetTooltip($"The items can be turned in up to {quest.TurnIns} times for one leve allowance.");
+          }
+        }
+
         ImGui.TableNextColumn();
         string title = quest.Ids.Count > 0 ? $"{quest.Title} [{quest.Ids[0]}]" : quest.Title;
         if (complete) ImGui.TextDisabled(title);
         else ImGui.Text(title);
+        DrawRequiredItemsCopy(quest);
+        DrawLeveDetail(quest);
 
         ImGui.TableNextColumn();
         DrawPatchCell(quest);
@@ -1173,6 +1193,35 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     ImGui.TextDisabled($"  {what}");
     if (more is not null) ImGui.TextDisabled($"  {more}");
     ImGui.Spacing();
+  }
+
+  /// <summary>
+  /// Ctrl+click on a delivery leve's title copies what one turn-in needs, in
+  /// the "1x Item Name" lines Teamcraft and Allagan Tools import. The tooltip
+  /// shows the exact text, so a copy needs no confirmation of its own.
+  /// Call straight after drawing the title, while it is the last item.
+  /// </summary>
+  private static void DrawRequiredItemsCopy(Types.Quest quest)
+  {
+    if (quest.RequiredItems.Count == 0 || !ImGui.IsItemHovered()) return;
+
+    string text = string.Join("\n", quest.RequiredItems);
+    ImGui.SetTooltip($"Ctrl+click to copy for Teamcraft or Allagan Tools:\n{text}");
+
+    if (ImGui.GetIO().KeyCtrl && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+      ImGui.SetClipboardText(text);
+  }
+
+  /// <summary>
+  /// Who can take a leve, beside its title. The journal section names the
+  /// leve's type, not its job. The turn-in count has its own column.
+  /// </summary>
+  private static void DrawLeveDetail(Types.Quest quest)
+  {
+    if (!quest.IsLeve || quest.Job is not { Length: > 0 }) return;
+
+    ImGui.SameLine();
+    ImGui.TextDisabled($"— {quest.Job}");
   }
 
   /// <summary>

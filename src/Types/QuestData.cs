@@ -51,6 +51,20 @@ public class Quest : ICloneable
   public uint SortKey { get; set; }
   public bool IsLeve { get; set; }
 
+  /// <summary>Leves only: who can take it — "Carpenter", or "Disciples of War
+  /// or Magic" for battlecraft and Grand Company leves. Null for quests.</summary>
+  public string? Job { get; set; }
+
+  /// <summary>Leves only: how many times the items can be handed in for one
+  /// allowance. 1 for everything except Charity and Sincerity leves (3, or 6
+  /// for the Heavensward "(L)" ones).</summary>
+  public int TurnIns { get; set; } = 1;
+
+  /// <summary>Delivery leves only: what one turn-in needs, one "3x Item Name"
+  /// line per item — the shape Teamcraft and Allagan Tools import. Empty for
+  /// everything else.</summary>
+  public List<string> RequiredItems { get; set; } = [];
+
   /// <summary>ExVersion row id. 0 is A Realm Reborn.</summary>
   public uint ExpansionId { get; set; }
 
@@ -76,6 +90,9 @@ public class Quest : ICloneable
       Hide = Hide,
       SortKey = SortKey,
       IsLeve = IsLeve,
+      Job = Job,
+      TurnIns = TurnIns,
+      RequiredItems = [.. RequiredItems],
       ExpansionId = ExpansionId,
       Section = Section,
       EnglishSection = EnglishSection,

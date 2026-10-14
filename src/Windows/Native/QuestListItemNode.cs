@@ -30,13 +30,18 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
   /// for a flag by default — so the button reads as the thing it places.</summary>
   private const uint FlagIconId = 0xEC91;
 
+  /// <summary>The Trade Mentor status icon (OnlineStatus row 29), a hammer —
+  /// the crafter and gatherer mark, for a button that copies crafting needs.</summary>
+  private const uint CopyItemsIconId = 61543;
+
   private static readonly Vector4 Complete = new(0.55f, 0.55f, 0.55f, 1.0f);
   private static readonly Vector4 Incomplete = new(1.0f, 1.0f, 1.0f, 1.0f);
   private static readonly Vector4 Detail = new(0.6f, 0.6f, 0.6f, 1.0f);
 
   private TextNode TitleNode { get; }
   private TextNode DetailNode { get; }
-  private IconButtonNode FlagButton { get; }
+  private RowIconButtonNode FlagButton { get; }
+  private RowIconButtonNode CopyItemsButton { get; }
 
   private Types.Quest? _current;
 
@@ -48,7 +53,7 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
     DetailNode = new TextNode { TextFlags = TextFlags.Ellipsis, FontSize = 11, TextColor = Detail };
     DetailNode.AttachNode(this);
 
-    FlagButton = new IconButtonNode
+    FlagButton = new RowIconButtonNode
     {
       Size = new Vector2(22.0f, 22.0f),
       IconId = FlagIconId,
@@ -56,6 +61,28 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
       OnClick = () => { if (_current is not null) MapService?.OpenIssuerOnMap(_current); }
     };
     FlagButton.AttachNode(this);
+
+    CopyItemsButton = new RowIconButtonNode
+    {
+      Size = new Vector2(22.0f, 22.0f),
+      IconId = CopyItemsIconId,
+      IsVisible = false,
+      OnClick = CopyRequiredItems
+    };
+    CopyItemsButton.AttachNode(this);
+  }
+
+  /// <summary>
+  /// Puts what one turn-in needs on the clipboard, in the "1x Item Name" lines
+  /// Teamcraft and Allagan Tools import. The tooltip already shows the exact
+  /// text, so a copy needs no message of its own. Button callbacks run on the
+  /// framework thread, which is the thread ImGui renders on, so the clipboard
+  /// call is safe from here.
+  /// </summary>
+  private void CopyRequiredItems()
+  {
+    if (_current is not { RequiredItems.Count: > 0 }) return;
+    ImGui.SetClipboardText(string.Join("\n", _current.RequiredItems));
   }
 
   protected override void SetNodeData(Types.Quest itemData)
@@ -71,6 +98,11 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
     // the one fact the game's own journal cannot tell you.
     List<string> parts = [$"Lv {itemData.Level}"];
 
+    // A leve's journal section names its type, not who can take it, and only
+    // the levemete's own window says whether it takes repeat hand-ins.
+    if (itemData.Job is { Length: > 0 }) parts.Add(itemData.Job);
+    if (itemData.TurnIns > 1) parts.Add($"Up to {itemData.TurnIns} turn-ins");
+
     if (itemData.Area.Length > 0) parts.Add(itemData.Area);
 
     string? patch = PatchService?.GetPatch(itemData.Ids);
@@ -81,20 +113,45 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
     string? label = MapService?.GetIssuerLabel(itemData);
     FlagButton.IsVisible = label is not null;
     FlagButton.TextTooltip = label ?? "";
+
+    CopyItemsButton.IsVisible = itemData.RequiredItems.Count > 0;
+    CopyItemsButton.TextTooltip = CopyItemsButton.IsVisible
+      ? $"Copy for Teamcraft or Allagan Tools:\n{string.Join("\n", itemData.RequiredItems)}"
+      : "";
+
+    // Rows are pooled, so which buttons show changes as the list scrolls.
+    Layout();
   }
 
   protected override void OnSizeChanged()
   {
     base.OnSizeChanged();
+    Layout();
+  }
 
-    float flagSpace = FlagButton.Width + 6.0f;
+  /// <summary>
+  /// Buttons stack in from the right edge, flag outermost. Only visible ones
+  /// take space, so an ordinary quest's title keeps the full width.
+  /// </summary>
+  private void Layout()
+  {
+    float right = Width - 8.0f;
+    float buttonY = (Height - FlagButton.Height) / 2.0f;
 
-    TitleNode.Size = new Vector2(Width - 12.0f - flagSpace, 20.0f);
+    foreach (RowIconButtonNode button in new[] { FlagButton, CopyItemsButton })
+    {
+      if (!button.IsVisible) continue;
+      right -= button.Width;
+      button.Position = new Vector2(right, buttonY);
+      right -= 4.0f;
+    }
+
+    float textWidth = right - 10.0f;
+
+    TitleNode.Size = new Vector2(textWidth, 20.0f);
     TitleNode.Position = new Vector2(10.0f, 2.0f);
 
-    DetailNode.Size = new Vector2(Width - 12.0f - flagSpace, 16.0f);
+    DetailNode.Size = new Vector2(textWidth, 16.0f);
     DetailNode.Position = new Vector2(10.0f, 21.0f);
-
-    FlagButton.Position = new Vector2(Width - FlagButton.Width - 8.0f, (Height - FlagButton.Height) / 2.0f);
   }
 }
