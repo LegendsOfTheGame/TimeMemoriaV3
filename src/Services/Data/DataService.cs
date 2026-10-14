@@ -876,13 +876,10 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
           continue;
         }
 
-        foreach (uint startClass in _startClass)
+        if (_startClass.Any(quest.Ids.Contains))
         {
-          if (quest.Ids.Contains(startClass))
-          {
-            questData.Quests.Remove(quest);
-            continue;
-          }
+          questData.Quests.Remove(quest);
+          continue;
         }
 
         foreach (List<uint> exclusive in _exlusiveQuests)
@@ -900,7 +897,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
         if (_retiredQuests.Any(quest.Ids.Contains) && !IsQuestComplete(quest))
         {
           questData.Quests.Remove(quest);
-          break;
+          continue;
         }
 
         // Seasonal content nobody has ever seen switched on. Missed is not
