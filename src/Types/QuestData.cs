@@ -39,6 +39,12 @@ public class QuestData : ICloneable
   }
 }
 
+/// <summary>One item a delivery leve asks for, and how many per turn-in.</summary>
+public record LeveItem(uint ItemId, int Count, string Name)
+{
+  public override string ToString() => $"{Count}x {Name}";
+}
+
 public class Quest : ICloneable
 {
   public required string Title { get; set; }
@@ -60,10 +66,10 @@ public class Quest : ICloneable
   /// for the Heavensward "(L)" ones).</summary>
   public int TurnIns { get; set; } = 1;
 
-  /// <summary>Delivery leves only: what one turn-in needs, one "3x Item Name"
-  /// line per item — the shape Teamcraft and Allagan Tools import. Empty for
-  /// everything else.</summary>
-  public List<string> RequiredItems { get; set; } = [];
+  /// <summary>Delivery leves only: what one turn-in needs. Each prints as a
+  /// "3x Item Name" line, the shape Teamcraft and Allagan Tools import. Empty
+  /// for everything else.</summary>
+  public List<LeveItem> RequiredItems { get; set; } = [];
 
   /// <summary>ExVersion row id. 0 is A Realm Reborn.</summary>
   public uint ExpansionId { get; set; }

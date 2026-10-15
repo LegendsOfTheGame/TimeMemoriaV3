@@ -85,14 +85,38 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
     ImGui.SetClipboardText(string.Join("\n", _current.RequiredItems));
   }
 
+  /// <summary>
+  /// Called by the list for every visible row when the panel refreshes. The
+  /// row's quest has not changed, but whether it is complete, held, or ready
+  /// to turn in can have, so only the title is redrawn.
+  /// </summary>
+  public override void Update() => RefreshTitle();
+
+  /// <summary>
+  /// Title text and colour, the parts of a row that follow the game's state.
+  /// Leve state shows as prefixes: ">" for a held leve, a check for one whose
+  /// items are already in the bags. Text, not colour, so it reads the same to
+  /// everyone and survives the completed-grey title.
+  /// </summary>
+  private void RefreshTitle()
+  {
+    if (_current is null) return;
+
+    bool complete = DataService?.IsQuestComplete(_current) ?? false;
+
+    string prefix = "";
+    if (DataService?.IsLeveAccepted(_current) ?? false) prefix += "> ";
+    if (DataService?.HasLeveItems(_current) ?? false) prefix += "✓ ";
+
+    TitleNode.String = prefix + _current.Title;
+    TitleNode.TextColor = complete ? Complete : Incomplete;
+  }
+
   protected override void SetNodeData(Types.Quest itemData)
   {
     _current = itemData;
 
-    bool complete = DataService?.IsQuestComplete(itemData) ?? false;
-
-    TitleNode.String = itemData.Title;
-    TitleNode.TextColor = complete ? Complete : Incomplete;
+    RefreshTitle();
 
     // Level and area place the quest; the patch says when it arrived, which is
     // the one fact the game's own journal cannot tell you.

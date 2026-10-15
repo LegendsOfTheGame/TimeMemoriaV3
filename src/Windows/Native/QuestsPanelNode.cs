@@ -138,6 +138,23 @@ public class QuestsPanelNode : TabPanelNode
     _list.AttachNode(this);
   }
 
+  private DateTime _rowsRefreshedAt = DateTime.MinValue;
+
+  /// <summary>
+  /// Redraws the visible rows' titles about once a second, so a leve accepted,
+  /// turned in, or crafted for while the window is open shows it without a
+  /// scroll. Once a second because it walks the bags for each visible delivery
+  /// leve, and nobody watches a title change faster than that.
+  /// </summary>
+  public override void Refresh()
+  {
+    DateTime now = DateTime.UtcNow;
+    if (now - _rowsRefreshedAt < TimeSpan.FromSeconds(1)) return;
+    _rowsRefreshedAt = now;
+
+    _list.Update();
+  }
+
   /// <summary>
   /// Built here rather than in the constructor because the services are set
   /// through init properties, which have not run when the constructor does.

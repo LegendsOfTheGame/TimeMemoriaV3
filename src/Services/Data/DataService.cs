@@ -11,6 +11,10 @@ public interface IDataService : IHostedService
   event System.Action? OnReset;
   void Reset();
   bool IsQuestComplete(Types.Quest quest);
+  /// <summary>Leves only: the player holds this leve right now.</summary>
+  bool IsLeveAccepted(Types.Quest quest);
+  /// <summary>Delivery leves only: the bags and armoury chest hold what one turn-in needs.</summary>
+  bool HasLeveItems(Types.Quest quest);
   /// <summary>
   /// Recounts the tree's totals, at most once every few seconds. Pass
   /// <paramref name="force"/> when someone is about to read the result.
@@ -362,13 +366,13 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
           int turnIns = isDelivery ? craftLeve.Repeats + 1 : 1;
 
           // The sheet has fixed item slots; unused ones read item 0.
-          List<string> requiredItems = [];
+          List<Types.LeveItem> requiredItems = [];
           if (isDelivery)
           {
             for (int i = 0; i < craftLeve.Item.Count; i++)
             {
               if (craftLeve.Item[i].RowId == 0 || craftLeve.ItemCount[i] == 0) continue;
-              requiredItems.Add($"{craftLeve.ItemCount[i]}x {craftLeve.Item[i].Value.Name}");
+              requiredItems.Add(new(craftLeve.Item[i].RowId, craftLeve.ItemCount[i], craftLeve.Item[i].Value.Name.ToString()));
             }
           }
 
@@ -512,6 +516,40 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       if (QuestManager.IsQuestComplete(id)) return true;
 
     return false;
+  }
+
+  /// <summary>
+  /// The leve is in the player's held leves right now — the same list the
+  /// journal's Levequests tab shows.
+  /// </summary>
+  public unsafe bool IsLeveAccepted(Types.Quest quest)
+  {
+    if (!quest.IsLeve) return false;
+    QuestManager* manager = QuestManager.Instance();
+    return manager is not null && manager->GetLeveQuestById((ushort)quest.Ids[0]) is not null;
+  }
+
+  /// <summary>
+  /// The bags and armoury chest hold enough of every item one turn-in needs.
+  /// NQ and HQ both count, because a levemete takes either. The armoury chest
+  /// counts because crafted gear lands there, and a player with the piece
+  /// there treats the leve as ready. Equipped gear is left out: an item being
+  /// worn cannot be handed in.
+  /// </summary>
+  public unsafe bool HasLeveItems(Types.Quest quest)
+  {
+    if (quest.RequiredItems.Count == 0) return false;
+    InventoryManager* manager = InventoryManager.Instance();
+    if (manager is null) return false;
+
+    foreach (Types.LeveItem item in quest.RequiredItems)
+    {
+      int held = manager->GetInventoryItemCount(item.ItemId, false, false, true)
+               + manager->GetInventoryItemCount(item.ItemId, true, false, true);
+      if (held < item.Count) return false;
+    }
+
+    return true;
   }
 
   /// <summary>

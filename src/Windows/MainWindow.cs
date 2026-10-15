@@ -4,6 +4,11 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
+  // Leve title states. Yellow for a held leve matches LeveHelper, which many
+  // leve players already read at a glance.
+  private static readonly Vector4 LeveAcceptedColour = new(1.0f, 0.9f, 0.3f, 1.0f);
+  private static readonly Vector4 LeveItemsHeldColour = new(0.45f, 0.9f, 0.45f, 1.0f);
+
   private string _searchQuery = "";
 
   private QuestData? _selectedCategory;
@@ -572,9 +577,16 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
 
         ImGui.TableNextColumn();
         string title = quest.Ids.Count > 0 ? $"{quest.Title} [{quest.Ids[0]}]" : quest.Title;
-        if (complete) ImGui.TextDisabled(title);
+        bool accepted = _dataService.IsLeveAccepted(quest);
+        bool itemsHeld = _dataService.HasLeveItems(quest);
+
+        // Items in the bags outranks held: it is the more specific news, and
+        // a held leve with its items ready is exactly the one to turn in.
+        if (itemsHeld) ImGui.TextColored(LeveItemsHeldColour, title);
+        else if (accepted) ImGui.TextColored(LeveAcceptedColour, title);
+        else if (complete) ImGui.TextDisabled(title);
         else ImGui.Text(title);
-        DrawRequiredItemsCopy(quest);
+        DrawLeveTitleTooltip(quest, accepted, itemsHeld);
         DrawLeveDetail(quest);
 
         ImGui.TableNextColumn();
@@ -1196,20 +1208,33 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
   }
 
   /// <summary>
-  /// Ctrl+click on a delivery leve's title copies what one turn-in needs, in
-  /// the "1x Item Name" lines Teamcraft and Allagan Tools import. The tooltip
-  /// shows the exact text, so a copy needs no confirmation of its own.
+  /// A leve title's tooltip: its state in words, since the title colour alone
+  /// says nothing to a reader who cannot tell the colours apart, then the
+  /// required items. Ctrl+click copies those items in the "1x Item Name" lines
+  /// Teamcraft and Allagan Tools import; the tooltip shows the exact text, so
+  /// a copy needs no confirmation of its own.
   /// Call straight after drawing the title, while it is the last item.
   /// </summary>
-  private static void DrawRequiredItemsCopy(Types.Quest quest)
+  private static void DrawLeveTitleTooltip(Types.Quest quest, bool accepted, bool itemsHeld)
   {
-    if (quest.RequiredItems.Count == 0 || !ImGui.IsItemHovered()) return;
+    if (!quest.IsLeve || !ImGui.IsItemHovered()) return;
 
-    string text = string.Join("\n", quest.RequiredItems);
-    ImGui.SetTooltip($"Ctrl+click to copy for Teamcraft or Allagan Tools:\n{text}");
+    List<string> lines = [];
+    if (accepted) lines.Add("Accepted.");
+    if (itemsHeld) lines.Add("Your bags or armoury chest hold the items for one turn-in.");
 
-    if (ImGui.GetIO().KeyCtrl && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-      ImGui.SetClipboardText(text);
+    string items = string.Join("\n", quest.RequiredItems);
+    if (items.Length > 0)
+    {
+      if (lines.Count > 0) lines.Add("");
+      lines.Add("Ctrl+click to copy for Teamcraft or Allagan Tools:");
+      lines.Add(items);
+
+      if (ImGui.GetIO().KeyCtrl && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+        ImGui.SetClipboardText(items);
+    }
+
+    if (lines.Count > 0) ImGui.SetTooltip(string.Join("\n", lines));
   }
 
   /// <summary>
