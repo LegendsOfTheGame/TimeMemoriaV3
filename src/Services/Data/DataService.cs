@@ -239,6 +239,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     // Each of the loops below filters a whole sheet by a single key. Doing that
     // inside the loop is O(categories x rows); grouping once up front is O(rows).
     Lumina.Excel.ExcelSheet<JournalCategory> englishCategories = _dataManager.GetExcelSheet<JournalCategory>(ClientLanguage.English);
+    Lumina.Excel.ExcelSheet<JournalGenre> englishGenres = _dataManager.GetExcelSheet<JournalGenre>(ClientLanguage.English);
 
     Dictionary<uint, List<JournalGenre>> genresByCategory = [];
     foreach (JournalGenre genre in _dataManager.GetExcelSheet<JournalGenre>(lang))
@@ -346,6 +347,16 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
           continue;
         }
 
+        // Leve folders take the game's genre name — "Weaver Levequests" — not
+        // the category's, which names some crafts by trade instead of job
+        // ("Clothcrafting Leves"). Every leve category holds one genre except
+        // Company Leves, which holds one per Grand Company; that one keeps the
+        // category name, so renaming never splits a folder.
+        (string, string) leveFolder =
+          genresByCategory[journalCategory.RowId].Count((g) => levesByGenre.ContainsKey(g.RowId)) == 1
+            ? (journalGenre.Name.ToString(), englishGenres.GetRow(journalGenre.RowId).Name.ToString())
+            : (subCategory, englishSubCategory);
+
         foreach (Leve leve in levesByGenre.GetValueOrDefault(journalGenre.RowId, []))
         {
           section = leve.PlaceNameStart.Value.Name.ToString();
@@ -384,7 +395,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
             ? leve.LeveAssignmentType.Value.Name.ToString()
             : leve.ClassJobCategory.Value.Name.ToString();
 
-          AddQuest(ExpansionOf(ExpansionFromLevel(leve.ClassJobLevel), lang), (mainCategory, englishMainCategory), (subCategory, englishSubCategory), section, new()
+          AddQuest(ExpansionOf(ExpansionFromLevel(leve.ClassJobLevel), lang), (mainCategory, englishMainCategory), leveFolder, section, new()
           {
             Title = leve.Name.ToString(),
             Ids = [leve.RowId],
@@ -532,9 +543,9 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   /// <summary>
   /// The bags and armoury chest hold enough of every item one turn-in needs.
   /// NQ and HQ both count, because a levemete takes either. The armoury chest
-  /// counts because crafted gear lands there, and a player with the piece
-  /// there treats the leve as ready. Equipped gear is left out: an item being
-  /// worn cannot be handed in.
+  /// counts because the hand-over window offers items straight from it —
+  /// checked in game 15 Oct 2026 with a Bone Harpoon for "In with the New".
+  /// Equipped gear is left out: an item being worn cannot be handed in.
   /// </summary>
   public unsafe bool HasLeveItems(Types.Quest quest)
   {
