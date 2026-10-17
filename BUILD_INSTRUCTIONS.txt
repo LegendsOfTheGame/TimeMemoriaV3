@@ -1,0 +1,207 @@
+TimeMemoriaV3 — Build & Release Steps (local, from transcript)
+Location: D:\Github\TimeMemoriaV3
+
+This document collects the exact commands, checks, and notes from your Cursor transcript so you can:
+- build Debug or Release locally
+- verify and push a prepared commit
+- perform the Dalamud release workflow used by this repo (version bump, tag, repo.json)
+- check CI / GitHub release status
+- avoid accidentally committing local/dev artifacts
+
+---
+Prerequisites
+- Git configured for this repo (origin -> https://github.com/LegendsOfTheGame/TimeMemoriaV3.git)
+- dotnet SDK installed (used to build the project)
+- Python available to run tools/Build-RepoJson.py
+- gh (GitHub CLI) if you want to check Actions/releases from the shell (optional)
+- Be aware of local uncommitted changes and untracked folders (see Notes)
+
+---
+1) Safe verification of what will be pushed
+- Change to the repo:
+  cd D:\Github\TimeMemoriaV3
+
+- Show commits that are ahead of origin/main:
+  git log origin/main..HEAD --oneline
+
+- Inspect the latest commit contents:
+  git show --stat --oneline HEAD
+
+- Check current working tree status (shows uncommitted / untracked files):
+  git status -sb
+
+Notes from transcript: in that session commits and files were:
+- commit `672e36b` (example): 5 files changed
+  - src/Services/Data/DataService.cs
+  - src/Types/QuestData.cs
+  - src/Windows/MainWindow.cs
+  - src/Windows/Native/QuestListItemNode.cs
+  - src/Windows/Native/QuestsPanelNode.cs
+- Local edits left uncommitted (kept out of push):
+  - src/Services/Data/DataService.cs (local edits)
+  - src/Services/Data/FestivalService.cs (local edits)
+- Untracked folders (kept out of push):
+  - .claude/
+  - assets/d17/
+  - tools/SheetProbe/
+
+Do not run `git add .` unless you intend to include everything.
+
+---
+2) Push a prepared commit to origin/main
+- Push:
+  git push origin main
+
+- If prompted to authenticate, complete the prompt and re-run the push if necessary.
+
+- Confirm `ahead` state is gone:
+  git status -sb
+  # Expect to see: "## main...origin/main" (no "ahead 1")
+
+---
+3) Build locally (Debug and Release)
+- Debug build:
+  cd D:\Github\TimeMemoriaV3
+  dotnet build TimeMemoria.csproj -c Debug
+  Output DLL: bin\Debug\TimeMemoriaV3.dll
+
+- Release build (used in transcript):
+  dotnet build TimeMemoria.csproj -c Release
+  or to ensure a fresh output:
+  dotnet build -c Release --no-incremental
+  Output DLL: bin\Release\TimeMemoriaV3.dll
+
+- If you need only the project library built for the repo.json builder, run the Release build as shown above before running the Python script.
+
+---
+4) Dalamud release workflow (step-by-step used in transcript)
+High level: bump <Version> in TimeMemoria.csproj -> commit & push -> tag -> CI builds the tag and attaches latest.zip -> run repo.json builder -> commit repo.json -> players update via raw repo.json URL.
+
+a) Bump the version in TimeMemoria.csproj
+- Edit the <Version> element. Example:
+  <!-- before -->
+  <Version>3.7.6.15</Version>
+
+  <!-- after -->
+  <Version>3.7.7.15</Version>
+
+  - Keep the final API digit consistent with Dalamud API level (transcript used `.15`).
+  - Commit and push:
+    git add TimeMemoria.csproj
+    git commit -m "release: bump version to 3.7.7.15"
+    git push origin main
+
+b) Tag the release (tag name must start with `v`)
+- Create and push a tag:
+  git tag v3.7.7.15
+  git push origin v3.7.7.15
+  - This triggers the repo's GitHub Actions workflow for tags; the workflow should build and attach `latest.zip` to the GitHub Release.
+
+c) Wait for the tag build to finish and create the GitHub release asset
+- Watch the Actions run for the tag in the repo's Actions UI, or use gh to list runs:
+  gh api repos/LegendsOfTheGame/TimeMemoriaV3/actions/runs --jq ".workflow_runs[:5] | .[] | {name, status, conclusion, event, head_branch, html_url, created_at}"
+- View a specific run (if you have the run id):
+  gh run view <run-id> --json status,conclusion,url,displayTitle,headBranch
+
+d) Build/refresh repo.json that Dalamud uses
+- Ensure a Release build exists (and is not stale):
+  dotnet build -c Release --no-incremental
+
+- Run the repo builder script (transcript example):
+  python tools/Build-RepoJson.py "Show held leves and leves whose required items are ready."
+  - Script writes repo.json and prints the advertised version line (verify it matches the bumped version).
+  - Example transcript output:
+    wrote D:\Github\TimeMemoriaV3\repo.json
+    Time Memoria 3.7.7.15 API 15
+
+e) Commit & push repo.json
+- Commit and push:
+  git add repo.json
+  git commit -m "release: 3.7.7.15"
+  git push origin main
+
+f) Verify the published release
+- Check latest release tag via gh:
+  gh api repos/LegendsOfTheGame/TimeMemoriaV3/releases/latest --jq .tag_name
+  # should eventually print: v3.7.7.15
+- Check release assets:
+  gh api repos/LegendsOfTheGame/TimeMemoriaV3/releases/latest --jq "{tag: .tag_name, assets: [.assets[].name]}"
+- The Dalamud client reads:
+  https://raw.githubusercontent.com/LegendsOfTheGame/TimeMemoriaV3/main/repo.json
+
+Notes: raw.githubusercontent.com may cache; wait a few minutes if changes are not visible.
+
+---
+5) Testing in-game
+- If you have a local dev plugin installed from bin/Release, disable it before testing the published build (a dev plugin can hide published installs).
+- Restart the game or reload the plugin. The Levequests tree should reflect changes (for example: show "Weaver" rather than "Clothcrafting" after the code change + build).
+
+---
+6) Common warnings and cautions
+- Line endings warning when adding csproj:
+  warning: in the working copy of 'TimeMemoria.csproj', LF will be replaced by CRLF the next time Git touches it
+  This is informational about line-ending normalization and is not fatal.
+- Do NOT run `git add .` or `git commit` before verifying the commit contents; that risks including FestivalService.cs or untracked folders.
+- If a tag build fails, inspect Actions logs, fix locally, and re-trigger the tag build by either:
+  - correcting code and re-tagging (delete & recreate tag), or
+  - using workflow_dispatch on the build workflow if supported by the repo (consult the workflow file).
+
+---
+7) Troubleshooting tips
+- If repo.json prints the wrong version, ensure bin/ and other artifacts are not stale. Rebuild Release with --no-incremental and re-run the builder script.
+- If release assets do not appear after a successful Actions run, ensure the workflow attaches latest.zip on success; check the workflow logs for upload steps and errors.
+- If Git refuses to push a recreated tag, delete remote tag and re-push:
+  git push origin :refs/tags/v3.7.7.15   # delete remote tag
+  git tag -d v3.7.7.15                   # delete local tag
+  git tag v3.7.7.15
+  git push origin v3.7.7.15
+
+---
+8) Quick reference (copy/paste)
+- Build Debug:
+  dotnet build TimeMemoria.csproj -c Debug
+  # output -> bin\Debug\TimeMemoriaV3.dll
+
+- Build Release:
+  dotnet build TimeMemoria.csproj -c Release
+  dotnet build -c Release --no-incremental
+  # output -> bin\Release\TimeMemoriaV3.dll
+
+- Bump version / commit / push:
+  # edit TimeMemoria.csproj -> change <Version>...<Version>
+  git add TimeMemoria.csproj
+  git commit -m "release: bump version to 3.7.7.15"
+  git push origin main
+
+- Tag & push:
+  git tag v3.7.7.15
+  git push origin v3.7.7.15
+
+- Build repo.json and push:
+  dotnet build -c Release --no-incremental
+  python tools/Build-RepoJson.py "Short changelog line here"
+  git add repo.json
+  git commit -m "release: 3.7.7.15"
+  git push origin main
+
+- Check latest release tag:
+  gh api repos/LegendsOfTheGame/TimeMemoriaV3/releases/latest --jq .tag_name
+
+---
+9) Commit this BUILD_INSTRUCTIONS.txt into the repo (optional)
+- To add this file to the repo locally and push:
+  # create file at D:\Github\TimeMemoriaV3\BUILD_INSTRUCTIONS.txt with the contents above
+  git add BUILD_INSTRUCTIONS.txt
+  git commit -m "chore: add build and release instructions"
+  git push origin main
+
+---
+10) Final checklist before publishing
+- [ ] Confirm commit contains only intended files: git show --stat --oneline HEAD
+- [ ] Push main: git push origin main
+- [ ] Bump <Version> in TimeMemoria.csproj -> commit & push
+- [ ] Tag vX.Y.Z.N and push tag
+- [ ] Wait for tag CI build -> confirm latest.zip attached
+- [ ] Run python tools/Build-RepoJson.py "changelog" -> verify printed version
+- [ ] Commit and push repo.json
+- [ ] In-game: disable dev plugin, reload/restart to verify
