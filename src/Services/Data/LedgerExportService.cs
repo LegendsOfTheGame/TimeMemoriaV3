@@ -4,6 +4,9 @@ public interface ILedgerExportService
 {
   /// <summary>The Adventurer's Ledger field shape, ready to merge.</summary>
   string BuildLedgerJson();
+
+  /// <summary>Collection unlocks, as a payload of its own. See BuildCollectionsJson.</summary>
+  string BuildCollectionsJson();
 }
 
 /// <summary>
@@ -86,6 +89,114 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       _pluginLog.Error(ex, "[LedgerExport] Failed to build ledger payload");
       return "{}";
     }
+  }
+
+  /// <summary>
+  /// Collections: what this character owns, by sheet row id, one list per kind.
+  ///
+  /// A payload of its own, not part of the Ledger export (decided 18 Oct 2026):
+  /// the main export was cut to fmt 2 so it pastes cheaply, and these lists
+  /// would undo that. Owned ids only — the readers hold the names and totals,
+  /// the same way tm-export-tables already maps quest ids.
+  ///
+  /// Every read and its id source was checked with MemoriaProbe
+  /// (CollectionsProbe, 18 Oct 2026). Mounts 34, minions 110 and facewear 8
+  /// matched the in-game guides exactly.
+  ///
+  /// <list type="bullet">
+  /// <item>Facewear is sent as style ids. The read takes a Glasses row, one per
+  /// colour, but the game's Facewear window counts styles (Kaye: 96 colours,
+  /// TOTAL 8), so the rows are grouped by their style.</item>
+  /// <item>Fish and spearfish: the read takes the FishParameter or
+  /// SpearfishingItem row and holds only so many bits (1522 and 304 today).
+  /// Rows past that are not fish the game tracks; the walk stops at the first
+  /// one, since rows come in ascending order.</item>
+  /// </list>
+  ///
+  /// Not here yet: framer's kits (no known id-to-name mapping), Blue Magic,
+  /// titles and achievements.
+  /// </summary>
+  public unsafe string BuildCollectionsJson()
+  {
+    try
+    {
+      JsonObject root = new()
+      {
+        ["source"] = "time-memoria",
+        ["kind"] = "collections",
+        ["fmt"] = 2,
+        ["version"] = typeof(LedgerExportService).Assembly.GetName().Version?.ToString() ?? "unknown",
+        ["exported"] = Stamp(DateTime.UtcNow),
+        ["name"] = _playerState.IsLoaded ? _playerState.CharacterName : string.Empty,
+        ["world"] = WorldName()
+      };
+
+      var player = FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState.Instance();
+      var ui = FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.Instance();
+
+      // Nothing to read without a character; empty lists here would tell the
+      // ledger this character owns nothing.
+      if (!_playerState.IsLoaded || player == null || ui == null)
+        return root.ToJsonString();
+
+      root["mounts"] = Owned(Named(_dataManager.GetExcelSheet<Mount>(), r => r.Singular), id => player->IsMountUnlocked(id));
+      root["minions"] = Owned(Named(_dataManager.GetExcelSheet<Companion>(), r => r.Singular), id => ui->IsCompanionUnlocked(id));
+      root["orchestrion"] = Owned(Named(_dataManager.GetExcelSheet<Orchestrion>(), r => r.Name), id => player->IsOrchestrionRollUnlocked(id));
+      root["ttCards"] = Owned(Named(_dataManager.GetExcelSheet<TripleTriadCard>(), r => r.Name), id => ui->IsTripleTriadCardUnlocked((ushort)id));
+      root["ttNpcs"] = Owned(_dataManager.GetExcelSheet<TripleTriadResident>().Select(r => r.RowId).Where(id => id > 0), id => ui->IsTripleTriadNpcBeaten(id));
+      root["emotes"] = Owned(Named(_dataManager.GetExcelSheet<Emote>(), r => r.Name), id => ui->IsEmoteUnlocked((ushort)id));
+      root["accessories"] = Owned(Named(_dataManager.GetExcelSheet<Ornament>(), r => r.Singular), id => player->IsOrnamentUnlocked(id));
+      root["curios"] = Owned(_dataManager.GetExcelSheet<McGuffin>().Where(r => r.RowId > 0).Select(r => r.RowId), id => player->IsMcGuffinUnlocked(id));
+
+      JsonArray styles = [];
+      foreach (uint style in _dataManager.GetExcelSheet<Glasses>()
+                 .Where(r => r.RowId > 0 && r.Style.RowId > 0 && player->IsGlassesUnlocked((ushort)r.RowId))
+                 .Select(r => r.Style.RowId).Distinct().Order())
+        styles.Add(style);
+      root["facewear"] = styles;
+
+      root["fish"] = OwnedUntilOutOfRange(_dataManager.GetExcelSheet<FishParameter>().Select(r => r.RowId), id => player->IsFishCaught(id));
+      root["spearfish"] = OwnedUntilOutOfRange(_dataManager.GetExcelSheet<SpearfishingItem>().Select(r => r.RowId), id => player->IsSpearfishCaught(id));
+
+      return root.ToJsonString();
+    }
+    catch (Exception ex)
+    {
+      _pluginLog.Error(ex, "[LedgerExport] Failed to build collections payload");
+      return "{}";
+    }
+  }
+
+  /// <summary>Rows with a name. A blank name is an unused slot, not a collectable.</summary>
+  private static IEnumerable<uint> Named<T>(Lumina.Excel.ExcelSheet<T> sheet, Func<T, Lumina.Text.ReadOnly.ReadOnlySeString> name)
+    where T : struct, Lumina.Excel.IExcelRow<T> =>
+    sheet.Where(r => r.RowId > 0 && !name(r).IsEmpty).Select(r => r.RowId);
+
+  private static JsonArray Owned(IEnumerable<uint> ids, Func<uint, bool> isOwned)
+  {
+    JsonArray owned = [];
+    foreach (uint id in ids)
+      if (isOwned(id)) owned.Add(id);
+    return owned;
+  }
+
+  /// <summary>As <see cref="Owned"/>, stopping at the first id the bit array cannot hold.</summary>
+  private static JsonArray OwnedUntilOutOfRange(IEnumerable<uint> ids, Func<uint, bool> isOwned)
+  {
+    JsonArray owned = [];
+    foreach (uint id in ids)
+    {
+      if (id == 0) continue;
+      try
+      {
+        if (isOwned(id)) owned.Add(id);
+      }
+      catch (ArgumentOutOfRangeException)
+      {
+        break;
+      }
+    }
+    return owned;
   }
 
   /// <summary>

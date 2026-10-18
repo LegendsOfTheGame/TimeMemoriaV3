@@ -1401,6 +1401,11 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     if (ImGui.Button("Copy for Adventurer's Ledger"))
       CopyToClipboard(_ledgerExport.BuildLedgerJson, "Copied in ledger format.");
 
+    // Collections are a payload of their own, so pasting progress stays cheap.
+    ImGui.SameLine();
+    if (ImGui.Button("Copy collections"))
+      CopyToClipboard(_ledgerExport.BuildCollectionsJson, "Copied your collections.");
+
     // Fade the confirmation rather than leaving it on screen forever.
     if (_copyFeedback.Length > 0 && DateTime.UtcNow - _copyShownAt < TimeSpan.FromSeconds(4))
     {

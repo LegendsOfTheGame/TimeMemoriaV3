@@ -107,12 +107,12 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
   /// on, so writing the clipboard from here is safe — the window's copy buttons
   /// do it from the same place.
   /// </summary>
-  private void Copy(Func<string> build, string what)
+  private void Copy(Func<string> build, string done)
   {
     try
     {
       ImGui.SetClipboardText(build());
-      _logger.Chat($"Copied your progress in {what}.");
+      _logger.Chat(done);
     }
     catch (Exception ex)
     {
@@ -143,6 +143,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _logger.Chat($"  {MainCommand} classic — the classic window, whatever is chosen");
         _logger.Chat($"  {MainCommand} native — the game-styled window, whatever is chosen");
         _logger.Chat($"  {MainCommand} ledger — copy your progress to the clipboard");
+        _logger.Chat($"  {MainCommand} collections — copy your collections to the clipboard");
         _logger.Chat($"  {MainCommand} reset — reset the quest tree");
         _logger.Chat($"  {MainCommand} arr | hw | sb/stb | shb | ew | dt | ec — open every unfinished quest in that expansion (Native UI)");
         _logger.Chat($"  {GlanceCommand} — open the at-a-glance window");
@@ -154,7 +155,11 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
       // wanting the figures and having them.
       case "ledger":
       case "progress":
-        Copy(_ledgerExport.BuildLedgerJson, "ledger format");
+        Copy(_ledgerExport.BuildLedgerJson, "Copied your progress in ledger format.");
+        break;
+
+      case "collections":
+        Copy(_ledgerExport.BuildCollectionsJson, "Copied your collections.");
         break;
 
       // Named explicitly so neither window can become unreachable. Choosing the
