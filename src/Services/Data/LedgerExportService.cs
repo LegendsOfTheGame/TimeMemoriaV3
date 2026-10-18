@@ -10,9 +10,12 @@ public interface ILedgerExportService
 /// Builds the clipboard payloads. Local only — output goes to the clipboard and
 /// nowhere else; the plugin makes no outbound requests.
 /// </summary>
-public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements, ICosmicToolProgressService _cosmicTools)
+public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements, ICosmicToolProgressService _cosmicTools, IDataManager _dataManager)
   : ILedgerExportService
 {
+  /// <summary>Master books per crafter, built once: the sheets do not change in a session.</summary>
+  private List<(string Job, List<uint> Numbered, List<uint> Others)>? _masterBooks;
+
   public string BuildLedgerJson()
   {
     try
@@ -22,11 +25,16 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       // an export written into the ledger is wrong until the next one.
       _dataService.UpdateQuestData(true);
 
+      // fmt 2 is the compact shape: job abbreviations, quest ids, arrays in
+      // place of repeated keys, 1/0 for flags. The ledger and the Eorzea Line
+      // convert it back to the fmt 1 shape on import; an export without "fmt"
+      // is fmt 1.
       JsonObject root = new()
       {
         ["source"] = "time-memoria",
+        ["fmt"] = 2,
         ["version"] = typeof(LedgerExportService).Assembly.GetName().Version?.ToString() ?? "unknown",
-        ["exported"] = DateTime.UtcNow.ToString("o"),
+        ["exported"] = Stamp(DateTime.UtcNow),
         ["name"] = _playerState.IsLoaded ? _playerState.CharacterName : string.Empty,
         ["server"] = BuildServer()
       };
@@ -58,10 +66,20 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       JsonObject? unlocks = BuildUnlocks();
       if (unlocks != null) root["unlocks"] = unlocks;
 
-      JsonObject? cosmicTools = BuildCosmicTools();
+      JsonObject? cosmicTools = BuildCosmicTools(progress);
       if (cosmicTools != null) root["cosmicTools"] = cosmicTools;
 
-      return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+      JsonObject? masterBooks = BuildMasterBooks();
+      if (masterBooks != null) root["masterBooks"] = masterBooks;
+
+      // Compact, for the clipboard and for pasting into an AI: the readers use
+      // JSON.parse, so indentation is only size. The relaxed encoder keeps an
+      // apostrophe as one character instead of a six-character escape; safe
+      // because this text is never placed in HTML unparsed.
+      return root.ToJsonString(new JsonSerializerOptions
+      {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+      });
     }
     catch (Exception ex)
     {
@@ -88,8 +106,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
 
     JsonObject unlocks = [];
 
+    // 1/0 rather than true/false: fmt 2, see BuildLedgerJson.
     foreach ((string key, uint[] ids) in LedgerUnlocks.Quests)
-      unlocks[key] = ids.Any(QuestManager.IsQuestComplete);
+      unlocks[key] = ids.Any(QuestManager.IsQuestComplete) ? 1 : 0;
 
     // Squadrons, the daily Hunt bills and player housing all open at Second
     // Lieutenant, so one rank read gates several ledger rows. Rank is only
@@ -98,9 +117,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     uint company = _playerState.GrandCompany.RowId;
     bool enlisted = company != 0;
 
-    unlocks["grandCompany"] = enlisted;
+    unlocks["grandCompany"] = enlisted ? 1 : 0;
     unlocks["squadron"] = enlisted &&
-      _playerState.GetGrandCompanyRank(_playerState.GrandCompany.Value) >= LedgerUnlocks.SecondLieutenantRank;
+      _playerState.GetGrandCompanyRank(_playerState.GrandCompany.Value) >= LedgerUnlocks.SecondLieutenantRank ? 1 : 0;
 
     return unlocks;
   }
@@ -122,7 +141,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     };
 
     if (record.LifetimePlaytimeUpdatedUtc.HasValue)
-      playtime["asOf"] = record.LifetimePlaytimeUpdatedUtc.Value.ToString("o");
+      playtime["asOf"] = Stamp(record.LifetimePlaytimeUpdatedUtc.Value);
 
     return playtime;
   }
@@ -144,21 +163,17 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// circulation for the same society — the sheet says "sylphs", the wiki says
   /// "Sylphs", the ledger says "Sylph" — and an import that matches on wording
   /// breaks the day any of them is revised. The id is the same number the client
-  /// indexes standing by and cannot drift. The name rides along for display.
+  /// indexes standing by and cannot drift. The readers hold the names.
+  ///
+  /// fmt 2: <c>"1": [rank, points, needed]</c>, one entry per society.
   /// </summary>
-  private JsonArray BuildSocieties()
+  private JsonObject BuildSocieties()
   {
-    JsonArray societies = [];
+    JsonObject societies = [];
 
     foreach (SocietyStanding standing in _societies.GetStandings())
-      societies.Add(new JsonObject
-      {
-        ["id"] = standing.Index,
-        ["name"] = standing.Name,
-        ["rank"] = standing.Rank,
-        ["points"] = standing.Points,
-        ["needed"] = standing.Needed
-      });
+      societies[standing.Index.ToString(CultureInfo.InvariantCulture)] =
+        new JsonArray(standing.Rank, standing.Points, standing.Needed);
 
     return societies;
   }
@@ -202,11 +217,18 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   {
     ["count"] = reading.Value,
     ["exact"] = reading.IsExact,
-    ["asOf"] = reading.TakenUtc.ToString("o")
+    ["asOf"] = Stamp(reading.TakenUtc)
   };
 
   /// <summary>
-  /// Every completed class, job and role quest, by name.
+  /// UTC to the second. The fraction the "o" format adds is seven digits that
+  /// no reader uses, repeated on every timestamp.
+  /// </summary>
+  private static string Stamp(DateTime utc) =>
+    utc.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+
+  /// <summary>
+  /// Every completed class, job and role quest, by quest id (see CollectComplete).
   ///
   /// The ledger has these as a hand-ticked checkbox per quest, which is a hundred
   /// and fifty clicks describing something the game already knows exactly. A flat
@@ -238,11 +260,19 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// completed quest is hidden and reading it here would export an empty list.
   /// What a character has finished is not a display preference.
   /// </summary>
+  /// <remarks>
+  /// fmt 2 sends the quest id, not the title: a number is a fraction of the
+  /// size, cannot drift with wording, and is the same in every client
+  /// language (the title is not). The short form, RowId - 65536, is the id
+  /// QuestManager itself takes. Where one quest has several ids (the ARR
+  /// start-city variants), the one completed is sent. The readers turn ids
+  /// back into English titles from their own table.
+  /// </remarks>
   private void CollectComplete(QuestData node, JsonArray into)
   {
     foreach (Types.Quest quest in node.Quests)
       if (_dataService.IsQuestComplete(quest))
-        into.Add(quest.Title);
+        into.Add((quest.Ids.FirstOrDefault(QuestManager.IsQuestComplete, quest.Ids[0])) & 0xFFFF);
 
     foreach (QuestData child in node.Categories) CollectComplete(child, into);
   }
@@ -354,11 +384,18 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// Whole section omitted when nothing has ever been read, same reasoning as
   /// playtime and collectables: a character with no reading yet must not send
   /// an empty object that would overwrite a good value already on the ledger.
+  ///
+  /// fmt 2: jobs keyed by abbreviation, each type as
+  /// <c>[type, current, needed, max]</c>.
   /// </summary>
-  private JsonObject? BuildCosmicTools()
+  private JsonObject? BuildCosmicTools(List<ClassJobProgress> levels)
   {
     List<CosmicToolProgress> progress = _cosmicTools.GetProgress();
     if (progress.Count == 0 || _cosmicTools.TakenUtc is not { } takenUtc) return null;
+
+    Dictionary<string, string> abbreviations = levels
+      .GroupBy(l => l.Name)
+      .ToDictionary(g => g.Key, g => g.First().EnglishAbbreviation);
 
     JsonObject jobs = [];
 
@@ -367,23 +404,123 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       JsonArray types = [];
 
       foreach (CosmicResearchProgress type in job.Types)
-        types.Add(new JsonObject
-        {
-          ["type"] = type.Type,
-          ["current"] = type.Current,
-          ["needed"] = type.Needed,
-          ["max"] = type.Max
-        });
+        types.Add(new JsonArray(type.Type, type.Current, type.Needed, type.Max));
 
-      jobs[job.Job] = types;
+      jobs[abbreviations.GetValueOrDefault(job.Job, job.Job)] = types;
     }
 
-    return new JsonObject { ["asOf"] = takenUtc.ToString("o"), ["jobs"] = jobs };
+    return new JsonObject { ["asOf"] = Stamp(takenUtc), ["jobs"] = jobs };
+  }
+
+  /// <summary>
+  /// Master recipe books (the SecretRecipeBook sheet), learned 1 or not 0.
+  /// Learned only: which books to buy, and with what, is the ledger's job.
+  ///
+  /// One string per crafter: a digit per numbered book from 1 up, then "-"
+  /// and a digit per other book, Glamours first, then Demimateria.
+  /// <c>"GSM":"111000000000-11"</c> is GSM 1-3 learned, 4-12 not, both others
+  /// learned. Culinarian has no other books, so its string has no "-".
+  ///
+  /// Null when the player is not loaded, so a payload of zeroes cannot
+  /// overwrite what the ledger already holds.
+  /// </summary>
+  private unsafe JsonObject? BuildMasterBooks()
+  {
+    if (!_playerState.IsLoaded) return null;
+
+    var player = FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState.Instance();
+    if (player == null) return null;
+
+    JsonObject books = [];
+
+    foreach ((string job, List<uint> numbered, List<uint> others) in MasterBooks())
+    {
+      string digits = string.Concat(numbered.Select(id => player->IsSecretRecipeBookUnlocked(id) ? '1' : '0'));
+      if (others.Count > 0)
+        digits += "-" + string.Concat(others.Select(id => player->IsSecretRecipeBookUnlocked(id) ? '1' : '0'));
+
+      books[job] = digits;
+    }
+
+    return books;
+  }
+
+  /// <summary>
+  /// Per crafter abbreviation, in crafter order: the numbered books by number,
+  /// then the others (Glamours, Demimateria, then any new kind by row).
+  /// Read from the English sheets so the split by name is the same in every
+  /// client language.
+  ///
+  /// The crafter comes from the recipes that name the book, and a book no
+  /// recipe names is left out: it has nothing to unlock (Culinarian Glamours,
+  /// row 16). MemoriaProbe (masterbooks, 17 Oct 2026) found every book this
+  /// way; the second gate, NotebookDivision.SecretRecipeBookGroups, added
+  /// none, so it is not read. CraftType 0-7 is ClassJob 8-15.
+  /// </summary>
+  private List<(string Job, List<uint> Numbered, List<uint> Others)> MasterBooks()
+  {
+    if (_masterBooks != null) return _masterBooks;
+
+    Dictionary<uint, uint> craftByBook = [];
+    foreach (Recipe recipe in _dataManager.GetExcelSheet<Recipe>())
+      if (recipe.SecretRecipeBook.RowId > 0)
+        craftByBook.TryAdd(recipe.SecretRecipeBook.RowId, recipe.CraftType.RowId);
+
+    // craft -> (sort key, book row). Numbered books sort by number; others
+    // sort after them: Glamours, Demimateria, then by row.
+    Dictionary<uint, List<(int Sort, bool Numbered, uint Id)>> byCraft = [];
+
+    foreach (SecretRecipeBook book in _dataManager.GetExcelSheet<SecretRecipeBook>(ClientLanguage.English))
+    {
+      if (!craftByBook.TryGetValue(book.RowId, out uint craft)) continue;
+
+      string name = book.Name.ToString();
+      int number = RomanToNumber(name[(name.LastIndexOf(' ') + 1)..]);
+      (int sort, bool numbered) = number > 0 ? (number, true)
+        : name.EndsWith(": Glamours") ? (1_000_000, false)
+        : name.EndsWith(": Demimateria") ? (1_000_001, false)
+        : (2_000_000 + (int)book.RowId, false);
+
+      if (!byCraft.TryGetValue(craft, out var list)) byCraft[craft] = list = [];
+      list.Add((sort, numbered, book.RowId));
+    }
+
+    Lumina.Excel.ExcelSheet<ClassJob> jobs = _dataManager.GetExcelSheet<ClassJob>(ClientLanguage.English);
+    List<(string, List<uint>, List<uint>)> result = [];
+
+    foreach ((uint craft, var books) in byCraft.OrderBy(p => p.Key))
+    {
+      if (jobs.GetRowOrDefault(8 + craft) is not { } job) continue;
+
+      var ordered = books.OrderBy(b => b.Sort).ToList();
+      result.Add((job.Abbreviation.ToString(),
+                  ordered.Where(b => b.Numbered).Select(b => b.Id).ToList(),
+                  ordered.Where(b => !b.Numbered).Select(b => b.Id).ToList()));
+    }
+
+    return _masterBooks = result;
+  }
+
+  /// <summary>"XII" -> 12. Zero for anything that is not a roman numeral.</summary>
+  private static int RomanToNumber(string text)
+  {
+    Dictionary<char, int> values = new() { ['I'] = 1, ['V'] = 5, ['X'] = 10, ['L'] = 50 };
+    int total = 0;
+
+    for (int i = 0; i < text.Length; i++)
+    {
+      if (!values.TryGetValue(text[i], out int value)) return 0;
+      bool smallerBeforeLarger = i + 1 < text.Length && values.TryGetValue(text[i + 1], out int next) && next > value;
+      total += smallerBeforeLarger ? -value : value;
+    }
+
+    return total;
   }
 
   /// <summary>
   /// Levels the way the ledger stores them: level plus the fraction of the way
-  /// through it, to three decimals. Max level emits a bare integer.
+  /// through it, to three decimals. Max level emits a bare integer. fmt 2 keys
+  /// by abbreviation, "PLD" rather than "Paladin".
   /// </summary>
   private static JsonObject BuildLevels(List<ClassJobProgress> progress, string category)
   {
@@ -391,8 +528,8 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
 
     foreach (ClassJobProgress job in progress.Where(p => p.Category == category))
     {
-      if (job.Level == 0 || job.IsMaxLevel) obj[job.Name] = job.Level;
-      else obj[job.Name] = Math.Round(job.Level + job.Fraction, 3, MidpointRounding.AwayFromZero);
+      if (job.Level == 0 || job.IsMaxLevel) obj[job.EnglishAbbreviation] = job.Level;
+      else obj[job.EnglishAbbreviation] = Math.Round(job.Level + job.Fraction, 3, MidpointRounding.AwayFromZero);
     }
 
     return obj;

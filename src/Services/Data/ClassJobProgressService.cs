@@ -9,6 +9,10 @@ public class ClassJobProgress
 {
   public required string Name { get; init; }
   public required string Abbreviation { get; init; }
+
+  /// <summary>"PLD" whatever the client language: the export's key for this job.</summary>
+  public required string EnglishAbbreviation { get; init; }
+
   public required string Category { get; init; }
 
   /// <summary>
@@ -68,6 +72,7 @@ public class ClassJobProgressService(IPluginLog _pluginLog, IPlayerState _player
     try
     {
       Lumina.Excel.ExcelSheet<ParamGrow> paramGrow = _dataManager.GetExcelSheet<ParamGrow>();
+      Lumina.Excel.ExcelSheet<ClassJob> englishJobs = _dataManager.GetExcelSheet<ClassJob>(ClientLanguage.English);
       List<ClassJobProgress> result = [];
 
       // The character's level ceiling, which accounts for owned expansions.
@@ -106,6 +111,7 @@ public class ClassJobProgressService(IPluginLog _pluginLog, IPlayerState _player
             Name = jobName,
             ClassName = string.Equals(className, jobName, StringComparison.OrdinalIgnoreCase) ? null : className,
             Abbreviation = job.Abbreviation.ToString(),
+            EnglishAbbreviation = englishJobs.GetRowOrDefault(job.RowId)?.Abbreviation.ToString() ?? job.Abbreviation.ToString(),
             Category = GetCategory(job),
             Role = GetRole(job),
             Level = level,
