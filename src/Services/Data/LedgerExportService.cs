@@ -183,6 +183,29 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       root["porters"] = Owned(_dataManager.GetExcelSheet<ChocoboTaxiStand>().Where(r => r.RowId > 0 && !r.PlaceName.IsEmpty).Select(r => r.RowId),
         id => ui->IsChocoboTaxiStandUnlocked(id));
 
+      // Every completed quest, as short ids (RowId - 65536, what QuestManager
+      // takes). The reader groups them by the game's own journal genres —
+      // Hildibrand, Zodiac Weapons, Ishgardian Restoration, each seasonal event —
+      // so a questline added in a patch needs no plugin change. Sorted, so two
+      // exports diff cleanly.
+      JsonArray questsDone = [];
+      foreach (uint row in _dataManager.GetExcelSheet<Lumina.Excel.Sheets.Quest>()
+                 .Where(q => q.RowId > 0 && !q.Name.IsEmpty).Select(q => q.RowId).Order())
+        if (QuestManager.IsQuestComplete(row)) questsDone.Add(row & 0xFFFF);
+      root["questsDone"] = questsDone;
+
+      // Duty clears, by InstanceContent id (ContentFinderCondition.Content where
+      // ContentLinkType is 1). Checked with MemoriaProbe's DutiesProbe, 18 Oct 2026:
+      // every story duty before Dawntrail read completed on Kaye. Quest battles and
+      // deep-dungeon floor sets never record a clear here; the reader covers those
+      // from quests and achievements instead.
+      JsonArray dutiesDone = [];
+      foreach (uint content in _dataManager.GetExcelSheet<ContentFinderCondition>()
+                 .Where(r => r.ContentLinkType == 1 && r.Content.RowId > 0 && !r.Name.IsEmpty)
+                 .Select(r => r.Content.RowId).Distinct().Order())
+        if (FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.IsInstanceContentCompleted(content)) dutiesDone.Add(content);
+      root["dutiesDone"] = dutiesDone;
+
       return root.ToJsonString();
     }
     catch (Exception ex)
@@ -500,6 +523,23 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     JsonObject quests = new() { ["overall"] = totals.Values.Sum() };
     foreach (KeyValuePair<string, string> pair in keys)
       quests[pair.Value] = totals[pair.Value];
+
+    // [done, total] per expansion, oldest first, over the same six sections. The
+    // ledger's route line fills each station from this, so its figures are the
+    // plugin's own rather than a second count that leaves out levequests.
+    JsonArray byExpansion = [];
+    foreach (QuestData expansion in _dataService.QuestData.Categories)
+    {
+      int done = 0, total = 0;
+      foreach (QuestData category in expansion.Categories)
+        if (keys.ContainsKey(category.EnglishTitle))
+        {
+          done += (int)category.NumComplete;
+          total += (int)category.Total;
+        }
+      byExpansion.Add(new JsonArray(done, total));
+    }
+    quests["byExp"] = byExpansion;
 
     return quests;
   }
