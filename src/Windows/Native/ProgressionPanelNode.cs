@@ -39,6 +39,7 @@ public class ProgressionPanelNode : TabPanelNode
   private readonly TextButtonNode _copyLedger;
   private readonly TextButtonNode _openLedger;
   private readonly TextButtonNode _copyCollections;
+  private readonly TextButtonNode _copyEverything;
   private readonly TextNode _copyFeedback;
 
   private DateTime _copyShownAt = DateTime.MinValue;
@@ -67,6 +68,10 @@ public class ProgressionPanelNode : TabPanelNode
     // Collections are a payload of their own, so pasting progress stays cheap.
     _copyCollections = MakeButton("Copy collections",
       () => Copy(LedgerExport.BuildCollectionsJson, "Copied your collections."));
+
+    // Both in one paste, for when the Ledger should take everything at once.
+    _copyEverything = MakeButton("Copy everything",
+      () => Copy(LedgerExport.BuildFullJson, "Copied progress and collections together."));
 #pragma warning restore CS8602
 
     _openLedger = MakeButton("Open the Ledger",
@@ -208,6 +213,9 @@ public class ProgressionPanelNode : TabPanelNode
 
     _copyCollections.Size = new Vector2(buttonWidth, buttonHeight);
     _copyCollections.Position = new Vector2(2 * (buttonWidth + gap), buttonsY);
+
+    _copyEverything.Size = new Vector2(buttonWidth, buttonHeight);
+    _copyEverything.Position = new Vector2(3 * (buttonWidth + gap), buttonsY);
 
     _copyFeedback.Size = new Vector2(Width, 18.0f);
     _copyFeedback.Position = new Vector2(0.0f, buttonsY - 20.0f);

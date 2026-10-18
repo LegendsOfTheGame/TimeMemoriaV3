@@ -1406,6 +1406,11 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     if (ImGui.Button("Copy collections"))
       CopyToClipboard(_ledgerExport.BuildCollectionsJson, "Copied your collections.");
 
+    // Both in one paste, for when the Ledger should take everything at once.
+    ImGui.SameLine();
+    if (ImGui.Button("Copy everything"))
+      CopyToClipboard(_ledgerExport.BuildFullJson, "Copied progress and collections together.");
+
     // Fade the confirmation rather than leaving it on screen forever.
     if (_copyFeedback.Length > 0 && DateTime.UtcNow - _copyShownAt < TimeSpan.FromSeconds(4))
     {

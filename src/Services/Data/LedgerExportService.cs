@@ -7,6 +7,9 @@ public interface ILedgerExportService
 
   /// <summary>Collection unlocks, as a payload of its own. See BuildCollectionsJson.</summary>
   string BuildCollectionsJson();
+
+  /// <summary>Both in one paste. See BuildFullJson.</summary>
+  string BuildFullJson();
 }
 
 /// <summary>
@@ -128,7 +131,8 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
         ["version"] = typeof(LedgerExportService).Assembly.GetName().Version?.ToString() ?? "unknown",
         ["exported"] = Stamp(DateTime.UtcNow),
         ["name"] = _playerState.IsLoaded ? _playerState.CharacterName : string.Empty,
-        ["world"] = WorldName()
+        ["world"] = WorldName(),
+        ["game"] = GameBuild()
       };
 
       var player = FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState.Instance();
@@ -158,6 +162,27 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       root["fish"] = OwnedUntilOutOfRange(_dataManager.GetExcelSheet<FishParameter>().Select(r => r.RowId), id => player->IsFishCaught(id));
       root["spearfish"] = OwnedUntilOutOfRange(_dataManager.GetExcelSheet<SpearfishingItem>().Select(r => r.RowId), id => player->IsSpearfishCaught(id));
 
+      // World completion, checked with MemoriaProbe's WorldProbe (18 Oct 2026) and
+      // PorterProbe (14 Oct 2026). Folklore tomes are left out until the 19-of-19
+      // reading is confirmed in game.
+      //
+      // Sightseeing takes an index, not a row: the Adventure sheet starts at row
+      // 2162688 and the read wants the offset from there (the raw row id reads 0).
+      // The export sends the index too, so it is the same number the read takes.
+      var adventures = _dataManager.GetExcelSheet<Adventure>();
+      uint adventureBase = adventures.Min(r => r.RowId);
+      root["sightseeing"] = OwnedUntilOutOfRange(
+        adventures.Where(r => !r.Name.IsEmpty).Select(r => r.RowId - adventureBase),
+        id => player->IsAdventureComplete(id), allowZero: true);
+      root["currents"] = Owned(_dataManager.GetExcelSheet<AetherCurrent>().Where(r => r.RowId > 0).Select(r => r.RowId),
+        id => player->IsAetherCurrentUnlocked(id));
+      root["currentZones"] = Owned(_dataManager.GetExcelSheet<AetherCurrentCompFlgSet>().Where(r => r.RowId > 0 && r.Territory.RowId > 0).Select(r => r.RowId),
+        id => player->IsAetherCurrentZoneComplete(id));
+      root["aetherytes"] = Owned(_dataManager.GetExcelSheet<Aetheryte>().Where(r => r.RowId > 0 && r.IsAetheryte && !r.Invisible && r.PlaceName.RowId > 0).Select(r => r.RowId),
+        id => ui->IsAetheryteUnlocked(id));
+      root["porters"] = Owned(_dataManager.GetExcelSheet<ChocoboTaxiStand>().Where(r => r.RowId > 0 && !r.PlaceName.IsEmpty).Select(r => r.RowId),
+        id => ui->IsChocoboTaxiStandUnlocked(id));
+
       return root.ToJsonString();
     }
     catch (Exception ex)
@@ -166,6 +191,52 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       return "{}";
     }
   }
+
+  /// <summary>
+  /// Everything in one paste: the Ledger export exactly as BuildLedgerJson makes
+  /// it, with the collections payload nested under "collections". Nested rather
+  /// than merged, so a reader that only knows the Ledger export ignores one
+  /// unknown key and keeps working. The collections header fields that repeat
+  /// the outer ones (source, kind, fmt, version, exported, name, world) are
+  /// dropped; "game" stays, since only the collections payload carries it.
+  /// </summary>
+  public string BuildFullJson()
+  {
+    try
+    {
+      JsonObject? ledger = JsonNode.Parse(BuildLedgerJson()) as JsonObject;
+      JsonObject? collections = JsonNode.Parse(BuildCollectionsJson()) as JsonObject;
+      if (ledger is null || ledger.Count == 0) return "{}";
+
+      if (collections is not null)
+      {
+        foreach (string key in new[] { "source", "kind", "fmt", "version", "exported", "name", "world" })
+          collections.Remove(key);
+        ledger["collections"] = collections;
+      }
+
+      return ledger.ToJsonString(new JsonSerializerOptions
+      {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+      });
+    }
+    catch (Exception ex)
+    {
+      _pluginLog.Error(ex, "[LedgerExport] Failed to build full payload");
+      return "{}";
+    }
+  }
+
+  /// <summary>
+  /// The client's build, "2026.10.06.0000.0000" — what ffxivgame.ver holds. The
+  /// client knows its build, not its patch number, so this is what it can say.
+  /// A reader compares it with the date its own item list was built: a newer
+  /// build means content the list may not know yet (a PvP season's new mounts).
+  /// </summary>
+  private string GameBuild()
+    => _dataManager.GameData.Repositories.TryGetValue("ffxiv", out Lumina.Data.Repository? repo)
+      ? repo.Version ?? string.Empty
+      : string.Empty;
 
   /// <summary>Rows with a name. A blank name is an unused slot, not a collectable.</summary>
   private static IEnumerable<uint> Named<T>(Lumina.Excel.ExcelSheet<T> sheet, Func<T, Lumina.Text.ReadOnly.ReadOnlySeString> name)
@@ -181,12 +252,13 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   }
 
   /// <summary>As <see cref="Owned"/>, stopping at the first id the bit array cannot hold.</summary>
-  private static JsonArray OwnedUntilOutOfRange(IEnumerable<uint> ids, Func<uint, bool> isOwned)
+  private static JsonArray OwnedUntilOutOfRange(IEnumerable<uint> ids, Func<uint, bool> isOwned, bool allowZero = false)
   {
     JsonArray owned = [];
     foreach (uint id in ids)
     {
-      if (id == 0) continue;
+      // Row 0 is an empty slot in most sheets; an index of 0 (sightseeing) is a real entry.
+      if (id == 0 && !allowZero) continue;
       try
       {
         if (isOwned(id)) owned.Add(id);

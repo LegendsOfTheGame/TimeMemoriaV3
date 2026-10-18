@@ -144,6 +144,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _logger.Chat($"  {MainCommand} native — the game-styled window, whatever is chosen");
         _logger.Chat($"  {MainCommand} ledger — copy your progress to the clipboard");
         _logger.Chat($"  {MainCommand} collections — copy your collections to the clipboard");
+        _logger.Chat($"  {MainCommand} full — copy progress and collections together");
         _logger.Chat($"  {MainCommand} reset — reset the quest tree");
         _logger.Chat($"  {MainCommand} arr | hw | sb/stb | shb | ew | dt | ec — open every unfinished quest in that expansion (Native UI)");
         _logger.Chat($"  {GlanceCommand} — open the at-a-glance window");
@@ -160,6 +161,10 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
 
       case "collections":
         Copy(_ledgerExport.BuildCollectionsJson, "Copied your collections.");
+        break;
+
+      case "full":
+        Copy(_ledgerExport.BuildFullJson, "Copied your progress and collections together.");
         break;
 
       // Named explicitly so neither window can become unreachable. Choosing the
