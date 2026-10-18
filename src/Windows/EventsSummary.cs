@@ -95,7 +95,17 @@ public static class EventsSummary
     if (bracket > 0) festivalName = festivalName[..bracket].TrimEnd();
 
     if (festivalName.Length < 4) return false;
+
+    // Apostrophes are ignored on both sides. The names list spells it "All
+    // Saint's Wake (2026)" and the feed "All Saints' Wake 2026", so a straight
+    // comparison listed the event twice (seen 18 Oct 2026).
+    feedTitle = WithoutApostrophes(feedTitle);
+    festivalName = WithoutApostrophes(festivalName);
+
     return feedTitle.Contains(festivalName, StringComparison.OrdinalIgnoreCase)
         || festivalName.Contains(feedTitle, StringComparison.OrdinalIgnoreCase);
   }
+
+  private static string WithoutApostrophes(string text)
+    => text.Replace("'", "").Replace("’", "").Replace("‘", "");
 }
