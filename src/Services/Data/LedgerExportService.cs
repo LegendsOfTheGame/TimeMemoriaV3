@@ -183,6 +183,31 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       root["porters"] = Owned(_dataManager.GetExcelSheet<ChocoboTaxiStand>().Where(r => r.RowId > 0 && !r.PlaceName.IsEmpty).Select(r => r.RowId),
         id => ui->IsChocoboTaxiStandUnlocked(id));
 
+      // Mount speed: TerritoryType id -> speed level, only for zones above 0. The
+      // zone's MountSpeed row names what unlocks each level: Quest is level I,
+      // Unknown0 level II where there is one. Each is a Quest row (65536 and up) or
+      // an UnlockLink id (a riding map). Checked against every tab of the game's
+      // Mount Speed window on Kaye with MemoriaProbe, 18 Oct 2026. Several
+      // territories share a row (instanced copies), so each row is read once, under
+      // its lowest territory id; the reader holds names and top levels.
+      JsonObject mountSpeed = [];
+      foreach (var zone in _dataManager.GetExcelSheet<Lumina.Excel.Sheets.TerritoryType>()
+                 .Where(t => t.Mount && t.MountSpeed.RowId != 0 && t.PlaceName.RowId != 0)
+                 .GroupBy(t => t.MountSpeed.RowId)
+                 .Select(g => g.OrderBy(t => t.RowId).First())
+                 .OrderBy(t => t.RowId))
+      {
+        var row = zone.MountSpeed.Value;
+        int level = (row.Quest.RowId != 0 && SpeedUnlocked(ui, row.Quest.RowId) ? 1 : 0)
+                  + (row.Unknown0 != 0 && SpeedUnlocked(ui, row.Unknown0) ? 1 : 0);
+        if (level > 0) mountSpeed[zone.RowId.ToString()] = level;
+      }
+      root["mountSpeed"] = mountSpeed;
+
+      // Bicolor gemstones held (cap 1,500), the Shared FATE currency.
+      InventoryManager* inventory = InventoryManager.Instance();
+      if (inventory != null) root["gemstones"] = inventory->GetInventoryItemCount(26807);
+
       // Every completed quest, as short ids (RowId - 65536, what QuestManager
       // takes). The reader groups them by the game's own journal genres —
       // Hildibrand, Zodiac Weapons, Ishgardian Restoration, each seasonal event —
@@ -265,6 +290,10 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   private static IEnumerable<uint> Named<T>(Lumina.Excel.ExcelSheet<T> sheet, Func<T, Lumina.Text.ReadOnly.ReadOnlySeString> name)
     where T : struct, Lumina.Excel.IExcelRow<T> =>
     sheet.Where(r => r.RowId > 0 && !name(r).IsEmpty).Select(r => r.RowId);
+
+  /// <summary>A mount speed unlock: a Quest row id (65536 and up) or an UnlockLink id.</summary>
+  private static unsafe bool SpeedUnlocked(FFXIVClientStructs.FFXIV.Client.Game.UI.UIState* ui, uint id) =>
+    id >= 65536 ? QuestManager.IsQuestComplete(id) : ui->IsUnlockLinkUnlocked(id);
 
   private static JsonArray Owned(IEnumerable<uint> ids, Func<uint, bool> isOwned)
   {
