@@ -34,6 +34,7 @@ global using Lumina.Excel.Sheets;
 global using Lumina.Extensions;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Hosting;
+global using TimeMemoria.Features;
 global using TimeMemoria.Services;
 global using TimeMemoria.Types;
 global using TimeMemoria.Windows;

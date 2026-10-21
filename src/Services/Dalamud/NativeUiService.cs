@@ -51,7 +51,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   Configuration _configuration, IQuestPatchService _questPatch, IPlaytimeService _playtime, IPacingService _pacing,
   IQuestSnapshotService _snapshot, IFestivalService _festivals, INewsService _news, IPlayerState _playerState,
   ILedgerExportService _ledgerExport, IAchievementService _achievements, IAlliedSocietyService _societies,
-  IFoodService _food, IQuestMapService _questMap, IFramework _framework)
+  IFoodService _food, IQuestMapService _questMap, IFramework _framework, IFeatureService _features)
   : INativeUiService
 {
   private MainAddon? _window;
@@ -97,6 +97,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       PlayerState = _playerState,
       Food = _food,
       Achievements = _achievements,
+      Features = _features,
       Config = _configuration,
       Logger = _logger,
       OnSwapRequested = SwapToCompanion

@@ -14,7 +14,7 @@ public interface ICommandService : IHostedService;
 /// </summary>
 public class CommandService(ILogger _logger, IDataService _dataService, IWindowService _windowService,
   INativeUiService _nativeUi, Configuration _configuration, ICommandManager _commandManager,
-  ILedgerExportService _ledgerExport) : ICommandService
+  ILedgerExportService _ledgerExport, IFeatureService _features) : ICommandService
 {
   private const string MainCommand = "/timememoria";
   private const string MainAlias = "/tm";
@@ -147,6 +147,9 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _logger.Chat($"  {MainCommand} full — copy progress and collections together");
         _logger.Chat($"  {MainCommand} reset — reset the quest tree");
         _logger.Chat($"  {MainCommand} arr | hw | sb/stb | shb | ew | dt | ec — open every unfinished quest in that expansion (Native UI)");
+        foreach (Feature feature in _features.Features.Where((f) => f.CommandArgument is not null))
+          _logger.Chat($"  {MainCommand} {feature.CommandArgument} — open {feature.DisplayName}" +
+            (feature.IsEnabled ? "" : " (turn it on in Settings first)"));
         _logger.Chat($"  {GlanceCommand} — open the at-a-glance window");
         _logger.Chat($"  {WikiCommand} — open your accepted quests, linked to the wiki");
         break;
@@ -182,6 +185,17 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         break;
 
       default:
+        if (_features.TryOpen(args[0])) break;
+
+        // A feature that is switched off says so, rather than "Invalid command":
+        // the command is right, the feature is just not on.
+        if (_features.Features.FirstOrDefault((f) =>
+              string.Equals(f.CommandArgument, args[0], StringComparison.OrdinalIgnoreCase)) is { } off)
+        {
+          _logger.Chat($"{off.DisplayName} is switched off. Turn it on under Settings → Features.");
+          break;
+        }
+
         if (ExpansionArgs.TryGetValue(args[0], out (uint Id, string Name) expansion))
         {
           List<Types.Quest> quests = _dataService.IncompleteByExpansion(expansion.Id);

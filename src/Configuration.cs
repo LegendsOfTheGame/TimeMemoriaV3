@@ -79,6 +79,12 @@ public class Configuration : IPluginConfiguration
   /// </summary>
   public HashSet<uint> SeenActiveFestivalIds { get; set; } = [];
 
+  /// <summary>
+  /// Keys of the optional features switched on (<see cref="Features.Feature.Key"/>).
+  /// Empty by default: every feature starts off.
+  /// </summary>
+  public HashSet<string> EnabledFeatures { get; set; } = [];
+
   /// <summary>Open the game-styled window rather than the ImGui one.</summary>
   public bool UseNativeUi { get; set; } = false;
 

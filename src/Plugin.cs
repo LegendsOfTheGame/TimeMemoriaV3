@@ -72,6 +72,10 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
+        // Optional features, listed in Settings. One line each.
+        collection.AddSingleton<Feature, Features.Bestiary.BestiaryFeature>();
+        collection.AddSingleton<IFeatureService, FeatureService>();
+
         // Not registered as a hosted service on purpose -- its disposal has to
         // be awaited, and the host cannot do that. Plugin owns it instead.
         collection.AddSingleton<INativeUiService, NativeUiService>();
@@ -91,6 +95,9 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddHostedService(sp => sp.GetRequiredService<ICosmicToolProgressService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IFestivalService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
+        // After WindowService, so it stops first and removes its windows
+        // before WindowService clears the rest.
+        collection.AddHostedService(sp => sp.GetRequiredService<IFeatureService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICommandService>());
       }).Build();
   }

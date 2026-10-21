@@ -31,6 +31,7 @@ public unsafe class MainAddon : NativeAddon
   public required IPlayerState PlayerState { get; init; }
   public required IFoodService Food { get; init; }
   public required IAchievementService Achievements { get; init; }
+  public required IFeatureService Features { get; init; }
   public required Configuration Config { get; init; }
   public required ILogger Logger { get; init; }
 
@@ -87,7 +88,7 @@ public unsafe class MainAddon : NativeAddon
     };
     BonusesPanelNode bonuses = new() { Food = Food };
     ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport };
-    SettingsPanelNode settings = new() { Config = Config, DataService = DataService };
+    SettingsPanelNode settings = new() { Config = Config, DataService = DataService, Features = Features };
     HelpPanelNode help = new();
     CreditsPanelNode credits = new();
 

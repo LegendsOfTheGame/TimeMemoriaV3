@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public partial class MainWindow(Configuration _configuration, IDataService _dataService, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IQuestMapService _questMap, IAchievementService _achievements) : Window("Time Memoria##TimeMemoriaMainWindow")
+public partial class MainWindow(Configuration _configuration, IDataService _dataService, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IQuestMapService _questMap, IAchievementService _achievements, IFeatureService _features) : Window("Time Memoria##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -884,7 +884,43 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
 
     DrawSpoilerSettings();
     DrawInterfaceSettings();
+    DrawFeatureSettings();
     DrawJournalSettings();
+  }
+
+  /// <summary>
+  /// The optional features, one switch each, in the VanillaPlus manner. All
+  /// start off. An enabled feature with a window gets an Open button beside it.
+  /// </summary>
+  private void DrawFeatureSettings()
+  {
+    ImGui.Spacing();
+    ImGui.TextColored(HeaderColour, "Features");
+    ImGui.Separator();
+    ImGui.Spacing();
+
+    ImGui.TextDisabled("Optional parts of Time Memoria. Each one is off until you turn it on.");
+    ImGui.Spacing();
+
+    foreach (Feature feature in _features.Features)
+    {
+      bool enabled = feature.IsEnabled;
+      if (ImGui.Checkbox($"{feature.DisplayName}##feature{feature.Key}", ref enabled))
+        _features.SetEnabled(feature, enabled);
+
+      if (feature.IsEnabled && feature.CommandArgument is not null)
+      {
+        ImGui.SameLine();
+        if (ImGui.SmallButton($"Open##featureOpen{feature.Key}")) feature.Open();
+        ImGui.SameLine();
+        ImGui.TextDisabled($"/tm {feature.CommandArgument}");
+      }
+
+      using (ImRaii.PushIndent())
+        DrawWrappedDisabled(feature.Description);
+
+      ImGui.Spacing();
+    }
   }
 
   /// <summary>

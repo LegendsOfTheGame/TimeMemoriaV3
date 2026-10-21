@@ -20,6 +20,26 @@ public class SettingsPanelNode : TabPanelNode
   public required Configuration Config { get; init; }
   public required IDataService DataService { get; init; }
 
+  /// <summary>
+  /// The feature rows are built when this is assigned, not in the constructor:
+  /// the object initializer sets it only after the constructor returns, and the
+  /// rows need the list of features. The Ko-fi footer is added after them, so
+  /// it stays last.
+  /// </summary>
+  public required IFeatureService Features
+  {
+    get => _features;
+    init
+    {
+      _features = value;
+      AddFeatureRows();
+      AddFooter();
+    }
+  }
+
+  private readonly IFeatureService _features = null!;
+  private readonly List<(Feature Feature, CheckboxNode Box, TextButtonNode Open)> _featureRows = [];
+
   private readonly ScrollingNode<VerticalListNode> _scroll;
   private readonly StringDropDownNode _display;
   private readonly CheckboxNode _showCount;
@@ -32,8 +52,8 @@ public class SettingsPanelNode : TabPanelNode
   private readonly CheckboxNode _spoiler;
   private readonly CheckboxNode _freeTrial;
   private readonly CheckboxNode _useNative;
-  private readonly TextNode _resizeHint;
-  private readonly TextButtonNode _kofi;
+  private TextNode _resizeHint = null!;
+  private TextButtonNode _kofi = null!;
 
   private const string KofiUrl = "https://ko-fi.com/legendsofthegame";
 
@@ -119,7 +139,43 @@ public class SettingsPanelNode : TabPanelNode
     // strand anyone who chose this one.
     _useNative = AddCheckbox("Use the native look for /tm",
       (value) => { Config.UseNativeUi = value; Config.Save(); });
+#pragma warning restore CS8602
+  }
 
+  /// <summary>
+  /// One checkbox per optional feature, with its description as the tooltip,
+  /// and an Open button under it while the feature is on.
+  /// </summary>
+  private void AddFeatureRows()
+  {
+    _scroll.ContentNode.AddNode(new TextNode
+    {
+      Size = new Vector2(360.0f, 22.0f),
+      FontSize = 14,
+      String = "Features — optional, each off until you turn it on",
+      IsVisible = true
+    });
+
+    foreach (Feature feature in _features.Features)
+    {
+      CheckboxNode box = AddCheckbox(feature.DisplayName, (value) => _features.SetEnabled(feature, value));
+      box.TextTooltip = feature.Description;
+
+      TextButtonNode open = new()
+      {
+        Size = new Vector2(220.0f, RowHeight),
+        String = $"Open {feature.DisplayName}",
+        IsVisible = feature.IsEnabled && feature.CommandArgument is not null,
+        OnClick = feature.Open
+      };
+
+      _scroll.ContentNode.AddNode(open);
+      _featureRows.Add((feature, box, open));
+    }
+  }
+
+  private void AddFooter()
+  {
     // This window has no resize handle -- the toolkit does not provide one --
     // so the only way to change its size is to size the classic window and come
     // back. Said here because there is nothing on screen to suggest it.
@@ -144,7 +200,6 @@ public class SettingsPanelNode : TabPanelNode
     };
 
     _scroll.ContentNode.AddNode(_kofi);
-#pragma warning restore CS8602
   }
 
   public override void Refresh()
@@ -159,6 +214,26 @@ public class SettingsPanelNode : TabPanelNode
     Sync(_spoiler, Config.SpoilerMode);
     Sync(_freeTrial, Config.FreeTrialMode);
     Sync(_useNative, Config.UseNativeUi);
+
+    // A feature switched on or off in either window shows or hides its Open
+    // button here; the list then closes the gap and the scroll range follows.
+    bool relayout = false;
+    foreach ((Feature feature, CheckboxNode box, TextButtonNode open) in _featureRows)
+    {
+      Sync(box, feature.IsEnabled);
+
+      bool showOpen = feature.IsEnabled && feature.CommandArgument is not null;
+      if (open.IsVisible == showOpen) continue;
+
+      open.IsVisible = showOpen;
+      relayout = true;
+    }
+
+    if (relayout)
+    {
+      _scroll.ContentNode.RecalculateLayout();
+      _scroll.RecalculateSizes();
+    }
 
     string expected = DisplayOptions[Math.Clamp(Config.DisplayOption, 0, DisplayOptions.Length - 1)];
     if (_display.SelectedOption != expected) _display.SelectedOption = expected;
@@ -177,6 +252,9 @@ public class SettingsPanelNode : TabPanelNode
     foreach (CheckboxNode box in
       new[] { _showCount, _showPercentage, _excludeOther, _excludeLeves, _showJobQuestsInOldest,
         _showLevequestsInOldest, _companionAlwaysVisible, _spoiler, _freeTrial, _useNative })
+      box.Size = new Vector2(Width - 24.0f, RowHeight);
+
+    foreach ((_, CheckboxNode box, _) in _featureRows)
       box.Size = new Vector2(Width - 24.0f, RowHeight);
 
     _resizeHint.Size = new Vector2(Width - 24.0f, 18.0f);

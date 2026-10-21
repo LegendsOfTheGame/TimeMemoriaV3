@@ -104,6 +104,27 @@ use lowest id; the two do not correlate.
 
 Refresh with `tools/Fetch-QuestPatches.ps1`, which is resumable.
 
+## `bestiary.json` — 50 entries — **read by `BestiaryFeature`**
+
+One row for each beast in the Master's Bestiary (Beastmaster):
+
+```json
+{ "No": 2, "Name": "Squirrel", "Source": "Ground Squirrel", "Zone": "Central Shroud", "X": 24, "Y": 16, "DutyNote": null, "MinLevel": 1, "Gourd": null }
+```
+
+`No` is the `XBMPet` row id. The game uses the same id for its capture state.
+`Source` is the enemy that you tame the beast from. `Zone`, `X` and `Y` give
+the map position. `DutyNote` gives the position when the beast is in a duty.
+`Gourd` names the Kornago Gourd that unlocks the beast.
+
+The game files do not record where to tame each beast. This file is a copy of
+`data.json` from the Bestiary Mapper plugin. When you change one copy, change
+the other copy too. The zone name must be the same as a `PlaceName` in the
+`TerritoryType` sheet, or the map flag does not open.
+
+The capture state is not in this file. The plugin reads it live from
+`XBMManager`.
+
 ## `quest_category_index.json` — 3,817 entries
 
 Maps quest id to a category path and a display order:
