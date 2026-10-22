@@ -148,8 +148,12 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _logger.Chat($"  {MainCommand} reset — reset the quest tree");
         _logger.Chat($"  {MainCommand} arr | hw | sb/stb | shb | ew | dt | ec — open every unfinished quest in that expansion (Native UI)");
         foreach (Feature feature in _features.Features.Where((f) => f.CommandArgument is not null))
+        {
           _logger.Chat($"  {MainCommand} {feature.CommandArgument} — open {feature.DisplayName}" +
             (feature.IsEnabled ? "" : " (turn it on in Settings first)"));
+          if (feature.SlashCommands.Length > 0)
+            _logger.Chat($"  {string.Join(" | ", feature.SlashCommands)} — turn on and open {feature.DisplayName}");
+        }
         _logger.Chat($"  {GlanceCommand} — open the at-a-glance window");
         _logger.Chat($"  {WikiCommand} — open your accepted quests, linked to the wiki");
         break;

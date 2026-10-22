@@ -1,3 +1,4 @@
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using XBMManager = FFXIVClientStructs.FFXIV.Client.Game.XBMManager;
 
 namespace TimeMemoria.Features.Bestiary;
@@ -23,6 +24,14 @@ public unsafe class BestiaryFeature(ILogger _logger, WindowSystem _windowSystem,
     "and whether you have captured it. Click a flag to open the map there.";
   public override string? CommandArgument => "bestiary";
 
+  /// <summary>
+  /// Bestiary Mapper's short command, kept so that its players need nothing
+  /// new. Bestiary Mapper retires (user's decision, 22 Oct 2026). Not
+  /// /bestiary: the game already uses it to open its own Master's Bestiary,
+  /// and a plugin command of that name would hide the game's.
+  /// </summary>
+  public override string[] SlashCommands => ["/bmap"];
+
   private BestiaryWindow? _window;
 
   /// <summary>Zone name to the TerritoryType and Map rows a map link needs.</summary>
@@ -45,6 +54,27 @@ public unsafe class BestiaryFeature(ILogger _logger, WindowSystem _windowSystem,
   public override void Open()
   {
     if (_window is not null) _window.IsOpen = true;
+  }
+
+  /// <summary>
+  /// /bmap opens the game's own Master's Bestiary beside this table. Approved
+  /// as a Prime Directive amendment on 22 Oct 2026, for the command only: the
+  /// Settings Open button and /tm bestiary open this table alone.
+  ///
+  /// MemoriaProbe's "bstopen" probe confirmed it on 22 Oct 2026: Show() on the
+  /// XBMMonsterNotebook agent took IsAgentActive from false to true and opened
+  /// the window. Not called when the window is already open, so that a second
+  /// /bmap cannot close it.
+  /// </summary>
+  public override void OnSlashCommand()
+  {
+    Open();
+
+    AgentModule* module = AgentModule.Instance();
+    if (module is null) return;
+
+    AgentInterface* agent = module->GetAgentByInternalId(AgentId.XBMMonsterNotebook);
+    if (agent is not null && !agent->IsAgentActive()) agent->Show();
   }
 
   /// <summary>

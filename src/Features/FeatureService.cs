@@ -21,14 +21,22 @@ public interface IFeatureService : IHostedService
 /// VanillaPlus does, so one broken feature cannot stop the plugin loading.
 /// </summary>
 public class FeatureService(ILogger _logger, IEnumerable<Feature> _features, Configuration _configuration,
-  IFramework _framework) : IFeatureService
+  IFramework _framework, ICommandManager _commandManager) : IFeatureService
 {
   private readonly List<Feature> _list = [.. _features.OrderBy((f) => f.DisplayName, StringComparer.Ordinal)];
+
+  /// <summary>Only the commands this plugin actually got, so that stopping
+  /// never removes a command that belongs to another plugin.</summary>
+  private readonly List<string> _registered = [];
 
   public IReadOnlyList<Feature> Features => _list;
 
   public async Task StartAsync(CancellationToken cancellationToken)
   {
+    foreach (Feature feature in _list)
+      foreach (string command in feature.SlashCommands)
+        RegisterCommand(feature, command);
+
     // Windows are added to the WindowSystem, which draws on the framework
     // thread, so enabling happens there too.
     await _framework.RunOnFrameworkThread(() =>
@@ -43,6 +51,10 @@ public class FeatureService(ILogger _logger, IEnumerable<Feature> _features, Con
 
   public async Task StopAsync(CancellationToken cancellationToken)
   {
+    foreach (string command in _registered)
+      _commandManager.RemoveHandler(command);
+    _registered.Clear();
+
     // Not removed from the config: unloading the plugin is not the player
     // switching a feature off.
     await _framework.RunOnFrameworkThread(() =>
@@ -75,6 +87,27 @@ public class FeatureService(ILogger _logger, IEnumerable<Feature> _features, Con
 
     feature?.Open();
     return feature is not null;
+  }
+
+  /// <summary>
+  /// AddHandler returns false when another plugin holds the command first --
+  /// for /bmap, a Bestiary Mapper that is still installed. That is logged, not
+  /// an error: the feature still opens from Settings and from /tm.
+  /// </summary>
+  private void RegisterCommand(Feature feature, string command)
+  {
+    bool added = _commandManager.AddHandler(command, new CommandInfo((_, _) =>
+    {
+      if (!feature.IsEnabled) SetEnabled(feature, true);
+      if (feature.IsEnabled) feature.OnSlashCommand();
+    })
+    {
+      HelpMessage = $"Open {feature.DisplayName}. Turns it on if it is off.",
+      ShowInHelp = true
+    });
+
+    if (added) _registered.Add(command);
+    else _logger.Debug($"[Features] {command} is held by another plugin; {feature.Key} opens from /tm instead.");
   }
 
   private void TryEnable(Feature feature)

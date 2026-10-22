@@ -26,6 +26,13 @@ public abstract class Feature
   /// <c>/tm bestiary</c>. Null when the feature has nothing to open.</summary>
   public virtual string? CommandArgument => null;
 
+  /// <summary>
+  /// Slash commands of their own, such as <c>/bmap</c>, for a feature that
+  /// replaces a separate plugin. Registered whether or not the feature is on:
+  /// typing one is a clear request, so it switches the feature on and opens it.
+  /// </summary>
+  public virtual string[] SlashCommands => [];
+
   public bool IsEnabled { get; internal set; }
 
   /// <summary>Called on the framework thread.</summary>
@@ -37,4 +44,8 @@ public abstract class Feature
 
   /// <summary>Opens the feature's window. Only called while enabled.</summary>
   public virtual void Open() { }
+
+  /// <summary>What one of <see cref="SlashCommands"/> does once the feature
+  /// is on. Opens the feature's window unless a feature says otherwise.</summary>
+  public virtual void OnSlashCommand() => Open();
 }
