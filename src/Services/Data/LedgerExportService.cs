@@ -114,6 +114,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// SpearfishingItem row and holds only so many bits (1522 and 304 today).
   /// Rows past that are not fish the game tracks; the walk stops at the first
   /// one, since rows come in ascending order.</item>
+  /// <item>Bestiary only once the client holds the capture list; see the read.</item>
   /// </list>
   ///
   /// Not here yet: framer's kits (no known id-to-name mapping), Blue Magic,
@@ -161,6 +162,18 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
 
       root["fish"] = OwnedUntilOutOfRange(_dataManager.GetExcelSheet<FishParameter>().Select(r => r.RowId), id => player->IsFishCaught(id));
       root["spearfish"] = OwnedUntilOutOfRange(_dataManager.GetExcelSheet<SpearfishingItem>().Select(r => r.RowId), id => player->IsSpearfishCaught(id));
+
+      // Master's Bestiary: captured beasts by XBMPet row (1-50), the "No." the
+      // game's window shows. Checked with MemoriaProbe's "bstpets" probe and in
+      // game against that window (31 of 50 on Kaye, 22 Oct 2026). Left out until
+      // the client has the list: before that every beast reads as not captured,
+      // and an empty list would say none are. The sheet is read untyped: Lumina's
+      // XBMPet row no longer matches the game's columns (MismatchedColumnHash,
+      // 22 Oct 2026), and only the row ids are needed.
+      var xbm = FFXIVClientStructs.FFXIV.Client.Game.XBMManager.Instance();
+      if (xbm != null && xbm->State == FFXIVClientStructs.FFXIV.Client.Game.XBMManager.DataState.Received)
+        root["bestiary"] = Owned(_dataManager.GetExcelSheet<Lumina.Excel.RawRow>(name: "XBMPet").Where(r => r.RowId > 0).Select(r => r.RowId),
+          id => xbm->IsPetUnlocked(id));
 
       // World completion, checked with MemoriaProbe's WorldProbe (18 Oct 2026) and
       // PorterProbe (14 Oct 2026). Folklore tomes are left out until the 19-of-19
