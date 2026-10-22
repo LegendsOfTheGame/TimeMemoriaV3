@@ -175,9 +175,30 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
         root["bestiary"] = Owned(_dataManager.GetExcelSheet<Lumina.Excel.RawRow>(name: "XBMPet").Where(r => r.RowId > 0).Select(r => r.RowId),
           id => xbm->IsPetUnlocked(id));
 
+      // Folklore tomes read, sent as the tome's Item id so a reader can name it
+      // without another table. Not IsFolkloreBookUnlocked(Division): that read 19
+      // of 19 on Kaye, unused divisions included. The game keeps one bit array per
+      // job, and the bit is the GatheringSubCategory's Quest column (Coerthas is
+      // bit 0). Confirmed 22 Oct 2026 by reading Yok Tural in game: Miner bit 9
+      // flipped and nothing else moved (MemoriaProbe "folklore").
+      JsonArray folklore = [];
+      foreach ((uint job, byte[] bits) in new[]
+      {
+        (16u, System.Runtime.InteropServices.MemoryMarshal.AsBytes(player->UnlockedMinerFolkloreTomes).ToArray()),
+        (17u, System.Runtime.InteropServices.MemoryMarshal.AsBytes(player->UnlockedBotanistFolkloreTomes).ToArray()),
+        (18u, System.Runtime.InteropServices.MemoryMarshal.AsBytes(player->UnlockedFishingFolkloreTomes).ToArray())
+      })
+      {
+        foreach (uint tome in _dataManager.GetExcelSheet<GatheringSubCategory>()
+                   .Where(r => r.ClassJob.RowId == job && r.Quest.RowId < 74 && r.Item.RowId > 0)
+                   .Where(r => r.Quest.RowId / 8 < bits.Length && (bits[r.Quest.RowId / 8] & (1 << (int)(r.Quest.RowId % 8))) != 0)
+                   .Select(r => r.Item.RowId).Distinct().Order())
+          folklore.Add(tome);
+      }
+      root["folklore"] = folklore;
+
       // World completion, checked with MemoriaProbe's WorldProbe (18 Oct 2026) and
-      // PorterProbe (14 Oct 2026). Folklore tomes are left out until the 19-of-19
-      // reading is confirmed in game.
+      // PorterProbe (14 Oct 2026).
       //
       // Sightseeing takes an index, not a row: the Adventure sheet starts at row
       // 2162688 and the read wants the offset from there (the raw row id reads 0).
