@@ -56,7 +56,7 @@ public class FestivalService(
 {
   private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
 
-  private readonly Dictionary<uint, string> _names = LoadNames(_logger, _pluginInterface);
+  private readonly Dictionary<uint, string> _names = WithLocalNames(LoadNames(_logger, _pluginInterface));
   private DateTime _lastPollUtc = DateTime.MinValue;
 
   public Task StartAsync(CancellationToken cancellationToken)
@@ -103,6 +103,22 @@ public class FestivalService(
     _logger.Debug($"[Festival] Seen set now {_configuration.SeenActiveFestivalIds.Count} id(s).");
   }
 
+  /// <summary>
+  /// Names for ids that upstream still lists as "Unknown". Kept here rather than
+  /// in festival-names.json, which tools/Convert-FestivalNames.py regenerates.
+  ///
+  /// 257: Keybound Brawler, the FF7 typing mini-game at the Gold Saucer. Its only
+  /// quest is 71002 Keyward Bound, and the event items (52450 Keybound Coffer,
+  /// 51997 Keybound Brawler Framer's Kit) carry the name. Read from the sheets
+  /// 13 Oct 2026. The Lodestone (21 Oct 2026) confirms the name and the start:
+  /// 28 Oct 2026, 08:00 UTC, running until patch 8.0. Still to check at the
+  /// start: that 257 is what the client switches on.
+  /// </summary>
+  private static readonly Dictionary<uint, string> LocalNames = new()
+  {
+    [257] = "Keybound Brawler",
+  };
+
   private static Dictionary<uint, string> LoadNames(ILogger logger, IDalamudPluginInterface pluginInterface)
   {
     Dictionary<uint, string> names = [];
@@ -129,6 +145,15 @@ public class FestivalService(
     {
       logger.Error(ex, "[Festival] Failed to load festival-names.json; falling back to ids.");
     }
+
+    return names;
+  }
+
+  /// <summary>Fills gaps only, so a name upstream adds later replaces ours.</summary>
+  private static Dictionary<uint, string> WithLocalNames(Dictionary<uint, string> names)
+  {
+    foreach (KeyValuePair<uint, string> pair in LocalNames)
+      names.TryAdd(pair.Key, pair.Value);
 
     return names;
   }

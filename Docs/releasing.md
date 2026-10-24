@@ -23,8 +23,16 @@ replace it. Bump before committing, not after.
 
 1. Set `<Version>` in `TimeMemoria.csproj`. Format is `MAJOR.MINOR.PATCH.API` —
    the last digit is the Dalamud API level, so 3.0.0 on API 15 is `3.0.0.15`.
-2. Commit and push.
-3. Tag it and push the tag:
+2. Write `release-notes/v3.0.0.15.md`: one line per change a user can see,
+   covering everything since the last tag. Include, under its own heading,
+   every `pandora-lunar` change since the last tag (Pandora Lunar and Lunatic
+   Pandora have no releases of their own), except the automated data refreshes
+   from `github-actions[bot]`. It becomes the GitHub release body
+   and the Discord announcement. Discord posts once, on publish — editing the
+   release afterwards fixes GitHub but not Discord. Commit it with the version
+   bump; a tag whose commit has no notes file fails CI before the build.
+3. Commit and push.
+4. Tag it and push the tag:
 
    ```
    git tag v3.0.0.15
@@ -33,7 +41,7 @@ replace it. Bump before committing, not after.
 
    CI builds Release and attaches `latest.zip` to a GitHub release. The tag must
    start with `v` or the release step is skipped.
-4. Regenerate and commit the repository manifest:
+5. Regenerate and commit the repository manifest:
 
    ```
    dotnet build -c Release --no-incremental
