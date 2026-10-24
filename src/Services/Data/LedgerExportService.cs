@@ -265,6 +265,8 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
         if (FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.IsInstanceContentCompleted(content)) dutiesDone.Add(content);
       root["dutiesDone"] = dutiesDone;
 
+      root["relics"] = BuildRelics(inventory);
+
       return root.ToJsonString();
     }
     catch (Exception ex)
@@ -307,6 +309,81 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       _pluginLog.Error(ex, "[LedgerExport] Failed to build full payload");
       return "{}";
     }
+  }
+
+  private static readonly InventoryType[] RelicContainers =
+  [
+    InventoryType.EquippedItems,
+    InventoryType.ArmoryMainHand,
+    InventoryType.ArmoryOffHand,
+    InventoryType.Inventory1,
+    InventoryType.Inventory2,
+    InventoryType.Inventory3,
+    InventoryType.Inventory4
+  ];
+
+  private static readonly string[] RelicLineOrder = ["ZD", "AN", "EU", "RS", "SK", "MV", "SP", "PH", "CO"];
+
+  /// <summary>
+  /// The highest relic stage held, per line and job, as one space-separated
+  /// string: "ZDWAR-C RSWAR-A COCRP-J". Line code, job, then the stage as a
+  /// letter (A is the first). One string rather than an array, so a pasted
+  /// export costs fewer tokens; the stage names live in RelicStages and the
+  /// reader's copy of the same table.
+  ///
+  /// Checked with MemoriaProbe's "relics" probe, 24 Oct 2026:
+  /// <list type="bullet">
+  /// <item>Equipped items, the armoury chest and the bags are read live. Relics do
+  /// go in the armoury chest (Skullrender was there).</item>
+  /// <item>The saddlebag, every retainer and the glamour dresser come from
+  /// ItemFinderModule, the game's Search for Item cache. It is full from login
+  /// (read from ITEMFDR.DAT, before any bell visit) and updates as soon as an
+  /// item moves. The live saddlebag and retainer containers are not used: after
+  /// login they say IsLoaded and hold nothing.</item>
+  /// <item>Not covered: what a retainer has equipped, and the Armoire.</item>
+  /// </list>
+  /// </summary>
+  private static unsafe string BuildRelics(InventoryManager* inventory)
+  {
+    Dictionary<(string Line, string Job), int> best = [];
+
+    void Add(uint id)
+    {
+      // The cache lists can carry the high-quality offset; relics are never HQ,
+      // but the base id is what the table holds.
+      if (!RelicStages.ByItem.TryGetValue(id % 1_000_000, out var relic)) return;
+      if (!best.TryGetValue((relic.Line, relic.Job), out int held) || relic.Stage > held)
+        best[(relic.Line, relic.Job)] = relic.Stage;
+    }
+
+    if (inventory != null)
+    {
+      foreach (InventoryType type in RelicContainers)
+      {
+        InventoryContainer* container = inventory->GetInventoryContainer(type);
+        if (container == null) continue;
+        for (int slot = 0; slot < container->Size; slot++)
+        {
+          InventoryItem* item = container->GetInventorySlot(slot);
+          if (item != null && item->ItemId != 0) Add(item->ItemId);
+        }
+      }
+    }
+
+    var finder = FFXIVClientStructs.FFXIV.Client.UI.Misc.ItemFinderModule.Instance();
+    if (finder != null)
+    {
+      foreach (uint id in finder->SaddleBagItemIds) Add(id);
+      foreach (uint id in finder->PremiumSaddleBagItemIds) Add(id);
+      foreach (uint id in finder->GlamourDresserItemIds) Add(id);
+      foreach (var (_, retainer) in finder->RetainerInventories)
+        if (retainer.Value != null)
+          foreach (uint id in retainer.Value->ItemIds) Add(id);
+    }
+
+    return string.Join(' ', best
+      .OrderBy(b => Array.IndexOf(RelicLineOrder, b.Key.Line)).ThenBy(b => b.Key.Job, StringComparer.Ordinal)
+      .Select(b => $"{b.Key.Line}{b.Key.Job}-{(char)('A' + b.Value)}"));
   }
 
   /// <summary>
