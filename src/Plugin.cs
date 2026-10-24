@@ -55,6 +55,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton<ILogger, Logger>();
         collection.AddSingleton<IDataService, DataService>();
         collection.AddSingleton<IClassJobProgressService, ClassJobProgressService>();
+        collection.AddSingleton<IExportHistoryService, ExportHistoryService>();
         collection.AddSingleton<ILedgerExportService, LedgerExportService>();
         collection.AddSingleton<INewsService, NewsService>();
         collection.AddSingleton<IPlaytimeService, PlaytimeService>();

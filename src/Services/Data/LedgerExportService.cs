@@ -14,15 +14,22 @@ public interface ILedgerExportService
 
 /// <summary>
 /// Builds the clipboard payloads. Local only — output goes to the clipboard and
-/// nowhere else; the plugin makes no outbound requests.
+/// to the export history on disk, nowhere else; the plugin makes no outbound
+/// requests.
 /// </summary>
-public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements, ICosmicToolProgressService _cosmicTools, IDataManager _dataManager)
+public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements, ICosmicToolProgressService _cosmicTools, IDataManager _dataManager, IExportHistoryService _history)
   : ILedgerExportService
 {
   /// <summary>Master books per crafter, built once: the sheets do not change in a session.</summary>
   private List<(string Job, List<uint> Numbered, List<uint> Others)>? _masterBooks;
 
-  public string BuildLedgerJson()
+  // Each public build is kept once. The full export builds the other two
+  // privately, so it is not kept three times.
+  public string BuildLedgerJson() => _history.Keep("ledger", LedgerJson());
+  public string BuildCollectionsJson() => _history.Keep("collections", CollectionsJson());
+  public string BuildFullJson() => _history.Keep("full", FullJson());
+
+  private string LedgerJson()
   {
     try
     {
@@ -120,7 +127,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// Not here yet: framer's kits (no known id-to-name mapping), Blue Magic,
   /// titles and achievements.
   /// </summary>
-  public unsafe string BuildCollectionsJson()
+  private unsafe string CollectionsJson()
   {
     try
     {
@@ -284,12 +291,12 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// the outer ones (source, kind, fmt, version, exported, name, world) are
   /// dropped; "game" stays, since only the collections payload carries it.
   /// </summary>
-  public string BuildFullJson()
+  private string FullJson()
   {
     try
     {
-      JsonObject? ledger = JsonNode.Parse(BuildLedgerJson()) as JsonObject;
-      JsonObject? collections = JsonNode.Parse(BuildCollectionsJson()) as JsonObject;
+      JsonObject? ledger = JsonNode.Parse(LedgerJson()) as JsonObject;
+      JsonObject? collections = JsonNode.Parse(CollectionsJson()) as JsonObject;
       if (ledger is null || ledger.Count == 0) return "{}";
 
       if (collections is not null)
