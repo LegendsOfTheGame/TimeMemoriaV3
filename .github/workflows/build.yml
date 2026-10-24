@@ -33,9 +33,9 @@ jobs:
         with:
           submodules: recursive
 
-      # The release body is also the Discord announcement, which posts once on
-      # publish and never again on edit. A tag without notes stops here, before
-      # the build, rather than publishing an empty release.
+      # The notes become the release body and the Discord post (last step), both
+      # made once on publish. A tag without notes stops here, before the build,
+      # rather than publishing an empty release.
       - name: Check release notes
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -82,3 +82,23 @@ jobs:
           files: |
             bin/Release/TimeMemoriaV3/latest.zip
             bin/Release/TimeMemoriaV3/TimeMemoriaV3.json
+
+      # Discord's /github webhook shows a release as a title only, so the notes
+      # go to the plain webhook as a second post. The release exists by now, so
+      # a missing secret warns instead of failing the run.
+      - name: Post release notes to Discord
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::warning::DISCORD_WEBHOOK_URL is not set, so the notes were not posted to Discord."
+            exit 0
+          fi
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          # Headings become bold lines, which every Discord client renders in an embed.
+          sed -E 's/^#{1,6} +(.*)$/**\1**/' "release-notes/${GITHUB_REF_NAME}.md" \
+            | jq -Rs --arg title "${GITHUB_REPOSITORY#*/} ${GITHUB_REF_NAME}" --arg url "$url" '
+                (if length > 4000 then .[:3900] + "\n\n… Full notes on GitHub." else . end) as $d
+                | {embeds: [{title: $title, url: $url, description: $d, color: 5763719}]}' \
+            | curl -sSf -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK_URL"
