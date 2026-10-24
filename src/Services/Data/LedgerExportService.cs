@@ -265,10 +265,18 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       // every story duty before Dawntrail read completed on Kaye. Quest battles and
       // deep-dungeon floor sets never record a clear here; the reader covers those
       // from quests and achievements instead.
+      //
+      // The Hall of the Novice (InstanceContent 15001–15019, the 15000 block) is
+      // left out: this read does not hold its clears reliably. On 24 Oct 2026 it
+      // gave Kaye 10, 2 and 0 of her 10 exercises across one day, unrelated to
+      // job, relog or the Exercises window, and the 10 made one export read 202
+      // duties where the true count was 192.
       JsonArray dutiesDone = [];
       foreach (uint content in _dataManager.GetExcelSheet<ContentFinderCondition>()
                  .Where(r => r.ContentLinkType == 1 && r.Content.RowId > 0 && !r.Name.IsEmpty)
-                 .Select(r => r.Content.RowId).Distinct().Order())
+                 .Select(r => r.Content.RowId)
+                 .Where(id => id / 1000 != 15)
+                 .Distinct().Order())
         if (FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.IsInstanceContentCompleted(content)) dutiesDone.Add(content);
       root["dutiesDone"] = dutiesDone;
 
