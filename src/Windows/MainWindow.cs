@@ -1101,6 +1101,7 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     ImGui.TextDisabled("  /tm native      the game-styled window, whichever is chosen");
     ImGui.TextDisabled("  /tmmini         playtime, pacing and jobs, in a small window");
     ImGui.TextDisabled("  /tmwiki         your accepted quests, linked to the wiki");
+    ImGui.TextDisabled("  /tm food        the best meal you hold for each role");
     ImGui.TextDisabled("  /tm reset      rebuild the quest tree");
     ImGui.Spacing();
     ImGui.Indent();
@@ -1128,6 +1129,8 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     ImGui.Spacing();
     ImGui.Indent();
     DrawWrappedDisabled("Report miscounts and missing quests. Quest data changes with every game patch. The maintainer cannot test all of it by hand.");
+    ImGui.Spacing();
+    DrawWrappedDisabled("You must have a GitHub account to open an issue.");
     ImGui.Unindent();
     ImGui.Spacing();
 

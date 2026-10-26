@@ -1,3 +1,6 @@
+using FFXIVClientStructs.FFXIV.Component.GUI;
+using KamiToolKit.Nodes;
+
 namespace TimeMemoria.Windows.Native;
 
 /// <summary>
@@ -59,20 +62,95 @@ public class HelpPanelNode : TextLinesPanelNode
     ]),
     ("Commands",
     [
-      "/timememoria    the window chosen in Settings  (/tm for short)\n/tm classic     the classic window, whichever is chosen\n/tm native      this window, whichever is chosen\n/tmmini         playtime, pacing and jobs, in a small window\n/tmwiki         your accepted quests, linked to the wiki\n/tm reset       rebuild the quest tree",
+      "/timememoria    the window chosen in Settings  (/tm for short)\n/tm classic     the classic window, whichever is chosen\n/tm native      this window, whichever is chosen\n/tmmini         playtime, pacing and jobs, in a small window\n/tmwiki         your accepted quests, linked to the wiki\n/tm food        the best meal you hold for each role\n/tm reset       rebuild the quest tree",
       "The plugin registers these commands. The plugin never sends a command itself."
     ]),
     ("What this plugin will never do",
     [
       "No damage meters, combat logs or duty results.\nNo automation, and no commands issued on your behalf.\nNo toasts or overlays interrupting your play.\nNo reading of other characters' data.",
       "This plugin only tracks quest progress. This plugin does not rank your performance. The maintainer declines any feature request that needs an action listed above."
-    ]),
-    ("Something wrong, or missing?",
-    [
-      "Report miscounts and missing quests. Quest data changes with every game patch. The maintainer cannot test all of it by hand.",
-      "github.com/LegendsOfTheGame/TimeMemoriaV3/issues\nFor clickable links, open the classic window: /tm classic"
     ])
+    // "Something wrong, or missing?" is the footer beside the issue button,
+    // not an entry here.
   ];
+
+  private const string IssuesUrl = "https://github.com/LegendsOfTheGame/TimeMemoriaV3/issues";
+
+  private const float ButtonHeight = 26.0f;
+  private const float ButtonWidth = 180.0f;
+  private const float ButtonGap = 6.0f;
+
+  /// <summary>Two lines of 12-point text beside the button.</summary>
+  private const float FooterRowHeight = 30.0f;
+  private const float LineHeight = 15.0f;
+  private const float TextGap = 10.0f;
+
+  private static readonly Vector4 Muted = new(0.6f, 0.6f, 0.6f, 1.0f);
+
+  /// <summary>
+  /// Below the list rather than inside it: the list's rows are text only, and a
+  /// fixed footer stays in reach however far the answers are scrolled. Opens
+  /// the default browser only when clicked, like Settings' Ko-fi button.
+  /// </summary>
+  private readonly TextButtonNode _openIssues;
+
+  /// <summary>
+  /// What the button is for, in the empty space to its right. Ellipsis rather
+  /// than wrapping: a narrow window cuts the line short instead of pushing it
+  /// over the list.
+  /// </summary>
+  private readonly TextNode _reportLine;
+  private readonly TextNode _accountLine;
+
+  public HelpPanelNode()
+  {
+    _openIssues = new TextButtonNode
+    {
+      String = "Open the issue tracker",
+      IsVisible = true,
+      OnClick = () => Dalamud.Utility.Util.OpenLink(IssuesUrl)
+    };
+    _openIssues.AttachNode(this);
+
+    _reportLine = FooterText("Something wrong, or missing? Report miscounts and missing quests. Quest data changes with every game patch.");
+    _accountLine = FooterText("You must have a GitHub account to open an issue.");
+  }
+
+  private TextNode FooterText(string text)
+  {
+    TextNode node = new()
+    {
+      FontSize = 12,
+      TextColor = Muted,
+      TextFlags = TextFlags.Ellipsis,
+      String = text,
+      IsVisible = true
+    };
+    node.AttachNode(this);
+
+    return node;
+  }
+
+  protected override float FooterHeight => FooterRowHeight + ButtonGap;
+
+  protected override void OnSizeChanged()
+  {
+    base.OnSizeChanged();
+
+    float rowY = Height - FooterRowHeight;
+
+    _openIssues.Size = new Vector2(ButtonWidth, ButtonHeight);
+    _openIssues.Position = new Vector2(0.0f, rowY + (FooterRowHeight - ButtonHeight) / 2.0f);
+
+    float textX = ButtonWidth + TextGap;
+    float textWidth = Math.Max(0.0f, Width - textX);
+
+    _reportLine.Size = new Vector2(textWidth, LineHeight);
+    _reportLine.Position = new Vector2(textX, rowY);
+
+    _accountLine.Size = new Vector2(textWidth, LineHeight);
+    _accountLine.Position = new Vector2(textX, rowY + LineHeight);
+  }
 
   protected override List<string> BuildLines()
   {

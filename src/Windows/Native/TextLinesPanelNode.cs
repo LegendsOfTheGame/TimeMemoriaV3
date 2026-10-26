@@ -64,6 +64,12 @@ public abstract class TextLinesPanelNode : TabPanelNode
   protected void Invalidate() => _built = false;
 
   /// <summary>
+  /// Space kept free below the text for a subclass's own controls, such as a
+  /// button row. The list stops short of it.
+  /// </summary>
+  protected virtual float FooterHeight => 0.0f;
+
+  /// <summary>
   /// Splits <paramref name="text"/> into lines that fit the row width this
   /// panel actually has, each prefixed with <paramref name="indent"/>.
   ///
@@ -105,7 +111,7 @@ public abstract class TextLinesPanelNode : TabPanelNode
   {
     base.OnSizeChanged();
 
-    _list.Size = new Vector2(Width, Height);
+    _list.Size = new Vector2(Width, Height - FooterHeight);
     _list.Position = new Vector2(0.0f, 0.0f);
   }
 }
