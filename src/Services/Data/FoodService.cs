@@ -28,7 +28,8 @@ namespace TimeMemoria.Services;
 public record FoodReading(bool WellFed, float RemainingSeconds, FoodChoice? Active, TimeSpan Banked, FoodChoice? Best,
   IReadOnlyList<FoodStack> Held);
 
-public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantity);
+/// <param name="Role">DPS, Healer, Tank, Crafter or Gatherer, for colouring the name.</param>
+public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantity, string Role = "");
 
 /// <summary>
 /// One food item's stat bonuses, which pursuit it serves, the role its
@@ -39,11 +40,25 @@ public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantit
 /// so a food full of Skill Speed still needs to rank behind a Piety food for
 /// someone playing a healer.
 /// </summary>
+/// <param name="Where">
+/// Every place this food is held, in both qualities, one "3x Name in Place" per
+/// line -- the bags, the saddlebag, the premium saddlebag, then each retainer by
+/// name. Retainer copies are listed here only; <paramref name="Quantity"/>
+/// counts what is carried, in this row's quality.
+/// </param>
 public record FoodStack(string Name, string Stats, FoodPursuit Pursuit, string Role, int Score, bool HighQuality,
-  bool IsActive, int Quantity);
+  bool IsActive, int Quantity, string Where = "");
 
 /// <summary>What kind of play a food's stats are for — the axis food actually splits on in this game.</summary>
 public enum FoodPursuit { Combat, Crafting, Gathering }
+
+/// <summary>
+/// The strongest food held for one role, and where it is. Name is null when
+/// nothing held suits that role.
+/// </summary>
+/// <param name="Role">DPS, Healer, Tank, Crafter or Gatherer.</param>
+/// <param name="Where">"Inventory", "Saddlebag", or the retainer's name.</param>
+public record RolePick(string Role, string? Name, bool HighQuality, string? Where);
 
 public interface IFoodService
 {
@@ -52,6 +67,12 @@ public interface IFoodService
   /// cached, because both inputs change while the window is open.
   /// </summary>
   FoodReading Read();
+
+  /// <summary>
+  /// One pick per role, from the bags, the saddlebag and every retainer.
+  /// Unlike <see cref="Read"/>, which only suggests food already carried.
+  /// </summary>
+  IReadOnlyList<RolePick> BestByRole();
 }
 
 /// <summary>
@@ -107,16 +128,22 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
   /// </summary>
   private const uint VitalityParam = 3;
 
-  /// <summary>Where loose food sits. The armoury holds no consumables.</summary>
+  /// <summary>
+  /// Where loose food sits, read live. The armoury holds no consumables. The
+  /// saddlebag is not read here: after a cold restart its live containers hold
+  /// nothing until the saddlebag is opened, so it comes from ItemFinderModule
+  /// instead (see <see cref="ReadSaddleBag"/>).
+  /// </summary>
   private static readonly InventoryType[] Bags =
   [
     InventoryType.Inventory1,
     InventoryType.Inventory2,
     InventoryType.Inventory3,
-    InventoryType.Inventory4,
-    InventoryType.SaddleBag1,
-    InventoryType.SaddleBag2
+    InventoryType.Inventory4
   ];
+
+  /// <summary>The cache lists carry high quality as this offset on the item id.</summary>
+  private const uint CachedHighQualityOffset = 1_000_000;
 
   public FoodReading Read()
   {
@@ -138,13 +165,18 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
       // when there is nothing active to be counted twice.
       bool liveStats = !fed;
 
+      // Retainer copies are only for saying where else a carried food is. They
+      // stay out of held, so nothing suggests eating food that is not carried.
+      List<Held> elsewhere = [];
+      ReadRetainers(elsewhere);
+
       return new FoodReading(
         fed,
         remaining,
         active,
         Banked(held),
         held.Count == 0 ? null : Choose(held, relevant, liveStats),
-        Stacks(held, relevant, active, liveStats));
+        Stacks(held, elsewhere, relevant, active, liveStats));
     }
     catch (Exception ex)
     {
@@ -157,11 +189,86 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
 
   private static FoodReading Empty => new(false, 0, null, TimeSpan.Zero, null, []);
 
+  /// <summary>The order /tm food lists the roles in.</summary>
+  private static readonly string[] RoleOrder = ["DPS", "Healer", "Tank", "Crafter", "Gatherer"];
+
+  public IReadOnlyList<RolePick> BestByRole()
+  {
+    if (!_clientState.IsLoggedIn) return [];
+
+    try
+    {
+      List<Held> held = ReadBags();
+      ReadRetainers(held);
+
+      // Ranked by the caps alone, not by the equipped job's stats as Read()
+      // does: this lists every role at once, and the job in hand says nothing
+      // about the other four. Above a few hundred in a stat the cap is what a
+      // meal actually gives, so it is the fair comparison.
+      var ranked = held
+        .Select((food) => (Food: food, Row: FoodRow(food.Item)))
+        .Where((entry) => entry.Row is not null)
+        .Select((entry) => (entry.Food, Classify(entry.Row).Role, Value: CapTotal(entry.Row!.Value, entry.Food.HighQuality)))
+        .ToList();
+
+      // OrderBy is stable and held lists the bags first, then the saddlebag,
+      // then retainers -- so a meal held in more than one place is reported
+      // where it is easiest to reach.
+      return RoleOrder
+        .Select((role) =>
+        {
+          var best = ranked
+            .Where((entry) => entry.Role == role)
+            .OrderByDescending((entry) => entry.Value)
+            .ThenByDescending((entry) => entry.Food.HighQuality)
+            .ThenBy((entry) => entry.Food.Item.Name.ToString(), StringComparer.Ordinal)
+            .FirstOrDefault();
+
+          return best.Food.Item.RowId == 0
+            ? new RolePick(role, null, false, null)
+            : new RolePick(role, best.Food.Item.Name.ToString(), best.Food.HighQuality, best.Food.Source);
+        })
+        .ToList();
+    }
+    catch (Exception ex)
+    {
+      _logger.Error(ex, "[Food] Could not read food by role.");
+      return [];
+    }
+  }
+
+  /// <summary>
+  /// "1x Tempura Platter in Inventory\n3x Tempura Platter (HQ) in Saddlebag". The
+  /// food is named on every line: a tooltip drawn over a list does not show
+  /// which row it belongs to. Places keep the order they were read in -- bags,
+  /// saddlebag, premium saddlebag, retainers -- NQ before HQ within each.
+  /// </summary>
+  private static string Where(string name, IEnumerable<Held> copies)
+    => string.Join("\n", copies
+      .GroupBy((f) => (f.Source, f.HighQuality))
+      .Select((place) =>
+        $"{place.Sum((f) => f.Quantity)}x {name}{(place.Key.HighQuality ? " (HQ)" : "")} in {place.Key.Source}"));
+
+  /// <summary>Every cap a meal has, summed; a flat bonus counts as its value.</summary>
+  private static int CapTotal(ItemFoodRow food, bool hq)
+  {
+    int total = 0;
+
+    foreach (var entry in food.Params)
+    {
+      if (entry.BaseParam.RowId == 0) continue;
+      total += entry.IsRelative ? (hq ? entry.MaxHQ : entry.Max) : (hq ? entry.ValueHQ : entry.Value);
+    }
+
+    return total;
+  }
+
   /// <summary>
   /// One row per item id, grouped by quality since NQ and HQ of the same food
   /// can carry different bonuses.
   /// </summary>
-  private List<FoodStack> Stacks(List<Held> held, HashSet<uint> relevant, FoodChoice? active, bool liveStats)
+  private List<FoodStack> Stacks(List<Held> held, List<Held> elsewhere, HashSet<uint> relevant, FoodChoice? active,
+    bool liveStats)
   {
     return held
       .GroupBy((f) => (f.Item.RowId, f.HighQuality))
@@ -181,7 +288,11 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
           Evaluate(first, relevant, liveStats),
           hq,
           isActive,
-          group.Sum((f) => f.Quantity));
+          group.Sum((f) => f.Quantity),
+          // Both qualities, as Allagan Tools lists them: the NQ row of a food
+          // held HQ in the saddlebag otherwise looked like the saddlebag was empty.
+          Where(first.Item.Name.ToString(),
+            held.Concat(elsewhere).Where((f) => f.Item.RowId == group.Key.RowId)));
       })
       // What you're already eating leads its pursuit group -- you're benefiting
       // from it right now, whether or not it happens to be the top score.
@@ -297,7 +408,7 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
       .Where((f) => f.Item.RowId == id && f.HighQuality == hq)
       .Sum((f) => f.Quantity);
 
-    return new FoodChoice(id, item.Value.Name.ToString(), hq, remaining);
+    return new FoodChoice(id, item.Value.Name.ToString(), hq, remaining, Classify(FoodRow(item.Value)).Role);
   }
 
   private Dictionary<ushort, uint> BuildMealIndex()
@@ -383,11 +494,69 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
         held.Add(new Held(
           item.Value,
           slot->Quantity,
-          slot->Flags.HasFlag(InventoryItem.ItemFlags.HighQuality)));
+          slot->Flags.HasFlag(InventoryItem.ItemFlags.HighQuality),
+          "Inventory"));
       }
     }
 
+    ReadSaddleBag(held);
     return held;
+  }
+
+  /// <summary>
+  /// The saddlebag and premium saddlebag, from ItemFinderModule -- the game's
+  /// Search for Item cache, which is full from login and follows every item
+  /// move. HaselDebug showed the live SaddleBag containers empty after a cold
+  /// restart (26 Oct 2026), which made saddlebag food look absent.
+  /// </summary>
+  private void ReadSaddleBag(List<Held> held)
+  {
+    var finder = FFXIVClientStructs.FFXIV.Client.UI.Misc.ItemFinderModule.Instance();
+    if (finder is null || !finder->IsSaddleBagCached) return;
+
+    AddCached(held, finder->SaddleBagItemIds, finder->SaddleBagItemCount, "Saddlebag");
+    AddCached(held, finder->PremiumSaddleBagItemIds, finder->PremiumSaddleBagItemCount, "Premium Saddlebag");
+  }
+
+  /// <summary>
+  /// Every retainer, from the same ItemFinderModule cache: full from login, and
+  /// brought up to date whenever a retainer's inventory is opened. Only
+  /// <see cref="BestByRole"/> reads this -- the meal a panel suggests eating now
+  /// has to be one you are carrying.
+  ///
+  /// Names come from RetainerManager, which may not be filled until a summoning
+  /// bell is used; until then the retainer is named generically.
+  /// </summary>
+  private void ReadRetainers(List<Held> held)
+  {
+    var finder = FFXIVClientStructs.FFXIV.Client.UI.Misc.ItemFinderModule.Instance();
+    if (finder is null) return;
+
+    Dictionary<ulong, string> names = [];
+    RetainerManager* retainers = RetainerManager.Instance();
+    if (retainers is not null && retainers->IsReady)
+      foreach (ref readonly var retainer in retainers->Retainers)
+        if (retainer.RetainerId != 0) names[retainer.RetainerId] = retainer.NameString;
+
+    foreach (var (id, inventory) in finder->RetainerInventories)
+    {
+      if (inventory.Value is null) continue;
+      AddCached(held, inventory.Value->ItemIds, inventory.Value->ItemCount, names.GetValueOrDefault(id, "a retainer"));
+    }
+  }
+
+  private void AddCached(List<Held> held, Span<uint> ids, Span<ushort> counts, string source)
+  {
+    for (int index = 0; index < ids.Length; index++)
+    {
+      uint id = ids[index];
+      if (id == 0) continue;
+
+      ItemRow? item = _dataManager.GetExcelSheet<ItemRow>().GetRowOrDefault(id % CachedHighQualityOffset);
+      if (item is null || !IsMeal(item.Value)) continue;
+
+      held.Add(new Held(item.Value, counts[index], id >= CachedHighQualityOffset, source));
+    }
   }
 
   /// <summary>
@@ -547,5 +716,5 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     return row == 0 ? null : _dataManager.GetExcelSheet<ItemFoodRow>().GetRowOrDefault(row);
   }
 
-  private readonly record struct Held(ItemRow Item, int Quantity, bool HighQuality);
+  private readonly record struct Held(ItemRow Item, int Quantity, bool HighQuality, string Source);
 }

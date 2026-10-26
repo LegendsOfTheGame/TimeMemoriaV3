@@ -113,7 +113,7 @@ public class BonusesPanelNode : TabPanelNode
 
     if (reading.Held.Count == 0)
     {
-      Set(ref row, "", "nothing found in Inventory1-4 or SaddleBag1-2", muted: true);
+      Set(ref row, "", "nothing found in your bags or saddlebag", muted: true);
     }
     else
     {
@@ -126,7 +126,7 @@ public class BonusesPanelNode : TabPanelNode
 
         foreach (FoodStack stack in group)
           Set(ref row, $"{stack.Quantity}x {stack.Name}", stack.Stats, highQuality: stack.HighQuality,
-            role: stack.Role);
+            role: stack.Role, tooltip: stack.Where);
       }
     }
 
@@ -136,6 +136,7 @@ public class BonusesPanelNode : TabPanelNode
     {
       (HorizontalListNode container, TextNode label, TextNode value) = _rows[row];
       container.IsVisible = label.IsVisible = value.IsVisible = false;
+      SetTooltip(row, label, "");
     }
 
     // Guarded on the count, since Refresh runs every frame and re-measuring
@@ -168,6 +169,7 @@ public class BonusesPanelNode : TabPanelNode
   {
     if (row >= _rows.Count) return;
 
+    SetTooltip(row, _rows[row].Label, "");
     (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
 
     container.IsVisible = true;
@@ -178,10 +180,11 @@ public class BonusesPanelNode : TabPanelNode
   }
 
   private void Set(ref int row, string name, string text, bool muted = false, bool highQuality = false,
-    string? role = null)
+    string? role = null, string tooltip = "")
   {
     if (row >= _rows.Count) return;
 
+    SetTooltip(row, _rows[row].Label, tooltip);
     (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
 
     container.IsVisible = label.IsVisible = value.IsVisible = true;
@@ -195,6 +198,22 @@ public class BonusesPanelNode : TabPanelNode
     // free to carry a different meaning instead: which role the bonuses suit.
     label.TextColor = highQuality ? HighQuality : colour;
     value.TextColor = role is null ? colour : RoleColours.GetValueOrDefault(role, colour);
+  }
+
+  /// <summary>Tooltip text each row last had. Rows are reused, so it follows the row.</summary>
+  private readonly string[] _tooltips = new string[MaxRows];
+
+  /// <summary>
+  /// Where a food is held, on hovering its name. Only set when it changes:
+  /// Refresh runs every frame, and each change makes the addon rebuild its
+  /// collision list.
+  /// </summary>
+  private void SetTooltip(int row, TextNode label, string text)
+  {
+    if ((_tooltips[row] ?? "") == text) return;
+
+    _tooltips[row] = text;
+    label.TextTooltip = text;
   }
 
   protected override void OnSizeChanged()

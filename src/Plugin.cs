@@ -51,6 +51,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
 
         collection.AddSingleton<MainWindow>();
         collection.AddSingleton<WikiWindow>();
+        collection.AddSingleton<FoodWindow>();
 
         collection.AddSingleton<ILogger, Logger>();
         collection.AddSingleton<IDataService, DataService>();
