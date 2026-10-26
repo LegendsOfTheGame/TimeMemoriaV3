@@ -111,7 +111,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
   /// </summary>
   public async Task LoadAsync(CancellationToken cancellationToken)
   {
-    KamiToolKitLibrary.Initialize(_pluginInterface, "Time Memoria");
+    KamiToolKitLibrary.Initialize(_pluginInterface, "Tales of Milestones");
 
     await _host.StartAsync(cancellationToken);
 

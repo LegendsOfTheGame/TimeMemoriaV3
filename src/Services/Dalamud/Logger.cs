@@ -44,7 +44,7 @@ public class Logger(IPluginLog _pluginLog, IChatGui _chatGui) : ILogger
       Type = type,
       Name = new SeStringBuilder().AddText(name).Build(),
       Message = new SeStringBuilder()
-        .AddUiForeground(addPrefix ? "[TimeMemoria] " : "", 35)
+        .AddUiForeground(addPrefix ? "[Tales of Milestones] " : "", 35)
         .AddText(uncolored)
         .AddUiForeground(pre, preColor)
         .AddItalicsOn()
