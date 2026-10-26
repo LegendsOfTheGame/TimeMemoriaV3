@@ -16,7 +16,7 @@ public class BestiaryWindow : Window
 
   /// <summary>Size is set here and not in Draw; see WikiWindow for why.</summary>
   public BestiaryWindow(BestiaryFeature feature, List<Beast> beasts)
-    : base("Time Memoria — Master's Bestiary##TimeMemoriaBestiary")
+    : base("Tales of Milestones — Master's Bestiary##TimeMemoriaBestiary")
   {
     _feature = feature;
     _beasts = beasts;

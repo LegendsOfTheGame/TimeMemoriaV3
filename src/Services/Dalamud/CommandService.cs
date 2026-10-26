@@ -65,7 +65,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
   {
     _commandManager.AddHandler(MainCommand, new CommandInfo(OnCommand)
     {
-      HelpMessage = $"Open Time Memoria. See '{MainCommand} help' for more.",
+      HelpMessage = $"Open Tales of Milestones. See '{MainCommand} help' for more.",
       ShowInHelp = true
     });
 

@@ -24,7 +24,7 @@ public class FoodWindow : Window
   /// <summary>Set by WindowService: the same Settings the installer's button opens.</summary>
   public System.Action? OpenSettings { get; set; }
 
-  public FoodWindow(IFoodService food) : base("Food Bonuses — Time Memoria##TimeMemoriaFood")
+  public FoodWindow(IFoodService food) : base("Food Bonuses — Tales of Milestones##TimeMemoriaFood")
   {
     _food = food;
 

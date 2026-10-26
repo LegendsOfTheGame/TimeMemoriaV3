@@ -66,7 +66,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     _companion = new CompanionAddon
     {
       InternalName = "TimeMemoriaGlance",
-      Title = "Time Memoria",
+      Title = "Tales of Milestones",
       Size = new Vector2(310.0f, 400.0f),
       ProgressService = _classJobProgress,
       Playtime = _playtime,
@@ -82,7 +82,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     _window = new MainAddon
     {
       InternalName = "TimeMemoria",
-      Title = "Time Memoria",
+      Title = "Tales of Milestones",
       Size = new Vector2(900.0f, 640.0f),
       DataService = _dataService,
       PatchService = _questPatch,

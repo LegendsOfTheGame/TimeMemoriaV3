@@ -24,7 +24,7 @@ public unsafe class WikiWindow : Window
   /// Draw runs after the window has begun, so a SetNextWindowSize there lands
   /// on the list's child instead, and the window sizes itself to its content.
   /// </summary>
-  public WikiWindow(IDataManager dataManager) : base("Time Memoria — Wiki##TimeMemoriaWikiList")
+  public WikiWindow(IDataManager dataManager) : base("Tales of Milestones — Wiki##TimeMemoriaWikiList")
   {
     _dataManager = dataManager;
 

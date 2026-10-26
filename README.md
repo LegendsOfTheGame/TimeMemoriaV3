@@ -1,4 +1,4 @@
-# Time Memoria
+# Tales of Milestones
 
 A FFXIV Dalamud plugin for quest progression and pacing — a reflective notebook
 for your story journey, not a scoreboard.
@@ -32,7 +32,7 @@ ImGui version of all of it too — `/tm classic` — and a setting for which one
 
 ## Status: released
 
-**Time Memoria is published.** Install it by adding this repository to Dalamud's
+**Tales of Milestones is published.** Install it by adding this repository to Dalamud's
 custom plugin repositories:
 
 ```
@@ -129,7 +129,7 @@ Requires the .NET 10 SDK and a Dalamud development environment.
 The assembly is named `TimeMemoriaV3` permanently. Dalamud derives InternalName
 from it, and InternalName keys the configuration file and the directory holding
 the quest journal — renaming it would orphan both. Only the display name matters
-to anyone using the plugin, and that is `Time Memoria`.
+to anyone using the plugin, and that is `Tales of Milestones` (formerly Time Memoria).
 
 ---
 

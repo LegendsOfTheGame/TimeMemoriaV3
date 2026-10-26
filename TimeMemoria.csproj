@@ -10,7 +10,7 @@
          taught: v2 maintained its quest data by hand and stalled on a patch,
          which is why this reads from the game's own tables. Starting at 1.0
          would hide the reason it works the way it does. -->
-    <Version>3.10.0.15</Version>
+    <Version>3.10.1.15</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -25,7 +25,7 @@
 
   <PropertyGroup>
     <Author>Legends of the Game</Author>
-    <Name>Time Memoria</Name>
+    <Name>Tales of Milestones</Name>
     <Punchline>Remember every step, Warriors of Light.</Punchline>
     <Description>Quest progression and pacing — a reflective notebook for your story journey, not a scoreboard.</Description>
     <RepoUrl>https://github.com/LegendsOfTheGame/TimeMemoriaV3</RepoUrl>
