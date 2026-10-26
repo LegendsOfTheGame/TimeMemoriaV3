@@ -102,3 +102,27 @@ jobs:
                 (if length > 4000 then .[:3900] + "\n\n… Full notes on GitHub." else . end) as $d
                 | {embeds: [{title: $title, url: $url, description: $d, color: 5763719}]}' \
             | curl -sSf -H "Content-Type: application/json" -d @- "$DISCORD_WEBHOOK_URL"
+
+      # repo.json is what tells installed copies an update exists, and its links
+      # resolve to releases/latest. Written here, after the release is published,
+      # so it can never advertise a version whose zip is not there yet -- which is
+      # why it used to be a third, separate push. Built on main, not the tag:
+      # Build-RepoJson.py refuses if main's <Version> no longer matches this build,
+      # so a version bump pushed after the tag stops this step instead of
+      # mislabelling the release. A commit made with the run's own token does not
+      # start another run.
+      - name: Update repo.json on main
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          python3 tools/Build-RepoJson.py --notes "release-notes/${GITHUB_REF_NAME}.md"
+          if git diff --quiet -- repo.json; then
+            echo "repo.json already matches ${GITHUB_REF_NAME}."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add repo.json
+          git commit -m "release: ${GITHUB_REF_NAME#v}"
+          git push origin main

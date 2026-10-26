@@ -31,21 +31,41 @@ replace it. Bump before committing, not after.
    and the Discord announcement. Discord posts once, on publish — editing the
    release afterwards fixes GitHub but not Discord. Commit it with the version
    bump; a tag whose commit has no notes file fails CI before the build.
-3. Commit and push.
-4. Tag it and push the tag:
+3. Commit, tag, and push the commit and the tag together in one push:
 
    ```
    git tag v3.0.0.15
-   git push origin v3.0.0.15
+   git push --atomic origin main v3.0.0.15
    ```
 
-   CI builds Release and attaches `latest.zip` to a GitHub release. The tag must
-   start with `v` or the release step is skipped.
-5. Regenerate and commit the repository manifest:
+   `--atomic` sends both or neither. The tag must start with `v` or the release
+   steps are skipped.
+4. Wait for the release run to finish, then pull:
+
+   ```
+   gh run watch
+   git pull
+   ```
+
+   CI builds Release, publishes the GitHub release with `latest.zip`, posts the
+   notes to Discord, and then writes `repo.json` and commits it to `main` as
+   `github-actions[bot]` ("release: 3.0.0.15"). The pull brings that commit down,
+   so the local `main` matches before the next piece of work. Wait for the run
+   to finish rather than for a fixed time: a slow run would otherwise be pulled
+   before the commit exists.
+
+   `repo.json` used to be a third push, made by hand after the release existed.
+   It has to come after the release: its download links resolve to
+   `releases/latest`, so a manifest that goes live first sends updaters the
+   previous zip under the new version's name. CI now does it in that order on
+   its own. The installer changelog is made from the release notes file
+   (`Build-RepoJson.py --notes`), so the notes are written once.
+
+   If the run fails after the release is published, write the manifest by hand:
 
    ```
    dotnet build -c Release --no-incremental
-   python tools/Build-RepoJson.py "What changed, in a sentence."
+   python tools/Build-RepoJson.py --notes release-notes/v3.0.0.15.md
    git add repo.json && git commit -m "release: 3.0.0.15" && git push
    ```
 
@@ -54,7 +74,7 @@ replace it. Bump before committing, not after.
    `releases/latest`, which resolves to the newest release on its own and never
    needs editing.
 
-   **`--no-incremental` is not optional.** An ordinary build leaves
+   **`--no-incremental` is not optional** when you build it by hand. An ordinary build leaves
    `bin/Release/TimeMemoriaV3/TimeMemoriaV3.json` untouched when only the
    version changed, so `Build-RepoJson.py` happily reads the *previous*
    version and writes a manifest advertising it. Nothing errors. The release

@@ -11,6 +11,10 @@ writes, so the two cannot drift apart.
 Usage:
     python tools/Build-RepoJson.py
     python tools/Build-RepoJson.py "Fixed session pacing on character switch."
+    python tools/Build-RepoJson.py --notes release-notes/v3.10.0.15.md
+
+CI runs the --notes form after it publishes a release, so the installer
+changelog is the release notes and nobody writes them twice.
 """
 
 import json
@@ -82,6 +86,25 @@ def check_version(manifest):
     )
 
 
+def changelog_from_notes(path):
+    """The release notes, reworded for the installer's plain-text changelog.
+
+    "## Time Memoria" becomes "Time Memoria:", and the bold lead-in of a bullet
+    loses its asterisks -- the installer shows Markdown as typed. Blank lines go,
+    since the installer already separates the lines.
+    """
+    lines = []
+    for raw in pathlib.Path(path).read_text(encoding='utf-8-sig').splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        heading = re.match(r'^#{1,6}\s+(.*)$', line)
+        if heading:
+            line = heading.group(1).rstrip(':') + ':'
+        lines.append(line.replace('**', ''))
+    return '\n'.join(lines)
+
+
 def main(changelog=None):
     if not BUILT.exists():
         raise SystemExit(f'{BUILT} not found — run: dotnet build -c Release')
@@ -122,4 +145,10 @@ def main(changelog=None):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else None)
+    args = sys.argv[1:]
+    if args[:1] == ['--notes']:
+        if len(args) < 2:
+            raise SystemExit('--notes needs the path of a release notes file')
+        main(changelog_from_notes(args[1]))
+    else:
+        main(args[0] if args else None)
