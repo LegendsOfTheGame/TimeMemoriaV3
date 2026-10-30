@@ -85,6 +85,13 @@ public class Configuration : IPluginConfiguration
   /// </summary>
   public HashSet<string> EnabledFeatures { get; set; } = [];
 
+  /// <summary>
+  /// "auto", or a language code ("en", "de", "fr", "ja"). Stored as a code
+  /// rather than an enum index so adding a language never shifts saved values.
+  /// See <see cref="TimeMemoria.Services.LanguageService"/>.
+  /// </summary>
+  public string Language { get; set; } = TimeMemoria.Services.LanguageService.Auto;
+
   /// <summary>Open the game-styled window rather than the ImGui one.</summary>
   public bool UseNativeUi { get; set; } = false;
 

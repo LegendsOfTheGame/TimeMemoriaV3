@@ -1,6 +1,6 @@
 namespace TimeMemoria.Windows;
 
-public partial class MainWindow(Configuration _configuration, IDataService _dataService, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IQuestMapService _questMap, IAchievementService _achievements, IFeatureService _features) : Window("Tales of Milestones##TimeMemoriaMainWindow")
+public partial class MainWindow(Configuration _configuration, IDataService _dataService, IClassJobProgressService _classJobProgress, ILedgerExportService _ledgerExport, INewsService _newsService, ITocService _tocService, IPacingService _pacing, IPlayerState _playerState, IFestivalService _festivals, IPlaytimeService _playtime, IQuestJournalService _journal, IQuestSnapshotService _snapshot, INativeUiService _nativeUi, IQuestPatchService _questPatch, IQuestMapService _questMap, IAchievementService _achievements, IFeatureService _features, ILanguageService _language) : Window("Tales of Milestones##TimeMemoriaMainWindow")
 {
   private static readonly Vector4 HeaderColour = new(0.5f, 0.8f, 1.0f, 1.0f);
 
@@ -1015,6 +1015,25 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
 
     ImGui.Spacing();
 
+    int selected = Math.Max(0, Array.FindIndex(LanguageService.Options, o => o.Code == _configuration.Language));
+    ImGui.SetNextItemWidth(260f);
+    using (ImRaii.ComboDisposable combo = ImRaii.Combo("Language", LanguageService.Options[selected].Label))
+    {
+      if (combo.Success)
+      {
+        foreach ((string code, string label) in LanguageService.Options)
+        {
+          if (!ImGui.Selectable(label, code == _configuration.Language)) continue;
+          _configuration.Language = code;
+          _configuration.Save();
+        }
+      }
+    }
+
+    ImGui.TextDisabled($"  Showing: {_language.Current}. Only dates use it so far; the news feed is English.");
+
+    ImGui.Spacing();
+
     // Offered here as well as in the game window's settings: /tmmini can be
     // opened from either, so the setting that governs it should be reachable
     // from either.
@@ -1574,6 +1593,7 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
   private void DrawEventsSection(NewsEvent data)
   {
     ImGui.TextColored(HeaderColour, "Active Events");
+    if (data.LastUpdated > 0) ImGui.TextDisabled(TimeFormat.FeedUpdated(data.LastUpdated, _language.Current));
     ImGui.Separator();
     ImGui.Spacing();
 

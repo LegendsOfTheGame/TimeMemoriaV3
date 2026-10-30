@@ -46,6 +46,7 @@ public class NewsPanelNode : TabPanelNode
   public required IPacingService Pacing { get; init; }
   public required IFestivalService Festivals { get; init; }
   public required INewsService News { get; init; }
+  public required ILanguageService Language { get; init; }
   public required IQuestSnapshotService Snapshot { get; init; }
   public required IQuestPatchService PatchService { get; init; }
   public required IPlayerState PlayerState { get; init; }
@@ -276,6 +277,8 @@ public class NewsPanelNode : TabPanelNode
     }
     else
     {
+      if (newsData.LastUpdated > 0) Set(ref row, "", TimeFormat.FeedUpdated(newsData.LastUpdated, Language.Current));
+
       EventsSummary.Result summary = EventsSummary.Build(newsData, Festivals.GetActive());
 
       if (summary.Lines.Count == 0)

@@ -42,6 +42,7 @@ public class SettingsPanelNode : TabPanelNode
 
   private readonly ScrollingNode<VerticalListNode> _scroll;
   private readonly StringDropDownNode _display;
+  private readonly StringDropDownNode _language;
   private readonly CheckboxNode _showCount;
   private readonly CheckboxNode _showPercentage;
   private readonly CheckboxNode _excludeOther;
@@ -84,6 +85,23 @@ public class SettingsPanelNode : TabPanelNode
     };
 
     _display.AttachNode(this);
+
+    // Beside the display dropdown, above the scroll, for the same clipping reason.
+    _language = new StringDropDownNode
+    {
+      Size = new Vector2(260.0f, RowHeight),
+      IsVisible = true,
+      MaxListOptions = LanguageService.Options.Length,
+      Options = [.. LanguageService.Options.Select(o => o.Label)],
+      OnOptionSelected = (option) =>
+      {
+        int index = Array.FindIndex(LanguageService.Options, o => o.Label == option);
+        Config.Language = LanguageService.Options[Math.Max(0, index)].Code;
+        Config.Save();
+      }
+    };
+
+    _language.AttachNode(this);
 
     // The list outgrew the window once the Ko-fi button joined it. ContentNode
     // properties are set before Size, as ScrollingNode requires.
@@ -237,6 +255,10 @@ public class SettingsPanelNode : TabPanelNode
 
     string expected = DisplayOptions[Math.Clamp(Config.DisplayOption, 0, DisplayOptions.Length - 1)];
     if (_display.SelectedOption != expected) _display.SelectedOption = expected;
+
+    int language = Math.Max(0, Array.FindIndex(LanguageService.Options, o => o.Code == Config.Language));
+    string expectedLanguage = LanguageService.Options[language].Label;
+    if (_language.SelectedOption != expectedLanguage) _language.SelectedOption = expectedLanguage;
   }
 
   protected override void OnSizeChanged()
@@ -244,6 +266,7 @@ public class SettingsPanelNode : TabPanelNode
     base.OnSizeChanged();
 
     _display.Position = new Vector2(0.0f, 0.0f);
+    _language.Position = new Vector2(_display.Width + 12.0f, 0.0f);
 
     float scrollY = RowHeight + 6.0f;
     _scroll.Size = new Vector2(Width, Height - scrollY);

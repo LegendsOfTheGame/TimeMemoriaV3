@@ -28,6 +28,7 @@ public unsafe class MainAddon : NativeAddon
   public required IPacingService Pacing { get; init; }
   public required IFestivalService Festivals { get; init; }
   public required INewsService News { get; init; }
+  public required ILanguageService Language { get; init; }
   public required IPlayerState PlayerState { get; init; }
   public required IFoodService Food { get; init; }
   public required IAchievementService Achievements { get; init; }
@@ -83,8 +84,9 @@ public unsafe class MainAddon : NativeAddon
     };
     NewsPanelNode news = new()
     {
-      Playtime = Playtime, Pacing = Pacing, Festivals = Festivals, News = News, PlayerState = PlayerState,
-      Snapshot = Snapshot, PatchService = PatchService, DataService = DataService, Logger = Logger
+      Playtime = Playtime, Pacing = Pacing, Festivals = Festivals, News = News, Language = Language,
+      PlayerState = PlayerState, Snapshot = Snapshot, PatchService = PatchService, DataService = DataService,
+      Logger = Logger
     };
     BonusesPanelNode bonuses = new() { Food = Food };
     ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport };
