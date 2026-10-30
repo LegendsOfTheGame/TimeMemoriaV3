@@ -34,9 +34,6 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
   /// the crafter and gatherer mark, for a button that copies crafting needs.</summary>
   private const uint CopyItemsIconId = 61543;
 
-  private static readonly Vector4 Complete = new(0.55f, 0.55f, 0.55f, 1.0f);
-  private static readonly Vector4 Incomplete = new(1.0f, 1.0f, 1.0f, 1.0f);
-  private static readonly Vector4 Detail = new(0.6f, 0.6f, 0.6f, 1.0f);
 
   private TextNode TitleNode { get; }
   private TextNode DetailNode { get; }
@@ -50,7 +47,7 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
     TitleNode = new TextNode { TextFlags = TextFlags.Ellipsis | TextFlags.Emboss, FontSize = 12 };
     TitleNode.AttachNode(this);
 
-    DetailNode = new TextNode { TextFlags = TextFlags.Ellipsis, FontSize = 11, TextColor = Detail };
+    DetailNode = new TextNode { TextFlags = TextFlags.Ellipsis, FontSize = 11 };
     DetailNode.AttachNode(this);
 
     FlagButton = new RowIconButtonNode
@@ -108,8 +105,12 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
     if (DataService?.IsLeveAccepted(_current) ?? false) prefix += "> ";
     if (DataService?.HasLeveItems(_current) ?? false) prefix += "✓ ";
 
+    // A finished quest is dimmed in the theme's own dimmed colour. Dimmed text
+    // does not reach 4.5:1 on every theme, so this is not yet the AODA answer
+    // for completion -- it needs a word or mark of its own.
     TitleNode.String = prefix + _current.Title;
-    TitleNode.TextColor = complete ? Complete : Incomplete;
+    TitleNode.TextColor = complete ? NativeTheme.Dimmed : NativeTheme.Text;
+    DetailNode.TextColor = NativeTheme.Text;
   }
 
   protected override void SetNodeData(Types.Quest itemData)

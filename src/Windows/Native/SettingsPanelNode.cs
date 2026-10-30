@@ -182,7 +182,7 @@ public class SettingsPanelNode : TabPanelNode
     _resizeHint = new TextNode
     {
       FontSize = 11,
-      TextColor = new Vector4(0.6f, 0.6f, 0.6f, 1.0f),
+      TextColor = NativeTheme.Text,
       String = "If this window is the wrong size, resize the classic window and reopen this one.",
       IsVisible = true
     };

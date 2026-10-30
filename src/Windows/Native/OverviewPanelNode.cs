@@ -24,9 +24,11 @@ public class OverviewPanelNode : TabPanelNode
   /// </summary>
   private const int MaxRows = 32;
 
-  private static readonly Vector4 Heading = new(0.6f, 0.8f, 1.0f, 1.0f);
-  private static readonly Vector4 Normal = new(1.0f, 1.0f, 1.0f, 1.0f);
-  private static readonly Vector4 Dimmed = new(0.6f, 0.6f, 0.6f, 1.0f);
+  /// <summary>Whether a heading has been drawn yet this refresh: the first one gets no gap.</summary>
+  private bool _headingDrawn;
+
+  /// <summary>Set when a row changed height this refresh, so the list is laid out again.</summary>
+  private bool _relayout;
 
   public required IDataService DataService { get; init; }
   public required IAchievementService Achievements { get; init; }
@@ -76,6 +78,8 @@ public class OverviewPanelNode : TabPanelNode
     IReadOnlyList<CategoryProgress> categories = DataService.CategoryProgress;
 
     int row = 0;
+    _headingDrawn = false;
+    _relayout = false;
 
     SetHeading(ref row, "Quest Completion Progress");
 
@@ -90,8 +94,9 @@ public class OverviewPanelNode : TabPanelNode
     {
       SetHeading(ref row, "By Category");
 
-      // An excluded section still shows its real numbers, dimmed, so nothing
-      // silently disappears — it is visibly present and visibly not counted.
+      // An excluded section still shows its real numbers, so nothing silently
+      // disappears. It is dimmed and says "(not counted)": dimmed text alone
+      // fell below 4.5:1 on light themes and meant nothing to a colourblind eye.
       foreach (CategoryProgress category in categories)
         SetRow(ref row, category.Name, category.NumComplete, category.Total, category.Excluded);
     }
@@ -120,9 +125,10 @@ public class OverviewPanelNode : TabPanelNode
 
     // Guarded on the count, since Refresh runs every frame and re-measuring
     // walks the whole pool.
-    if (used != _lastRowCount)
+    if (used != _lastRowCount || _relayout)
     {
       _lastRowCount = used;
+      _scroll.ContentNode.RecalculateLayout();
       _scroll.RecalculateSizes();
     }
   }
@@ -135,9 +141,11 @@ public class OverviewPanelNode : TabPanelNode
 
     container.IsVisible = label.IsVisible = true;
     label.String = text;
-    label.TextColor = Heading;
 
     count.IsVisible = percent.IsVisible = false;
+
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: true, first: !_headingDrawn);
+    _headingDrawn = true;
   }
 
   private void SetRow(ref int row, string name, int complete, int total, bool dimmed = false)
@@ -148,11 +156,13 @@ public class OverviewPanelNode : TabPanelNode
 
     container.IsVisible = label.IsVisible = count.IsVisible = percent.IsVisible = true;
 
-    label.String = name;
+    label.String = dimmed ? $"{name} (not counted)" : name;
     count.String = $"{complete}/{total}";
     percent.String = total > 0 ? $"{(int)(complete / (float)total * 100f)}%" : "—";
 
-    Vector4 colour = dimmed ? Dimmed : Normal;
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: false, first: false);
+
+    Vector4 colour = dimmed ? NativeTheme.Dimmed : NativeTheme.Text;
     label.TextColor = count.TextColor = percent.TextColor = colour;
   }
 
@@ -171,7 +181,6 @@ public class OverviewPanelNode : TabPanelNode
     String = "",
     AlignmentType = alignment,
     FontSize = 12,
-    TextColor = Normal,
     IsVisible = true
   };
 }

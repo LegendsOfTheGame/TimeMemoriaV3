@@ -31,6 +31,11 @@ public interface INativeUiService : IAsyncDisposable
 
   /// <summary>False until <see cref="Create"/> has run.</summary>
   bool IsReady { get; }
+
+#if DEBUG
+  /// <summary>Debug builds only: the window of heading fonts, for choosing one by eye.</summary>
+  void ToggleFontTest();
+#endif
 }
 
 /// <summary>
@@ -56,6 +61,22 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
 {
   private MainAddon? _window;
   private CompanionAddon? _companion;
+
+#if DEBUG
+  private FontTestAddon? _fontTest;
+
+  public void ToggleFontTest()
+  {
+    _fontTest ??= new FontTestAddon
+    {
+      InternalName = "TimeMemoriaFontTest",
+      Title = "Heading fonts",
+      Size = new Vector2(560.0f, 430.0f)
+    };
+
+    _fontTest.Toggle();
+  }
+#endif
 
   public bool IsReady => _window is not null;
 
@@ -275,6 +296,14 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   public async ValueTask DisposeAsync()
   {
     GC.SuppressFinalize(this);
+
+#if DEBUG
+    if (_fontTest is not null)
+    {
+      await _fontTest.DisposeAsync();
+      _fontTest = null;
+    }
+#endif
 
     if (_companion is not null)
     {

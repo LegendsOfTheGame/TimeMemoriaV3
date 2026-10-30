@@ -189,6 +189,16 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _windowService.ToggleFood();
         break;
 
+#if DEBUG
+      // Debug builds only, to choose a heading look by eye; never shipped.
+      // "/tm fonttest" opens a window with every font, plain and bold, at once.
+      // "/tm fonttest next" steps the real panels' headings through the same set.
+      case "fonttest":
+        if (args.Length > 1 && args[1] == "next") _logger.Chat(Windows.Native.NativeTheme.NextHeadingStyle());
+        else _nativeUi.ToggleFontTest();
+        break;
+#endif
+
       case "reset":
         _dataService.Reset();
         break;

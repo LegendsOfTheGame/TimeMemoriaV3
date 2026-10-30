@@ -45,9 +45,11 @@ public unsafe class CompanionAddon : NativeAddon
   /// <summary>Beyond a handful this stops being "what should I level next".</summary>
   private const int LowestJobCount = 5;
 
-  private static readonly Vector4 Heading = new(0.6f, 0.8f, 1.0f, 1.0f);
-  private static readonly Vector4 Normal = new(1.0f, 1.0f, 1.0f, 1.0f);
-  private static readonly Vector4 Muted = new(0.6f, 0.6f, 0.6f, 1.0f);
+  /// <summary>Whether a heading has been drawn yet this update: the first one gets no gap.</summary>
+  private bool _headingDrawn;
+
+  /// <summary>Set when a row changed height this update, so the list is laid out again.</summary>
+  private bool _relayout;
 
   public required IClassJobProgressService ProgressService { get; init; }
   public required IPlaytimeService Playtime { get; init; }
@@ -156,6 +158,8 @@ public unsafe class CompanionAddon : NativeAddon
     DataService.UpdateQuestData();
 
     int row = 0;
+    _headingDrawn = false;
+    _relayout = false;
 
     SetFood(ref row);
 
@@ -172,12 +176,11 @@ public unsafe class CompanionAddon : NativeAddon
       SetRow(ref row, "recorded",
         record.LifetimePlaytimeUpdatedUtc.HasValue
           ? Ago(DateTime.UtcNow - record.LifetimePlaytimeUpdatedUtc.Value)
-          : "age unknown",
-        muted: true);
+          : "age unknown");
     }
     else
     {
-      SetRow(ref row, "Lifetime", "run /playtime", muted: true);
+      SetRow(ref row, "Lifetime", "run /playtime");
     }
 
     SetHeading(ref row, "Collectables");
@@ -223,7 +226,7 @@ public unsafe class CompanionAddon : NativeAddon
 
     if (jobs.Count == 0)
     {
-      SetRow(ref row, "Every battle job is capped", "", muted: true);
+      SetRow(ref row, "Every battle job is capped", "");
     }
     else
     {
@@ -249,7 +252,10 @@ public unsafe class CompanionAddon : NativeAddon
     // The row count is genuinely variable — collectables appear once read,
     // societies appear as they cap or max, and the job list shortens as jobs
     // reach the ceiling. Re-measuring here is what keeps the scroll range
-    // honest; without it the bar describes whatever the window last held.
+    // honest; without it the bar describes whatever the window last held. A
+    // row that became a heading, or stopped being one, changed height, so the
+    // list itself is laid out again first.
+    if (_relayout) _scroll?.ContentNode.RecalculateLayout();
     _scroll?.RecalculateSizes();
   }
 
@@ -277,7 +283,7 @@ public unsafe class CompanionAddon : NativeAddon
       : $"{Societies.Allowances} / 12");
 
     foreach (SocietyStanding standing in Societies.GetStandings().Where((s) => s.IsCapped || s.IsTerminal))
-      SetRow(ref row, standing.Name, standing.IsCapped ? "capped — main quest" : "maxed", muted: standing.IsTerminal);
+      SetRow(ref row, standing.Name, standing.IsCapped ? "capped — main quest" : "maxed");
   }
 
   /// <summary>
@@ -305,20 +311,20 @@ public unsafe class CompanionAddon : NativeAddon
       // Zero is a real answer, and the one worth seeing: it means that was the
       // last of them and the next meal will have to be something else.
       if (reading.Active is not null)
-        SetRow(ref row, "Still held", $"{reading.Active.Quantity}", muted: true);
+        SetRow(ref row, "Still held", $"{reading.Active.Quantity}");
 
       return;
     }
 
     if (reading.Best is null)
     {
-      SetRow(ref row, "Recommended", "no food in bags", muted: true);
+      SetRow(ref row, "Recommended", "no food in bags");
       return;
     }
 
     SetRow(ref row, "Recommended", Name(reading.Best));
-    SetRow(ref row, "Held", $"{reading.Best.Quantity}", muted: true);
-    SetRow(ref row, "In bags", Banked(reading.Banked), muted: true);
+    SetRow(ref row, "Held", $"{reading.Best.Quantity}");
+    SetRow(ref row, "In bags", Banked(reading.Banked));
   }
 
   private static string Name(FoodChoice? food)
@@ -339,12 +345,18 @@ public unsafe class CompanionAddon : NativeAddon
 
     label.IsVisible = true;
     label.String = text;
-    label.TextColor = Heading;
 
     value.IsVisible = false;
+
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: true, first: !_headingDrawn);
+    _headingDrawn = true;
   }
 
-  private void SetRow(ref int row, string name, string text, bool muted = false)
+  /// <summary>
+  /// Every row in the theme's text colour. Secondary lines used to be grey, which
+  /// fell below 4.5:1 on several themes; their wording already says what they are.
+  /// </summary>
+  private void SetRow(ref int row, string name, string text)
   {
     if (row >= _rows.Count) return;
 
@@ -355,8 +367,9 @@ public unsafe class CompanionAddon : NativeAddon
 
     label.String = name;
     value.String = text;
+    value.TextColor = NativeTheme.Text;
 
-    label.TextColor = value.TextColor = muted ? Muted : Normal;
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: false, first: false);
   }
 
   /// <summary>
@@ -379,7 +392,7 @@ public unsafe class CompanionAddon : NativeAddon
     if (reading is null)
     {
       string source = Achievements.SourceFor(series);
-      SetRow(ref row, label, source.Length > 0 ? $"see {source}" : "not read yet", muted: true);
+      SetRow(ref row, label, source.Length > 0 ? $"see {source}" : "not read yet");
 
       return;
     }
@@ -414,7 +427,6 @@ public unsafe class CompanionAddon : NativeAddon
     String = "",
     AlignmentType = alignment,
     FontSize = 12,
-    TextColor = Normal,
     IsVisible = true
   };
 }

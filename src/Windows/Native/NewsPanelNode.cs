@@ -36,9 +36,11 @@ public class NewsPanelNode : TabPanelNode
   /// </summary>
   private const int MaxQuestsListed = 60;
 
-  private static readonly Vector4 Heading = new(0.6f, 0.8f, 1.0f, 1.0f);
-  private static readonly Vector4 Normal = new(1.0f, 1.0f, 1.0f, 1.0f);
-  private static readonly Vector4 Muted = new(0.6f, 0.6f, 0.6f, 1.0f);
+  /// <summary>Whether a heading has been drawn yet this refresh: the first one gets no gap.</summary>
+  private bool _headingDrawn;
+
+  /// <summary>Set when a row changed height this refresh, so the list is laid out again.</summary>
+  private bool _relayout;
 
   public required IPlaytimeService Playtime { get; init; }
   public required IPacingService Pacing { get; init; }
@@ -107,6 +109,8 @@ public class NewsPanelNode : TabPanelNode
     NewsEvent? newsData = News.Latest;
 
     int row = 0;
+    _headingDrawn = false;
+    _relayout = false;
 
     SetHeading(ref row, "Character");
 
@@ -126,7 +130,7 @@ public class NewsPanelNode : TabPanelNode
     }
     else
     {
-      Set(ref row, "No character loaded", "", muted: true);
+      Set(ref row, "No character loaded", "");
     }
 
     SetHeading(ref row, "Playtime");
@@ -149,12 +153,11 @@ public class NewsPanelNode : TabPanelNode
       Set(ref row, "recorded",
         record.LifetimePlaytimeUpdatedUtc.HasValue
           ? Ago(DateTime.UtcNow - record.LifetimePlaytimeUpdatedUtc.Value)
-          : "age unknown",
-        muted: true);
+          : "age unknown");
     }
     else
     {
-      Set(ref row, "Lifetime", "run /playtime once to record it", muted: true);
+      Set(ref row, "Lifetime", "run /playtime once to record it");
     }
 
     SetHeading(ref row, "Pacing");
@@ -177,8 +180,7 @@ public class NewsPanelNode : TabPanelNode
     Set(ref row, "",
       Pacing.HasLifetimePlaytime
         ? $"across {Pacing.TotalComplete} completed quests"
-        : "Run /playtime once to enable overall pacing.",
-      muted: true);
+        : "Run /playtime once to enable overall pacing.");
 
     Set(ref row, "Main Scenario", Rate(Pacing.MsqMinutesPerQuest));
 
@@ -191,11 +193,11 @@ public class NewsPanelNode : TabPanelNode
 
     if (story.Complete)
     {
-      Set(ref row, "", "Every Main Scenario quest is complete.", muted: true);
+      Set(ref row, "", "Every Main Scenario quest is complete.");
     }
     else
     {
-      if (story.Gate is { } gate) Set(ref row, "", gate, muted: true);
+      if (story.Gate is { } gate) Set(ref row, "", gate);
 
       // Two leading spaces mark these as subordinate to the heading, standing in
       // for the indentation the ImGui window bakes into its own strings.
@@ -204,12 +206,12 @@ public class NewsPanelNode : TabPanelNode
 
       if (story.Total is { } total)
       {
-        Set(ref row, "", total, muted: true);
-        Set(ref row, "", story.TotalTail ?? "", muted: true);
+        Set(ref row, "", total);
+        Set(ref row, "", story.TotalTail ?? "");
       }
       else
       {
-        Set(ref row, "", "Run /playtime once to enable estimates.", muted: true);
+        Set(ref row, "", "Run /playtime once to enable estimates.");
       }
     }
 
@@ -221,7 +223,7 @@ public class NewsPanelNode : TabPanelNode
 
     if (newsData is null)
     {
-      Set(ref row, "", News.IsLoading ? "Loading world state..." : "No world state available.", muted: true);
+      Set(ref row, "", News.IsLoading ? "Loading world state..." : "No world state available.");
     }
     else
     {
@@ -229,7 +231,7 @@ public class NewsPanelNode : TabPanelNode
 
       if (maintenance.Current is null)
       {
-        Set(ref row, "", "No upcoming maintenance.", muted: true);
+        Set(ref row, "", "No upcoming maintenance.");
       }
       else
       {
@@ -242,15 +244,15 @@ public class NewsPanelNode : TabPanelNode
           _ => "[Completed]"
         }, m.Title);
 
-        if (m.Remaining is not null) Set(ref row, "", m.Remaining, muted: true);
-        if (m.StartsAt is not null) Set(ref row, "", m.StartsAt, muted: true);
-        if (m.EndsAt is not null) Set(ref row, "", m.EndsAt, muted: true);
+        if (m.Remaining is not null) Set(ref row, "", m.Remaining);
+        if (m.StartsAt is not null) Set(ref row, "", m.StartsAt);
+        if (m.EndsAt is not null) Set(ref row, "", m.EndsAt);
       }
 
       if (maintenance.Last is not null)
       {
-        Set(ref row, "Last", maintenance.Last.Title, muted: true);
-        if (maintenance.Last.Ended is not null) Set(ref row, "", maintenance.Last.Ended, muted: true);
+        Set(ref row, "Last", maintenance.Last.Title);
+        if (maintenance.Last.Ended is not null) Set(ref row, "", maintenance.Last.Ended);
       }
     }
 
@@ -263,7 +265,7 @@ public class NewsPanelNode : TabPanelNode
       List<ActiveFestival> festivals = Festivals.GetActive();
       if (festivals.Count == 0)
       {
-        Set(ref row, "Nothing running", "", muted: true);
+        Set(ref row, "Nothing running", "");
       }
       else
       {
@@ -278,14 +280,14 @@ public class NewsPanelNode : TabPanelNode
 
       if (summary.Lines.Count == 0)
       {
-        Set(ref row, "Nothing running", "", muted: true);
+        Set(ref row, "Nothing running", "");
       }
       else
       {
         foreach (EventsSummary.Line line in summary.Lines)
         {
           Set(ref row, line.State == EventsSummary.State.Active ? "[Active]" : "[Upcoming]", line.Title);
-          if (line.Timing is not null) Set(ref row, "", line.Timing, muted: true);
+          if (line.Timing is not null) Set(ref row, "", line.Timing);
         }
       }
 
@@ -295,7 +297,7 @@ public class NewsPanelNode : TabPanelNode
       // link is worth adding once a clickable text node exists to carry it.
       if (summary.Footer is not null)
       {
-        Set(ref row, "", summary.Footer, muted: true);
+        Set(ref row, "", summary.Footer);
       }
     }
 
@@ -326,17 +328,18 @@ public class NewsPanelNode : TabPanelNode
     // that still shipped before it was actually playable. Only worth stating
     // when there is a list to qualify.
     if (additions.Count > 0)
-      SetWide(ref row, "  A quest with no seasonal tag can still ship before it's actually playable — not detectable yet.", muted: true);
+      SetWide(ref row, "  A quest with no seasonal tag can still ship before it's actually playable — not detectable yet.");
 
     // Two rows a quest, title then detail. One row would run a long title
     // straight through its own detail text, because nothing in this panel clips
     // — overflow draws rather than truncating, so a collision is silent.
     foreach (NewQuest quest in additions.Take(MaxQuestsListed))
     {
-      // Muted for a quest already done, the same distinction the list drew in
-      // colour. Read live rather than stored: the record says when a quest
-      // appeared, not whether you have since finished it.
-      SetWide(ref row, $"  {quest.Title}", muted: QuestManager.IsQuestComplete(quest.Id));
+      // A check for a quest already done. This was a grey title, which said it in
+      // colour alone and fell below 4.5:1 on light themes. Read live rather than
+      // stored: the record says when a quest appeared, not whether you have
+      // since finished it.
+      SetWide(ref row, $"  {(QuestManager.IsQuestComplete(quest.Id) ? "✓ " : "")}{quest.Title}");
 
       // "patch unknown" is not a failure state to hide. quest-patches.json is
       // fetched from Garland Tools after the fact, so a quest is genuinely
@@ -366,9 +369,10 @@ public class NewsPanelNode : TabPanelNode
     // walks all forty-eight children. The scroll range only becomes wrong when
     // the number of rows moves, which is when an expansion finishes or a
     // festival starts — not between two frames of standing still.
-    if (used != _lastRowCount)
+    if (used != _lastRowCount || _relayout)
     {
       _lastRowCount = used;
+      _scroll.ContentNode.RecalculateLayout();
       _scroll.RecalculateSizes();
     }
   }
@@ -404,13 +408,15 @@ public class NewsPanelNode : TabPanelNode
 
     label.IsVisible = true;
     label.String = text;
-    label.TextColor = Heading;
 
     value.IsVisible = false;
+
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: true, first: !_headingDrawn);
+    _headingDrawn = true;
   }
 
   /// <summary>
-  /// One muted line that starts at the left edge instead of in the value column.
+  /// One line that starts at the left edge instead of in the value column.
   ///
   /// The label column is 190px and the value column begins after it, so a long
   /// sentence written as a value loses that much of the row before its first
@@ -419,7 +425,7 @@ public class NewsPanelNode : TabPanelNode
   /// and hiding the value gives it the whole width to overflow into, which at the
   /// 700px minimum window is the difference between fitting and not.
   /// </summary>
-  private void SetWide(ref int row, string text, bool muted = true)
+  private void SetWide(ref int row, string text)
   {
     if (Exhausted(row)) return;
 
@@ -429,12 +435,17 @@ public class NewsPanelNode : TabPanelNode
 
     label.IsVisible = true;
     label.String = text;
-    label.TextColor = muted ? Muted : Normal;
 
     value.IsVisible = false;
+
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: false, first: false);
   }
 
-  private void Set(ref int row, string name, string text, bool muted = false)
+  /// <summary>
+  /// Every row in the theme's text colour. Secondary lines used to be grey, which
+  /// fell below 4.5:1 on several themes; their wording already says what they are.
+  /// </summary>
+  private void Set(ref int row, string name, string text)
   {
     if (Exhausted(row)) return;
 
@@ -444,8 +455,9 @@ public class NewsPanelNode : TabPanelNode
 
     label.String = name;
     value.String = text;
+    value.TextColor = NativeTheme.Text;
 
-    label.TextColor = value.TextColor = muted ? Muted : Normal;
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: false, first: false);
   }
 
   /// <summary>
@@ -506,7 +518,6 @@ public class NewsPanelNode : TabPanelNode
     String = "",
     AlignmentType = alignment,
     FontSize = 12,
-    TextColor = Normal,
     IsVisible = true
   };
 }

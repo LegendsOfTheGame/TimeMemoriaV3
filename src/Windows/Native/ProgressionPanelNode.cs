@@ -20,18 +20,6 @@ public class ProgressionPanelNode : TabPanelNode
   /// </summary>
   private const int MaxRows = 40;
 
-  private static readonly Vector4 Heading = new(0.6f, 0.8f, 1.0f, 1.0f);
-  private static readonly Vector4 Normal = new(1.0f, 1.0f, 1.0f, 1.0f);
-
-  /// <summary>Role colours, following the game's own tank/healer/DPS convention.</summary>
-  private static readonly Dictionary<string, Vector4> RoleColours = new()
-  {
-    ["Tank"] = new(0.34f, 0.58f, 0.92f, 1.0f),
-    ["Healer"] = new(0.35f, 0.78f, 0.47f, 1.0f),
-    ["DPS"] = new(0.85f, 0.40f, 0.38f, 1.0f),
-    ["Crafter"] = new(0.72f, 0.58f, 0.88f, 1.0f),
-    ["Gatherer"] = new(0.88f, 0.72f, 0.38f, 1.0f)
-  };
 
   public required IClassJobProgressService ProgressService { get; init; }
   public required ILedgerExportService LedgerExport { get; init; }
@@ -80,7 +68,7 @@ public class ProgressionPanelNode : TabPanelNode
     _copyFeedback = new TextNode
     {
       FontSize = 12,
-      TextColor = new Vector4(0.6f, 0.6f, 0.6f, 1.0f),
+      TextColor = NativeTheme.Text,
       String = "Nothing is sent anywhere — the export stays on your clipboard.",
       IsVisible = true
     };
@@ -139,10 +127,12 @@ public class ProgressionPanelNode : TabPanelNode
       bool isLowest = lowestByRole.TryGetValue(job.Role, out float lowest)
                       && Math.Abs(Effective(job) - lowest) < 0.0005f;
 
-      // The marker carries the meaning on its own, so the colour is free to say
-      // something else — which role the job belongs to.
+      // The marker carries the meaning on its own. The name used to be in its
+      // role's colour too; that fell below 4.5:1 on light themes, so every
+      // column now uses the theme's text colour, set here so it follows a
+      // theme change.
       name.String = isLowest ? $"> {job.Name}" : $"   {job.Name}";
-      name.TextColor = RoleColours.GetValueOrDefault(job.Role, Normal);
+      name.TextColor = level.TextColor = exp.TextColor = percent.TextColor = NativeTheme.Text;
 
       level.String = job.Level.ToString();
       exp.String = job.IsMaxLevel ? "Max level" : $"{job.Experience:N0} / {job.ExperienceToNext:N0}";
@@ -246,13 +236,20 @@ public class ProgressionPanelNode : TabPanelNode
     return (container, nameNode, levelNode, expNode, percentNode);
   }
 
-  private static TextNode MakeText(string text, float width, AlignmentType alignment, bool header) => new()
+  /// <summary>The header row is larger rather than coloured, like every native heading.</summary>
+  private static TextNode MakeText(string text, float width, AlignmentType alignment, bool header)
   {
-    Size = new Vector2(width, RowHeight),
-    String = text,
-    AlignmentType = alignment,
-    FontSize = 12,
-    TextColor = header ? Heading : Normal,
-    IsVisible = true
-  };
+    TextNode node = new()
+    {
+      Size = new Vector2(width, RowHeight),
+      String = text,
+      AlignmentType = alignment,
+      FontSize = 12,
+      TextColor = NativeTheme.Text,
+      IsVisible = true
+    };
+
+    NativeTheme.SetHeadingSize(node, header);
+    return node;
+  }
 }

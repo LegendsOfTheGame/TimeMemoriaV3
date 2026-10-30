@@ -113,8 +113,9 @@ public class QuestsPanelNode : TabPanelNode
     _heading = new TextNode
     {
       TextFlags = TextFlags.Ellipsis,
-      FontSize = 12,
-      TextColor = new Vector4(0.6f, 0.8f, 1.0f, 1.0f),
+      FontType = NativeTheme.HeadingFont,
+      FontSize = NativeTheme.HeadingFontSize,
+      TextColor = NativeTheme.Text,
       String = "Select a section on the left.",
       IsVisible = true
     };

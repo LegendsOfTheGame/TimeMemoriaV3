@@ -85,8 +85,6 @@ public class HelpPanelNode : TextLinesPanelNode
   private const float LineHeight = 15.0f;
   private const float TextGap = 10.0f;
 
-  private static readonly Vector4 Muted = new(0.6f, 0.6f, 0.6f, 1.0f);
-
   /// <summary>
   /// Below the list rather than inside it: the list's rows are text only, and a
   /// fixed footer stays in reach however far the answers are scrolled. Opens
@@ -121,7 +119,7 @@ public class HelpPanelNode : TextLinesPanelNode
     TextNode node = new()
     {
       FontSize = 12,
-      TextColor = Muted,
+      TextColor = NativeTheme.Text,
       TextFlags = TextFlags.Ellipsis,
       String = text,
       IsVisible = true

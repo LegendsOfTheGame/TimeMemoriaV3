@@ -23,22 +23,19 @@ public class BonusesPanelNode : TabPanelNode
   /// </summary>
   private const int MaxRows = 80;
 
-  private static readonly Vector4 Heading = new(0.6f, 0.8f, 1.0f, 1.0f);
-  private static readonly Vector4 Normal = new(1.0f, 1.0f, 1.0f, 1.0f);
-  private static readonly Vector4 Muted = new(0.6f, 0.6f, 0.6f, 1.0f);
-  private static readonly Vector4 HighQuality = new(0.45f, 0.85f, 0.45f, 1.0f);
-
   /// <summary>
-  /// Role colours for the stat column, matching ProgressionPanelNode's palette
-  /// so a food's bonuses read the same way its class levels do.
+  /// The game's own role icons, from its glyph font (Dalamud's BitmapFontIcon;
+  /// HaselDebug lists them under Gaiji font data). They draw inline in the text,
+  /// the way the game shows roles in its own windows. These replaced coloured
+  /// squares whose colours were our own picks, not the game's.
   /// </summary>
-  private static readonly Dictionary<string, Vector4> RoleColours = new()
+  private static readonly Dictionary<string, uint> RoleIcons = new()
   {
-    ["Tank"] = new(0.34f, 0.58f, 0.92f, 1.0f),
-    ["Healer"] = new(0.35f, 0.78f, 0.47f, 1.0f),
-    ["DPS"] = new(0.85f, 0.40f, 0.38f, 1.0f),
-    ["Crafter"] = new(0.72f, 0.58f, 0.88f, 1.0f),
-    ["Gatherer"] = new(0.88f, 0.72f, 0.38f, 1.0f)
+    ["Tank"] = 82,
+    ["Healer"] = 83,
+    ["DPS"] = 84,
+    ["Crafter"] = 85,
+    ["Gatherer"] = 86
   };
 
   public required IFoodService Food { get; init; }
@@ -48,6 +45,12 @@ public class BonusesPanelNode : TabPanelNode
 
   /// <summary>Rows drawn last time, so the scroll range is only re-measured when it moved.</summary>
   private int _lastRowCount = -1;
+
+  /// <summary>Whether a heading has been drawn yet this refresh: the first one gets no gap.</summary>
+  private bool _headingDrawn;
+
+  /// <summary>Set when a row changed height this refresh, so the list is laid out again.</summary>
+  private bool _relayout;
 
   public BonusesPanelNode()
   {
@@ -83,6 +86,8 @@ public class BonusesPanelNode : TabPanelNode
     FoodReading reading = Food.Read();
 
     int row = 0;
+    _headingDrawn = false;
+    _relayout = false;
 
     SetHeading(ref row, "Food");
 
@@ -96,24 +101,24 @@ public class BonusesPanelNode : TabPanelNode
       // Zero is a real answer, and the one worth seeing: it means that was the
       // last of them and the next meal will have to be something else.
       if (reading.Active is not null)
-        Set(ref row, "Still held", $"{reading.Active.Quantity}", muted: true);
+        Set(ref row, "Still held", $"{reading.Active.Quantity}");
     }
     else if (reading.Best is null)
     {
-      Set(ref row, "Recommended", "no food in bags", muted: true);
+      Set(ref row, "Recommended", "no food in bags");
     }
     else
     {
       Set(ref row, "Recommended", Name(reading.Best));
-      Set(ref row, "Held", $"{reading.Best.Quantity}", muted: true);
-      Set(ref row, "In bags", Banked(reading.Banked), muted: true);
+      Set(ref row, "Held", $"{reading.Best.Quantity}");
+      Set(ref row, "In bags", Banked(reading.Banked));
     }
 
     SetHeading(ref row, $"In your bags ({reading.Held.Count})");
 
     if (reading.Held.Count == 0)
     {
-      Set(ref row, "", "nothing found in your bags or saddlebag", muted: true);
+      Set(ref row, "", "nothing found in your bags or saddlebag");
     }
     else
     {
@@ -125,8 +130,8 @@ public class BonusesPanelNode : TabPanelNode
         SetHeading(ref row, $"{PursuitName(group.Key)} ({group.Count()})");
 
         foreach (FoodStack stack in group)
-          Set(ref row, $"{stack.Quantity}x {stack.Name}", stack.Stats, highQuality: stack.HighQuality,
-            role: stack.Role, tooltip: stack.Where);
+          Set(ref row, $"{stack.Quantity}x {stack.Name}", stack.Stats,
+            role: stack.Role.Length == 0 ? null : stack.Role, tooltip: stack.Where);
       }
     }
 
@@ -139,12 +144,13 @@ public class BonusesPanelNode : TabPanelNode
       SetTooltip(row, label, "");
     }
 
-    // Guarded on the count, since Refresh runs every frame and re-measuring
-    // walks the whole pool. The scroll range only becomes wrong when the
-    // number of distinct held foods changes.
-    if (used != _lastRowCount)
+    // Guarded, since Refresh runs every frame and re-measuring walks the whole
+    // pool. The layout only goes wrong when the number of rows changes, or a
+    // pooled row turns into a heading (taller, for its gap) or back.
+    if (used != _lastRowCount || _relayout)
     {
       _lastRowCount = used;
+      _scroll.ContentNode.RecalculateLayout();
       _scroll.RecalculateSizes();
     }
   }
@@ -175,12 +181,19 @@ public class BonusesPanelNode : TabPanelNode
     container.IsVisible = true;
     label.IsVisible = true;
     label.String = text;
-    label.TextColor = Heading;
     value.IsVisible = false;
+
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: true, first: !_headingDrawn);
+    _headingDrawn = true;
   }
 
-  private void Set(ref int row, string name, string text, bool muted = false, bool highQuality = false,
-    string? role = null, string tooltip = "")
+  /// <summary>
+  /// One row in the theme's text colour. A food row starts its stats with the
+  /// game's role icon and the role in words ("[icon] Tank · Tenacity +10%..."),
+  /// so the role never rests on colour. Quality needs nothing extra: "(HQ)" is
+  /// already in the name.
+  /// </summary>
+  private void Set(ref int row, string name, string text, string? role = null, string tooltip = "")
   {
     if (row >= _rows.Count) return;
 
@@ -189,15 +202,12 @@ public class BonusesPanelNode : TabPanelNode
 
     container.IsVisible = label.IsVisible = value.IsVisible = true;
     label.String = name;
-    value.String = text;
+    value.String = role is not null && RoleIcons.TryGetValue(role, out uint icon)
+      ? new Lumina.Text.SeStringBuilder().AppendIcon(icon).Append($" {role} · {text}").ToReadOnlySeString()
+      : role is null ? text : $"{role} · {text}";
+    value.TextColor = NativeTheme.Text;
 
-    Vector4 colour = muted ? Muted : Normal;
-
-    // Only the name marks quality — the "(HQ)" suffix is already in the text
-    // too, so colouring both columns would just repeat it. The stat column is
-    // free to carry a different meaning instead: which role the bonuses suit.
-    label.TextColor = highQuality ? HighQuality : colour;
-    value.TextColor = role is null ? colour : RoleColours.GetValueOrDefault(role, colour);
+    _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: false, first: false);
   }
 
   /// <summary>Tooltip text each row last had. Rows are reused, so it follows the row.</summary>
@@ -230,7 +240,6 @@ public class BonusesPanelNode : TabPanelNode
     String = "",
     AlignmentType = alignment,
     FontSize = 12,
-    TextColor = Normal,
     TextFlags = TextFlags.Ellipsis,
     IsVisible = true
   };

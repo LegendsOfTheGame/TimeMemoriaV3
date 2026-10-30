@@ -15,10 +15,6 @@ public class CategoryTreeItemNode : TreeListItemNode<QuestData>, ITreeListItemNo
 {
   public static float ItemHeight => 24.0f;
 
-  private static readonly Vector4 Normal = new(1.0f, 1.0f, 1.0f, 1.0f);
-  private static readonly Vector4 Complete = new(0.55f, 0.78f, 0.55f, 1.0f);
-  private static readonly Vector4 Percent = new(0.65f, 0.65f, 0.65f, 1.0f);
-
   private TextNode NameNode { get; }
   private TextNode PercentNode { get; }
 
@@ -31,7 +27,6 @@ public class CategoryTreeItemNode : TreeListItemNode<QuestData>, ITreeListItemNo
     {
       TextFlags = TextFlags.Ellipsis,
       FontSize = 12,
-      TextColor = Percent,
       AlignmentType = AlignmentType.Right
     };
     PercentNode.AttachNode(this);
@@ -41,8 +36,10 @@ public class CategoryTreeItemNode : TreeListItemNode<QuestData>, ITreeListItemNo
   {
     NameNode.String = itemData.Title;
 
-    bool finished = itemData.Total > 0 && itemData.NumComplete >= itemData.Total;
-    NameNode.TextColor = finished ? Complete : Normal;
+    // A finished section used to turn green, which said it in colour alone; the
+    // percentage beside it already reads 100%. Both use the theme's text colour,
+    // set here so a theme change reaches pooled rows.
+    NameNode.TextColor = PercentNode.TextColor = NativeTheme.Text;
 
     // Blank rather than an em dash where there is no percentage to show. The dash
     // was meant to read as "not applicable", but the only rows without a total are
