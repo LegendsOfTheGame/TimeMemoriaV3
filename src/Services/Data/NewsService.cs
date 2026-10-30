@@ -19,8 +19,28 @@ public class NewsService(ILogger _logger) : INewsService
   private const string LatestNewsUrl =
     "https://raw.githubusercontent.com/LegendsOfTheGame/ffxiv-latest-news/main/LatestNews.json";
 
-  /// <summary>Matches the cadence of the source page this was modelled on.</summary>
-  private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(60);
+  /// <summary>
+  /// The feed's cron runs every 6 hours from 00:00 UTC (update_news.yml). The
+  /// file only changes after a run, so polling harder between runs just spends
+  /// GitHub's rate limit. Schedule suggested by new Era on the Dalamud Discord,
+  /// 27 Oct 2026.
+  /// </summary>
+  private const int FeedCronHours = 6;
+
+  /// <summary>How long after each cron slot counts as "near" a run.</summary>
+  private static readonly TimeSpan NearWindow = TimeSpan.FromHours(1);
+
+  private static readonly TimeSpan NearInterval = TimeSpan.FromMinutes(15);
+  private static readonly TimeSpan FarInterval = TimeSpan.FromMinutes(30);
+
+  /// <summary>
+  /// Random spread on every interval, so installs drift apart instead of all
+  /// hitting GitHub in the same minute.
+  /// </summary>
+  private static readonly TimeSpan Jitter = TimeSpan.FromMinutes(3);
+
+  /// <summary>First retry delay after a failure; doubles per failure.</summary>
+  private static readonly TimeSpan BackoffBase = TimeSpan.FromSeconds(60);
 
   /// <summary>Ceiling for the failure backoff, so a dead endpoint is retried rarely.</summary>
   private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(15);
@@ -82,7 +102,7 @@ public class NewsService(ILogger _logger) : INewsService
 
       _fetchError = null;
       _consecutiveFailures = 0;
-      _nextAttempt = DateTimeOffset.UtcNow + RefreshInterval;
+      _nextAttempt = DateTimeOffset.UtcNow + NextInterval(DateTimeOffset.UtcNow);
       _logger.Debug("[NewsService] LatestNews.json refreshed.");
     }
     catch (OperationCanceledException)
@@ -96,7 +116,7 @@ public class NewsService(ILogger _logger) : INewsService
 
       // Exponential backoff, capped. Without this the draw loop would retry
       // continuously for as long as the panel stayed open.
-      double seconds = RefreshInterval.TotalSeconds * Math.Pow(2, Math.Min(_consecutiveFailures, 8));
+      double seconds = BackoffBase.TotalSeconds * Math.Pow(2, Math.Min(_consecutiveFailures, 8));
       TimeSpan backoff = TimeSpan.FromSeconds(Math.Min(seconds, MaxBackoff.TotalSeconds));
       _nextAttempt = DateTimeOffset.UtcNow + backoff;
 
@@ -106,5 +126,18 @@ public class NewsService(ILogger _logger) : INewsService
     {
       _isFetching = false;
     }
+  }
+
+  /// <summary>
+  /// 15 minutes in the hour after a cron slot, 30 otherwise, each ±3 minutes.
+  /// GitHub often starts scheduled runs late, so a late file is still picked
+  /// up by the 30-minute cadence rather than missed until the next slot.
+  /// </summary>
+  private static TimeSpan NextInterval(DateTimeOffset nowUtc)
+  {
+    TimeSpan sinceSlot = TimeSpan.FromHours(nowUtc.UtcDateTime.TimeOfDay.TotalHours % FeedCronHours);
+    TimeSpan interval = sinceSlot < NearWindow ? NearInterval : FarInterval;
+    double jitterSeconds = (Random.Shared.NextDouble() * 2 - 1) * Jitter.TotalSeconds;
+    return interval + TimeSpan.FromSeconds(jitterSeconds);
   }
 }

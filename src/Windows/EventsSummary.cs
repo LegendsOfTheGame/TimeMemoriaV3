@@ -11,7 +11,7 @@ namespace TimeMemoria.Windows;
 /// Classic's draw method, so Native could not show it. See
 /// Docs/native-parity.md.
 /// </summary>
-public static class EventsSummary
+public static partial class EventsSummary
 {
   public enum State { Active, Upcoming }
 
@@ -55,7 +55,7 @@ public static class EventsSummary
           ? $"Starts in {TimeFormat.Span(TimeSpan.FromSeconds(ev.Start.Value - now))}"
           : null;
 
-      lines.Add(new Line(active ? State.Active : State.Upcoming, ev.Title ?? "Event", timing, ev.Url));
+      lines.Add(new Line(active ? State.Active : State.Upcoming, ev.Title is null ? "Event" : EventName(ev.Title), timing, ev.Url));
     }
 
     // Anything the client has switched on that the feed did not mention.
@@ -105,6 +105,21 @@ public static class EventsSummary
     return feedTitle.Contains(festivalName, StringComparison.OrdinalIgnoreCase)
         || festivalName.Contains(feedTitle, StringComparison.OrdinalIgnoreCase);
   }
+
+  /// <summary>
+  /// The event's name without the announcement around it. The feed carries the
+  /// Lodestone topic title, which for a new event is the launch headline --
+  /// "Keybound Brawler Arrives October 28!" (seen 28 Oct 2026) -- and keeps
+  /// that title for the whole run. Matching still uses the full title.
+  /// </summary>
+  private static string EventName(string feedTitle)
+  {
+    string name = AnnouncementTail().Replace(feedTitle, "").TrimEnd();
+    return name.Length > 0 ? name : feedTitle;
+  }
+
+  [GeneratedRegex(@"\s+(Arrives|Returns|Begins|Starts|Is Here|Is Coming|Coming Soon|Now Live|Now Available)\b.*$", RegexOptions.IgnoreCase)]
+  private static partial Regex AnnouncementTail();
 
   private static string WithoutApostrophes(string text)
     => text.Replace("'", "").Replace("’", "").Replace("‘", "");
