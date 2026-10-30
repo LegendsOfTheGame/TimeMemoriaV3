@@ -5,6 +5,7 @@ using PlayerState = FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState;
 using PlayerAttribute = Dalamud.Game.Player.PlayerAttribute;
 using ItemFoodRow = Lumina.Excel.Sheets.ItemFood;
 using ItemRow = Lumina.Excel.Sheets.Item;
+using QuestRow = Lumina.Excel.Sheets.Quest;
 
 namespace TimeMemoria.Services;
 
@@ -60,6 +61,15 @@ public enum FoodPursuit { Combat, Crafting, Gathering }
 /// <param name="Where">"Inventory", "Saddlebag", or the retainer's name.</param>
 public record RolePick(string Role, string? Name, bool HighQuality, string? Where);
 
+/// <summary>An accepted quest that rewards food, and what it gives.</summary>
+/// <param name="Fixed">Food given on completion whatever is chosen.</param>
+/// <param name="Choice">Food among the rewards the player picks one of.</param>
+public record QuestFood(uint QuestId, string QuestName, IReadOnlyList<QuestFoodItem> Fixed,
+  IReadOnlyList<QuestFoodItem> Choice);
+
+/// <param name="Role">DPS, Healer, Tank, Crafter or Gatherer; empty for a meal that suits no role.</param>
+public record QuestFoodItem(string Name, int Quantity, bool HighQuality, string Role);
+
 public interface IFoodService
 {
   /// <summary>
@@ -73,6 +83,12 @@ public interface IFoodService
   /// Unlike <see cref="Read"/>, which only suggests food already carried.
   /// </summary>
   IReadOnlyList<RolePick> BestByRole();
+
+  /// <summary>
+  /// The food each accepted quest gives on completion, from the Quest sheet.
+  /// Quests that give no food are left out.
+  /// </summary>
+  IReadOnlyList<QuestFood> FromAcceptedQuests();
 }
 
 /// <summary>
@@ -238,6 +254,64 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
   }
 
   /// <summary>
+  /// Read from the journal (QuestManager.NormalQuests, the same list /tmwiki
+  /// shows) and the Quest sheet, so it is the same answer the quest offer and
+  /// the journal give, without touching either window. Thirty entries at most,
+  /// so nothing is cached.
+  ///
+  /// Reward is the fixed list and can point at rows other than items, so only
+  /// item rows are kept. OptionalItemReward is the list the player picks one of.
+  /// </summary>
+  public IReadOnlyList<QuestFood> FromAcceptedQuests()
+  {
+    if (!_clientState.IsLoggedIn) return [];
+
+    try
+    {
+      List<QuestFood> quests = [];
+
+      QuestManager* manager = QuestManager.Instance();
+      if (manager is null) return quests;
+
+      foreach (ref readonly var work in manager->NormalQuests)
+      {
+        if (work.QuestId == 0) continue;
+
+        // QuestWork holds the id less 0x10000; the Quest sheet holds the full id.
+        uint id = work.QuestId + 0x10000u;
+        if (_dataManager.GetExcelSheet<QuestRow>().GetRowOrDefault(id) is not { } row) continue;
+
+        List<QuestFoodItem> fixedFood = [];
+        for (int i = 0; i < row.Reward.Count; i++)
+          if (row.Reward[i].TryGetValue(out ItemRow item) && QuestMeal(item, row.ItemCountReward[i], false) is { } meal)
+            fixedFood.Add(meal);
+
+        List<QuestFoodItem> choiceFood = [];
+        for (int i = 0; i < row.OptionalItemReward.Count; i++)
+          if (row.OptionalItemReward[i].ValueNullable is { } item
+              && QuestMeal(item, row.OptionalItemCountReward[i], row.OptionalItemIsHQReward[i]) is { } meal)
+            choiceFood.Add(meal);
+
+        if (fixedFood.Count + choiceFood.Count == 0) continue;
+
+        quests.Add(new QuestFood(id, row.Name.ToString(), fixedFood, choiceFood));
+      }
+
+      return quests;
+    }
+    catch (Exception ex)
+    {
+      _logger.Error(ex, "[Food] Could not read food from accepted quests.");
+      return [];
+    }
+  }
+
+  private QuestFoodItem? QuestMeal(ItemRow item, byte quantity, bool hq)
+    => item.RowId == 0 || !IsMeal(item)
+      ? null
+      : new QuestFoodItem(item.Name.ToString(), Math.Max(1, (int)quantity), hq, Classify(FoodRow(item)).Role);
+
+  /// <summary>
   /// "1x Tempura Platter in Inventory\n3x Tempura Platter (HQ) in Saddlebag". The
   /// food is named on every line: a tooltip drawn over a list does not show
   /// which row it belongs to. Places keep the order they were read in -- bags,
@@ -341,9 +415,16 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
   /// or Healer; every other combat stat — Crit, Determination, Direct Hit,
   /// the two speeds — is shared across at least two roles, so it settles on
   /// DPS rather than picking one of the others arbitrarily.
+  ///
+  /// A meal with none of those gets no role (empty). Checked against every meal
+  /// on 30 Oct 2026: Bacon Broth (desynthesis and durability), the eight
+  /// resistance Drops, and Kingcake and Tailor-made Eel Pie (no stats at all)
+  /// used to fall through to DPS.
   /// </summary>
   private (FoodPursuit Pursuit, string Role) Classify(ItemFoodRow? food)
   {
+    bool sharedCombat = false;
+
     if (food is not null)
       foreach (var entry in food.Value.Params)
       {
@@ -352,10 +433,18 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
         if (GatheringStats.Contains(name)) return (FoodPursuit.Gathering, "Gatherer");
         if (name.Equals("Tenacity", StringComparison.OrdinalIgnoreCase)) return (FoodPursuit.Combat, "Tank");
         if (name.Equals("Piety", StringComparison.OrdinalIgnoreCase)) return (FoodPursuit.Combat, "Healer");
+        if (SharedCombatStats.Contains(name)) sharedCombat = true;
       }
 
-    return (FoodPursuit.Combat, "DPS");
+    return (FoodPursuit.Combat, sharedCombat ? "DPS" : "");
   }
+
+  /// <summary>Vitality is left out: every combat meal grants it, so it says nothing about the role.</summary>
+  private static readonly HashSet<string> SharedCombatStats =
+    new(StringComparer.OrdinalIgnoreCase)
+    {
+      "Critical Hit", "Determination", "Direct Hit Rate", "Skill Speed", "Spell Speed"
+    };
 
   private static readonly HashSet<string> CraftingStats =
     new(StringComparer.OrdinalIgnoreCase) { "Craftsmanship", "Control", "CP" };

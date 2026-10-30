@@ -1,7 +1,8 @@
 namespace TimeMemoria.Windows;
 
 /// <summary>
-/// <c>/tm food</c>: for each role, the strongest meal you hold and where it is.
+/// <c>/tm food</c>: for each role, the strongest meal you hold and where it is,
+/// then the food your accepted quests will give and the role it suits.
 /// The full list with every stat lives in the native window's Bonuses tab; this
 /// is the short answer to "what do I eat for this job".
 ///
@@ -52,6 +53,7 @@ public class FoodWindow : Window
   /// </summary>
   private IReadOnlyList<RolePick> _picks = [];
   private FoodReading? _reading;
+  private IReadOnlyList<QuestFood> _quests = [];
   private DateTime _readAt = DateTime.MinValue;
 
   /// <summary>When the active food runs out, so the line can tick every frame between reads.</summary>
@@ -65,6 +67,7 @@ public class FoodWindow : Window
     {
       _picks = _food.BestByRole();
       _reading = _food.Read();
+      _quests = _food.FromAcceptedQuests();
       _readAt = DateTime.UtcNow;
       _fedUntil = _reading.WellFed ? _readAt.AddSeconds(_reading.RemainingSeconds) : DateTime.MinValue;
     }
@@ -105,6 +108,8 @@ public class FoodWindow : Window
 
           ImGui.Spacing();
         }
+
+      if (child.Success) DrawQuests();
     }
 
     ImGui.Separator();
@@ -142,6 +147,52 @@ public class FoodWindow : Window
     ImGui.TextColored(colour, name);
     RightAligned($"{(int)left.TotalMinutes}m {left.Seconds:00}s", colour);
     ImGui.Spacing();
+  }
+
+  /// <summary>
+  /// The food your accepted quests will give, and the role each meal suits, so
+  /// a choice reward can be picked with the role in mind. Read from the journal
+  /// and the Quest sheet; the game's own quest windows are not touched.
+  /// </summary>
+  private void DrawQuests()
+  {
+    ImGui.Separator();
+    ImGui.TextUnformatted("FROM ACCEPTED QUESTS");
+
+    if (_quests.Count == 0)
+    {
+      ImGui.TextDisabled("No accepted quest gives food.");
+      return;
+    }
+
+    foreach (QuestFood quest in _quests)
+    {
+      ImGui.TextUnformatted(quest.QuestName);
+
+      using (ImRaii.PushIndent())
+      {
+        foreach (QuestFoodItem meal in quest.Fixed) DrawQuestMeal(meal);
+
+        if (quest.Choice.Count > 0)
+        {
+          ImGui.TextDisabled("Pick one:");
+          using (ImRaii.PushIndent())
+            foreach (QuestFoodItem meal in quest.Choice) DrawQuestMeal(meal);
+        }
+      }
+
+      ImGui.Spacing();
+    }
+  }
+
+  /// <summary>"3x Fried Egg", with its role on the right in that role's colour.</summary>
+  private static void DrawQuestMeal(QuestFoodItem meal)
+  {
+    ImGui.TextUnformatted($"{meal.Quantity}x {meal.Name}{(meal.HighQuality ? " (HQ)" : "")}");
+
+    Vector4 colour = Sections.FirstOrDefault((s) => s.Role == meal.Role).Colour;
+    if (meal.Role.Length == 0) RightAligned("No role");
+    else RightAligned(meal.Role, colour);
   }
 
   /// <summary>Same line, pushed to the right edge, muted unless a colour is given.</summary>
