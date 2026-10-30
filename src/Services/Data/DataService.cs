@@ -591,6 +591,17 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     // native array and the sheet, and the tree can hold thousands of quests.
     HashSet<uint> activeFestivalIds = [.. _festivals.GetActive().Select((f) => f.Id)];
 
+    // Once per refresh, not per category: empty means "none" as well as "not
+    // yet known", so inside the recursion these re-ran and logged on every
+    // node for most characters. Still retried while empty, because quest
+    // completion can read false for a moment after login.
+    if (_clientState.IsLoggedIn)
+    {
+      if (_startArea == "") DetermineStartArea();
+      if (_grandCompany == "") DetermineGrandCompany();
+      if (_startClass.Count == 0) DetermineStartClass();
+    }
+
     UpdateQuestData(QuestData, activeFestivalIds);
     RebuildExpansionProgress();
     RebuildCategoryProgress();
@@ -914,9 +925,6 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
   private void UpdateQuestData(QuestData questData, HashSet<uint> activeFestivalIds)
   {
     questData.NumComplete = questData.Total = 0;
-    if (_startArea == "") DetermineStartArea();
-    if (_grandCompany == "") DetermineGrandCompany();
-    if (_startClass.Count == 0) DetermineStartClass();
 
     if (questData.Categories.Count > 0)
     {
@@ -1032,7 +1040,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     _startArea = QuestManager.IsQuestComplete(65575) ? "Gridania" :
                                QuestManager.IsQuestComplete(65643) ? "Limsa Lominsa" :
                                QuestManager.IsQuestComplete(66130) ? "Ul'dah" : "";
-    _logger.Debug($"Start Area {_startArea}");
+    if (_startArea != "") _logger.Debug($"Start Area {_startArea}");
   }
 
   private void DetermineGrandCompany()
@@ -1040,7 +1048,7 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
     _grandCompany = QuestManager.IsQuestComplete(66216) ? "Order of the Twin Adder" :
                                   QuestManager.IsQuestComplete(66217) ? "Maelstrom" :
                                   QuestManager.IsQuestComplete(66218) ? "Immortal Flames" : "";
-    _logger.Debug($"Grand Company {_grandCompany}");
+    if (_grandCompany != "") _logger.Debug($"Grand Company {_grandCompany}");
   }
 
   private void DetermineStartClass()
@@ -1064,6 +1072,6 @@ public class DataService(ILogger _logger, Configuration _configuration, IDataMan
       QuestManager.IsQuestComplete(65883) && !QuestManager.IsQuestComplete(65882) ? [65882, 65719] :
       // Arcanist
       QuestManager.IsQuestComplete(65991) && !QuestManager.IsQuestComplete(65990) ? [65990, 65987] : []);
-    _logger.Debug($"Start Class [{string.Join(", ", _startClass)}]");
+    if (_startClass.Count > 0) _logger.Debug($"Start Class [{string.Join(", ", _startClass)}]");
   }
 }
