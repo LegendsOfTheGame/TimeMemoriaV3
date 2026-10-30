@@ -1213,14 +1213,19 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
       "https://github.com/Critical-Impact/LuminaSupplemental", "list names the events the game leaves blank. GPL-3.0.");
     DrawCredit("Garland Tools", "Which patch introduced which quest — nowhere in the",
       "https://garlandtools.org", "game files, and derived here from XIVAPI dumps.");
+    DrawCredit("skyborn-industries", "lodestonenews.com, which the news feed reads for",
+      "https://lodestonenews.com", "maintenance windows and event dates.");
 
     ImGui.Spacing();
     ImGui.TextColored(HeaderColour, "Framework");
     ImGui.Separator();
     ImGui.Spacing();
 
-    DrawCredit("goatcorp", "Dalamud, and FFXIVClientStructs.",
+    DrawCredit("goatcorp", "Dalamud.",
       "https://github.com/goatcorp/Dalamud");
+    // A separate project Dalamud depends on, not goatcorp's (KazWolfe, 27 Oct 2026).
+    DrawCredit("aers", "FFXIVClientStructs, how the plugin reads the game's memory.",
+      "https://github.com/aers/FFXIVClientStructs");
     DrawCredit("MidoriKami", "KamiToolKit, for native game windows.",
       "https://github.com/MidoriKami/KamiToolKit");
 
