@@ -57,11 +57,12 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   IQuestSnapshotService _snapshot, IFestivalService _festivals, INewsService _news, IPlayerState _playerState,
   ILedgerExportService _ledgerExport, IAchievementService _achievements, IAlliedSocietyService _societies,
   IFoodService _food, IQuestMapService _questMap, IFramework _framework, IFeatureService _features,
-  ILanguageService _language)
+  ILanguageService _language, FoodWindow _foodWindow)
   : INativeUiService
 {
   private MainAddon? _window;
   private CompanionAddon? _companion;
+  private TurnInFoodEye? _turnInEye;
 
 #if DEBUG
   private FontTestAddon? _fontTest;
@@ -125,6 +126,10 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
       Logger = _logger,
       OnSwapRequested = SwapToCompanion
     };
+
+    // AddonController must be enabled on the main thread; Create may not be on it.
+    _turnInEye = new TurnInFoodEye(_configuration, _food, _foodWindow);
+    _framework.RunOnFrameworkThread(_turnInEye.Enable);
 
     _logger.Debug("[NativeUi] Window created.");
   }
@@ -298,6 +303,14 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   public async ValueTask DisposeAsync()
   {
     GC.SuppressFinalize(this);
+
+    // On the main thread, like everything KamiToolKit, and before Plugin runs
+    // KamiToolKitLibrary.Dispose.
+    if (_turnInEye is not null)
+    {
+      await _framework.RunOnFrameworkThread(_turnInEye.Dispose);
+      _turnInEye = null;
+    }
 
 #if DEBUG
     if (_fontTest is not null)

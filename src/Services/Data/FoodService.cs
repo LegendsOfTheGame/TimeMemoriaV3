@@ -89,6 +89,9 @@ public interface IFoodService
   /// Quests that give no food are left out.
   /// </summary>
   IReadOnlyList<QuestFood> FromAcceptedQuests();
+
+  /// <summary>Whether an item id is a meal. Accepts the HQ form (id plus one million).</summary>
+  bool IsMeal(uint itemId);
 }
 
 /// <summary>
@@ -304,6 +307,12 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
       _logger.Error(ex, "[Food] Could not read food from accepted quests.");
       return [];
     }
+  }
+
+  public bool IsMeal(uint itemId)
+  {
+    uint id = itemId % CachedHighQualityOffset;
+    return id != 0 && _dataManager.GetExcelSheet<ItemRow>().GetRowOrDefault(id) is { } item && IsMeal(item);
   }
 
   private QuestFoodItem? QuestMeal(ItemRow item, byte quantity, bool hq)

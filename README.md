@@ -160,6 +160,12 @@ It does **not**:
 - Automate any in-game interaction
 - Transmit your data anywhere — the clipboard export is local and user-initiated
 
+One button sits in a game window. When a quest reward is food, the quest
+turn-in window shows an eye beside "Reward". A click opens `/tm food`, which
+lists the food your accepted quests give and the role each meal suits. The eye
+opens nothing by itself and changes nothing in the game window, and it can be
+turned off in Settings.
+
 One network request exists. The News tab downloads one public file,
 `LatestNews.json`, from this project's own
 [ffxiv-latest-news](https://github.com/LegendsOfTheGame/ffxiv-latest-news)

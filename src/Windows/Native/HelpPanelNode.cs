@@ -68,7 +68,8 @@ public class HelpPanelNode : TextLinesPanelNode
     ("What this plugin will never do",
     [
       "No damage meters, combat logs or duty results.\nNo automation, and no commands issued on your behalf.\nNo toasts or overlays interrupting your play.\nNo reading of other characters' data.",
-      "This plugin only tracks quest progress. This plugin does not rank your performance. The maintainer declines any feature request that needs an action listed above."
+      "This plugin only tracks quest progress. This plugin does not rank your performance. The maintainer declines any feature request that needs an action listed above.",
+      "One button sits in a game window. When a quest reward is food, the quest turn-in window shows an eye beside \"Reward\". Click the eye to open /tm food. The eye opens nothing by itself, and it changes nothing in the game window. You can turn it off in Settings."
     ])
     // "Something wrong, or missing?" is the footer beside the issue button,
     // not an entry here.

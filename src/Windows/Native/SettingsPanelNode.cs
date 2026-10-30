@@ -50,6 +50,7 @@ public class SettingsPanelNode : TabPanelNode
   private readonly CheckboxNode _showJobQuestsInOldest;
   private readonly CheckboxNode _showLevequestsInOldest;
   private readonly CheckboxNode _companionAlwaysVisible;
+  private readonly CheckboxNode _turnInEye;
   private readonly CheckboxNode _spoiler;
   private readonly CheckboxNode _freeTrial;
   private readonly CheckboxNode _useNative;
@@ -146,6 +147,10 @@ public class SettingsPanelNode : TabPanelNode
     _companionAlwaysVisible = AddCheckbox("Keep /tmmini visible when the game hides the UI",
       (value) => { Config.CompanionAlwaysVisible = value; Config.Save(); });
 
+    _turnInEye = AddCheckbox("Show an eye on the quest turn-in window that opens /tm food",
+      (value) => { Config.TurnInFoodEye = value; Config.Save(); });
+    _turnInEye.TextTooltip = "Shown only when a reward is food. Takes effect at the next turn-in.";
+
     _spoiler = AddCheckbox("Spoiler Mode (show expansions you have not reached)",
       (value) => { Config.SpoilerMode = value; Config.Save(); });
 
@@ -229,6 +234,7 @@ public class SettingsPanelNode : TabPanelNode
     Sync(_showJobQuestsInOldest, Config.ShowJobQuestsInOldest);
     Sync(_showLevequestsInOldest, Config.ShowLevequestsInOldest);
     Sync(_companionAlwaysVisible, Config.CompanionAlwaysVisible);
+    Sync(_turnInEye, Config.TurnInFoodEye);
     Sync(_spoiler, Config.SpoilerMode);
     Sync(_freeTrial, Config.FreeTrialMode);
     Sync(_useNative, Config.UseNativeUi);
@@ -274,7 +280,7 @@ public class SettingsPanelNode : TabPanelNode
 
     foreach (CheckboxNode box in
       new[] { _showCount, _showPercentage, _excludeOther, _excludeLeves, _showJobQuestsInOldest,
-        _showLevequestsInOldest, _companionAlwaysVisible, _spoiler, _freeTrial, _useNative })
+        _showLevequestsInOldest, _companionAlwaysVisible, _turnInEye, _spoiler, _freeTrial, _useNative })
       box.Size = new Vector2(Width - 24.0f, RowHeight);
 
     foreach ((_, CheckboxNode box, _) in _featureRows)

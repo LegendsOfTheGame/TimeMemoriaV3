@@ -1050,6 +1050,19 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
 
     ImGui.Spacing();
 
+    // Offered here as well as in the game window's settings, like the line above:
+    // the eye belongs to neither window, so either should be able to turn it off.
+    bool turnInEye = _configuration.TurnInFoodEye;
+    if (ImGui.Checkbox("Show an eye on the quest turn-in window that opens /tm food", ref turnInEye))
+    {
+      _configuration.TurnInFoodEye = turnInEye;
+      _configuration.Save();
+    }
+
+    ImGui.TextDisabled("  Shown only when a reward is food. Takes effect at the next turn-in.");
+
+    ImGui.Spacing();
+
     if (ImGui.Button("Open the game window")) _nativeUi.Toggle();
     ImGui.SameLine();
     ImGui.TextDisabled("Opens at this window's current size.");
@@ -1139,6 +1152,8 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     ImGui.Spacing();
     ImGui.Indent();
     DrawWrappedDisabled("This plugin only tracks quest progress. This plugin does not rank your performance. The maintainer declines any feature request that needs an action listed above.");
+    ImGui.Spacing();
+    DrawWrappedDisabled("One button sits in a game window. When a quest reward is food, the quest turn-in window shows an eye beside \"Reward\". Click the eye to open /tm food. The eye opens nothing by itself, and it changes nothing in the game window. You can turn it off in Settings.");
     ImGui.Unindent();
 
     ImGui.Spacing();
