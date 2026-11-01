@@ -304,14 +304,6 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   {
     GC.SuppressFinalize(this);
 
-    // On the main thread, like everything KamiToolKit, and before Plugin runs
-    // KamiToolKitLibrary.Dispose.
-    if (_turnInEye is not null)
-    {
-      await _framework.RunOnFrameworkThread(_turnInEye.Dispose);
-      _turnInEye = null;
-    }
-
 #if DEBUG
     if (_fontTest is not null)
     {
@@ -330,6 +322,16 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     {
       await _window.DisposeAsync();
       _window = null;
+    }
+
+    // Last, after the addons. The eye's dispose must run on the main thread,
+    // and the code after that await resumes there too — so an addon awaited
+    // after it threw "On main thread!" and every unload failed (3.11.0.15,
+    // found 1 Nov 2026). Still before Plugin runs KamiToolKitLibrary.Dispose.
+    if (_turnInEye is not null)
+    {
+      await _framework.RunOnFrameworkThread(_turnInEye.Dispose);
+      _turnInEye = null;
     }
 
     _logger.Debug("[NativeUi] Windows disposed.");
