@@ -54,11 +54,11 @@ public class HelpPanelNode : TextLinesPanelNode
     ]),
     ("An event is running in game but not listed. Or the reverse.",
     [
-      "The Active Events list reads data from the game client. An event appears in the list as soon as the game turns it on, even before a news article announces it. The plugin gets event end dates from the Lodestone news feed. If the feed does not report an event, the event stays in the list without an end date."
+      "The Active Events list reads data from the game client. An event appears in the list as soon as the game turns it on, even before a news article announces it. The plugin gets event end dates from a public news file on GitHub, which a script builds from the Lodestone news that lodestonenews.com collects. If the file does not report an event, the event stays in the list without an end date."
     ]),
     ("Where does my exported data go?",
     [
-      "Exported data goes to your clipboard only. The plugin sends it nowhere else. The plugin makes one network request: it downloads the public Lodestone news feed."
+      "Exported data goes to your clipboard only. The plugin sends it nowhere else. The plugin makes one network request: it downloads that public news file from GitHub. The request sends no character or account data."
     ]),
     ("Commands",
     [

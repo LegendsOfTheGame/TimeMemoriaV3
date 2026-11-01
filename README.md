@@ -169,13 +169,27 @@ turned off in Settings.
 One network request exists. The News tab downloads one public file,
 `LatestNews.json`, from this project's own
 [ffxiv-latest-news](https://github.com/LegendsOfTheGame/ffxiv-latest-news)
-repository on GitHub. It does this once when the plugin loads, then at most once
-every 60 seconds while the News tab is open. The request sends no character or
-account data.
+repository on GitHub. A script in that repository builds the file every 6 hours
+from the Lodestone news that [lodestonenews.com](https://lodestonenews.com)
+collects. The plugin downloads the file once when it loads. While the News tab
+is open, it downloads the file again every 15 minutes in the hour after each
+6-hour build, and every 30 minutes at other times. After a failed request, it
+waits longer before each new attempt, up to 15 minutes. The request sends no
+character or account data.
 
-Saved data is limited to quest IDs, completion counts, timestamps, pacing
-aggregates, and class/job levels. Nothing it stores can be repurposed as a
-combat log.
+Saved data stays on your PC, in the plugin's configuration folder. It is
+limited to:
+
+- Settings.
+- Per character: playtime, the quest journal (quest IDs and the time each
+  quest was completed) with its backups, and the last achievement and Cosmic
+  Exploration tool readings.
+- A snapshot of quest IDs, which What's New compares against, and the IDs of
+  seasonal events already seen.
+- The last 5 exports per character, as JSON files in an `exports` folder. Each
+  file holds the same data that the export put on the clipboard.
+
+Nothing it stores can be repurposed as a combat log.
 
 ---
 

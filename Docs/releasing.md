@@ -182,9 +182,12 @@ means opening a PR that changes `commit` — the release cadence stops being
 entirely ours and starts including review latency. That is the real cost of
 submitting, and the only one outstanding.
 
-`images/` is already satisfied: `assets/icon.png` is 512x512, which is 1:1 and at
-the top of the permitted 64–512px range, and the three window screenshots can go
-in as `image1..3.png`. Nothing needs redrawing.
+For `images/`, use `assets/d17/`, not `assets/`. `icon.png` is 512x512, which is
+1:1 and at the top of the permitted 64–512px range. Extra images must be 730x380
+or smaller. The window screenshots in `assets/` are about 947x676, so they are
+too large. `assets/d17/image1..3.png` are crops at about 530x380. Retake them
+from the build that you submit, because the current crops show the old name and
+the old tab bar.
 
 ### Why there is no testing channel in `repo.json`
 

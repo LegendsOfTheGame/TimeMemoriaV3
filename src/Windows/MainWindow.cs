@@ -1115,13 +1115,13 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
       "The Overview tab applies your exclusion settings. The Overview tab shows an excluded category in grey and removes it from the total. The Quests tree does not apply exclusion settings. You use the Quests tree to open a quest. An excluded category stays visible in the tree, so you can still reach its quests.");
 
     DrawHelpEntry("An event is running in game but not listed. Or the reverse.",
-      "The Active Events list reads data from the game client. An event appears in the list as soon as the game turns it on, even before a news article announces it. The plugin gets event end dates from the Lodestone news feed. If the feed does not report an event, the event stays in the list without an end date.");
+      "The Active Events list reads data from the game client. An event appears in the list as soon as the game turns it on, even before a news article announces it. The plugin gets event end dates from a public news file on GitHub, which a script builds from the Lodestone news that lodestonenews.com collects. If the file does not report an event, the event stays in the list without an end date.");
 
     DrawHelpEntry("What does the Quests tab do that is not obvious?",
       "Drag the divider between the two panes to resize them. Click a quest to open its map marker. The search feature covers every expansion at once, including expansions the tree is hiding.");
 
     DrawHelpEntry("Where does my exported data go?",
-      "Exported data goes to your clipboard only. The plugin sends it nowhere else. The plugin makes one network request: it downloads the public Lodestone news feed.",
+      "Exported data goes to your clipboard only. The plugin sends it nowhere else. The plugin makes one network request: it downloads that public news file from GitHub. The request sends no character or account data.",
       "The Progression tab has a \"Copy for Adventurer's Ledger\" button. This button copies data for the Adventurer's Ledger, a separate web tracker for routines and Ocean Fishing windows. Paste this data into the Ledger. The Ledger stores what you paste only in your browser. A button beside the export opens the Ledger.");
 
     ImGui.Spacing();

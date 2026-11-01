@@ -48,6 +48,8 @@
     <None Include="data/quest-patches.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- Where each Beastmaster beast is tamed. Copied from Bestiary Mapper. -->
     <None Include="data/bestiary.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- MIT requires its notice with every copy, and the zip is the copy. -->
+    <None Include="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The submodule lives inside this project's directory, so the SDK's default
