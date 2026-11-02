@@ -99,6 +99,10 @@ public static class LedgerUnlocks
     ["fauxHollows"] = [69501],          // Fantastic Mr. Faux
     ["customDelivery"] = [67087],       // Arms Wide Open — Zhloe, the earliest client
     ["domanEnclave"] = [68622],         // Precious Reclamation
+    // Not an unlock but the end of one: the last reconstruction quest, which
+    // also awards Bio-Doma V. After it the weekly donation is optional, and the
+    // ledger shows the row as complete instead of counting it.
+    ["domanEnclaveDone"] = [68689],     // Lighting the Way
     ["islandSanctuary"] = [70179],      // Seeking Sanctuary
     ["cosmicExploration"] = [70789],    // A Cosmic Homecoming
 
