@@ -331,17 +331,32 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     InventoryType.EquippedItems,
     InventoryType.ArmoryMainHand,
     InventoryType.ArmoryOffHand,
+    InventoryType.ArmoryHead,
+    InventoryType.ArmoryBody,
+    InventoryType.ArmoryHands,
+    InventoryType.ArmoryLegs,
+    InventoryType.ArmoryFeets,
     InventoryType.Inventory1,
     InventoryType.Inventory2,
     InventoryType.Inventory3,
     InventoryType.Inventory4
   ];
 
-  private static readonly string[] RelicLineOrder = ["ZD", "LU", "AN", "EU", "RS", "RP", "SK", "MV", "SP", "PH", "CO"];
+  private static readonly string[] RelicLineOrder =
+    ["ZD", "LU", "AN", "EU", "RS", "RP", "SK", "MV", "SP", "PH", "CO", "DD", "FG", "EX", "GW", "E", "A", "P", "B", "L", "D", "J", "I", "G"];
+
+  /// <summary>
+  /// Lines where a later stage does not replace an earlier one, so every stage held
+  /// has its own code. Deep Dungeon has separate weapon sets, and only some are made
+  /// from another. Each GARO armor "stage" is a separate set.
+  /// </summary>
+  private static readonly HashSet<string> RelicEveryStageLines = ["DD", "G"];
 
   /// <summary>
   /// The highest relic stage held, per line and job, as one space-separated
-  /// string: "ZDWAR-C RSWAR-A COCRP-J". Line code, job, then the stage as a
+  /// string: "ZDWAR-C RSWAR-A COCRP-J". Armor uses the slot with the role or job:
+  /// "EHF-C" is Elemental, head, Fending, and "JHPLD-B" is Eureka Job Armor, head,
+  /// Paladin. Line code, job, then the stage as a
   /// letter (A is the first). One string rather than an array, so a pasted
   /// export costs fewer tokens; the stage names live in RelicStages and the
   /// reader's copy of the same table.
@@ -360,15 +375,16 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// </summary>
   private static unsafe string BuildRelics(InventoryManager* inventory)
   {
-    Dictionary<(string Line, string Job), int> best = [];
+    Dictionary<(string Line, string Job, int EveryStage), int> best = [];
 
     void Add(uint id)
     {
       // The cache lists can carry the high-quality offset; relics are never HQ,
       // but the base id is what the table holds.
       if (!RelicStages.ByItem.TryGetValue(id % 1_000_000, out var relic)) return;
-      if (!best.TryGetValue((relic.Line, relic.Job), out int held) || relic.Stage > held)
-        best[(relic.Line, relic.Job)] = relic.Stage;
+      var key = (relic.Line, relic.Job, RelicEveryStageLines.Contains(relic.Line) ? relic.Stage : -1);
+      if (!best.TryGetValue(key, out int held) || relic.Stage > held)
+        best[key] = relic.Stage;
     }
 
     if (inventory != null)
@@ -397,7 +413,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     }
 
     return string.Join(' ', best
-      .OrderBy(b => Array.IndexOf(RelicLineOrder, b.Key.Line)).ThenBy(b => b.Key.Job, StringComparer.Ordinal)
+      .OrderBy(b => Array.IndexOf(RelicLineOrder, b.Key.Line)).ThenBy(b => b.Key.Job, StringComparer.Ordinal).ThenBy(b => b.Value)
       .Select(b => $"{b.Key.Line}{b.Key.Job}-{(char)('A' + b.Value)}"));
   }
 
