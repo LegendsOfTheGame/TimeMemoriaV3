@@ -337,7 +337,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     InventoryType.Inventory4
   ];
 
-  private static readonly string[] RelicLineOrder = ["ZD", "AN", "EU", "RS", "SK", "MV", "SP", "PH", "CO"];
+  private static readonly string[] RelicLineOrder = ["ZD", "LU", "AN", "EU", "RS", "RP", "SK", "MV", "SP", "PH", "CO"];
 
   /// <summary>
   /// The highest relic stage held, per line and job, as one space-separated

@@ -96,6 +96,40 @@ public static class RelicStages
     [10062] = ("ZD", "SCH", 7),  // Last Resort Zeta
     [10063] = ("ZD", "PLD", 7),  // Aegis Shield Zeta
     [10064] = ("ZD", "NIN", 7),  // Sasuke's Blades Zeta
+    // Lucis Tools
+    [2327] = ("LU", "CRP", 0),  // Ullikummi
+    [2354] = ("LU", "BSM", 0),  // Vulcan
+    [2379] = ("LU", "ARM", 0),  // Kurdalegon
+    [2404] = ("LU", "GSM", 0),  // Urcaguary
+    [2429] = ("LU", "LTW", 0),  // Pinga
+    [2455] = ("LU", "WVR", 0),  // Clotho
+    [2480] = ("LU", "ALC", 0),  // Paracelsus
+    [2506] = ("LU", "CUL", 0),  // Chantico
+    [2532] = ("LU", "MIN", 0),  // Mammon
+    [2558] = ("LU", "BTN", 0),  // Rauni
+    [2584] = ("LU", "FSH", 0),  // Halcyon Rod
+    [8436] = ("LU", "CRP", 1),  // Ullikummi Supra
+    [8437] = ("LU", "BSM", 1),  // Vulcan Supra
+    [8438] = ("LU", "ARM", 1),  // Kurdalegon Supra
+    [8439] = ("LU", "GSM", 1),  // Urcaguary Supra
+    [8440] = ("LU", "LTW", 1),  // Pinga Supra
+    [8441] = ("LU", "WVR", 1),  // Clotho Supra
+    [8442] = ("LU", "ALC", 1),  // Paracelsus Supra
+    [8443] = ("LU", "CUL", 1),  // Chantico Supra
+    [8444] = ("LU", "MIN", 1),  // Mammon Supra
+    [8445] = ("LU", "BTN", 1),  // Rauni Supra
+    [8446] = ("LU", "FSH", 1),  // Halcyon Rod Supra
+    [10132] = ("LU", "CRP", 2),  // Ullikummi Lucis
+    [10133] = ("LU", "BSM", 2),  // Vulcan Lucis
+    [10134] = ("LU", "ARM", 2),  // Kurdalegon Lucis
+    [10135] = ("LU", "GSM", 2),  // Urcaguary Lucis
+    [10136] = ("LU", "LTW", 2),  // Pinga Lucis
+    [10137] = ("LU", "WVR", 2),  // Clotho Lucis
+    [10138] = ("LU", "ALC", 2),  // Paracelsus Lucis
+    [10139] = ("LU", "CUL", 2),  // Chantico Lucis
+    [10140] = ("LU", "MIN", 2),  // Mammon Lucis
+    [10141] = ("LU", "BTN", 2),  // Rauni Lucis
+    [10142] = ("LU", "FSH", 2),  // Halcyon Rod Lucis
     // Anima Weapons
     [13611] = ("AN", "PLD", 0),  // Animated Hauteclaire
     [13612] = ("AN", "MNK", 0),  // Animated Rising Suns
@@ -575,6 +609,18 @@ public static class RelicStages
     [33477] = ("RS", "GNB", 5),  // Blade's Resolve
     [33478] = ("RS", "DNC", 5),  // Blade's Euphoria
     [33479] = ("RS", "PLD", 5),  // Blade's Fortitude
+    // Resplendent Tools
+    [33154] = ("RP", "CRP", 0),  // Resplendent Millfiend's Saw
+    [33155] = ("RP", "BSM", 0),  // Resplendent Forgefiend's Hammer
+    [33156] = ("RP", "ARM", 0),  // Resplendent Hammerfiend's Beetle
+    [33157] = ("RP", "GSM", 0),  // Resplendent Gemfiend's Mallet
+    [33158] = ("RP", "LTW", 0),  // Resplendent Hidefiend's Knife
+    [33159] = ("RP", "WVR", 0),  // Resplendent Boltfiend's Needle
+    [33160] = ("RP", "ALC", 0),  // Resplendent Cauldronfiend's Alembic
+    [33161] = ("RP", "CUL", 0),  // Resplendent Galleyfiend's Frypan
+    [33356] = ("RP", "MIN", 0),  // Resplendent Minefiend's Pickaxe
+    [33357] = ("RP", "BTN", 0),  // Resplendent Fieldfiend's Hatchet
+    [33358] = ("RP", "FSH", 0),  // Resplendent Tacklefiend's Rod
     // Skysteel Tools
     [29612] = ("SK", "CRP", 0),  // Skysteel Saw
     [29613] = ("SK", "BSM", 0),  // Skysteel Cross-pein Hammer

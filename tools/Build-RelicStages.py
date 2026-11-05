@@ -34,6 +34,8 @@ LINES = [
         "Base Zodiac Weapons", "Zenith Zodiac Weapons", "Atma Zodiac Weapons",
         "Animus Zodiac Weapons", "Novus Zodiac Weapons", "Nexus Zodiac Weapons",
         "Zodiac Braves Weapons", "Zodiac Zeta Weapons"]),
+    ("LU", 0, "Lucis Tools", [
+        "Mastercraft Tools", "Supra Relic Tools", "Lucis Relic Tools"]),
     ("AN", 1, "Anima Weapons", [
         "Animated Weapons", "Awoken Weapons", "Base Anima Weapons",
         "Hyperconductive Anima Weapons", "Reconditioned Anima Weapons",
@@ -47,6 +49,7 @@ LINES = [
     ("RS", 3, "Resistance Weapons", [
         "Base Resistance Weapons", "Augmented Resistance Weapons", "Recollection Weapons",
         "Law's Order Weapons", "Augmented Law's Order Weapons", "Blade's Weapons"]),
+    ("RP", 3, "Resplendent Tools", ["Resplendent Tools"]),
     ("SK", 3, "Skysteel Tools", [
         "Base Skysteel Tools", "Skysteel Tools 1", "Dragonsung Tools",
         "Augmented Dragonsung Tools", "Skysung Tools", "Skybuilders' Tools"]),
