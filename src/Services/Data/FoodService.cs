@@ -59,7 +59,12 @@ public enum FoodPursuit { Combat, Crafting, Gathering }
 /// </summary>
 /// <param name="Role">DPS, Healer, Tank, Crafter or Gatherer.</param>
 /// <param name="Where">"Inventory", "Saddlebag", or the retainer's name.</param>
-public record RolePick(string Role, string? Name, bool HighQuality, string? Where);
+/// <param name="ItemId">The base item id (no HQ offset). Zero when Name is null.</param>
+public record RolePick(string Role, string? Name, bool HighQuality, string? Where, uint ItemId = 0)
+{
+  /// <summary>Only bag food can be eaten; the game will not use an item from a retainer or the saddlebag.</summary>
+  public bool InBags => Where == "Inventory";
+}
 
 /// <summary>An accepted quest that rewards food, and what it gives.</summary>
 /// <param name="Fixed">Food given on completion whatever is chosen.</param>
@@ -92,6 +97,16 @@ public interface IFoodService
 
   /// <summary>Whether an item id is a meal. Accepts the HQ form (id plus one million).</summary>
   bool IsMeal(uint itemId);
+
+  /// <summary>Whether the game would accept eating this meal right now (not casting, not in a cutscene, held in the bags).</summary>
+  bool CanEat(uint itemId, bool highQuality);
+
+  /// <summary>
+  /// Eats one of this meal, exactly as a double-click in the inventory does.
+  /// One call, one item: nothing repeats or re-eats when the bonus runs out.
+  /// PAC accepted the feature on that condition (7 Nov 2026).
+  /// </summary>
+  bool Eat(uint itemId, bool highQuality);
 }
 
 /// <summary>
@@ -208,6 +223,28 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
 
   private static FoodReading Empty => new(false, 0, null, TimeSpan.Zero, null, []);
 
+  /// <summary>ActionType.Item takes HQ as the same one-million offset the item caches use.</summary>
+  private static uint ActionItemId(uint itemId, bool highQuality) =>
+    highQuality ? itemId + CachedHighQualityOffset : itemId;
+
+  public bool CanEat(uint itemId, bool highQuality)
+  {
+    if (!_clientState.IsLoggedIn || itemId == 0) return false;
+    ActionManager* actions = ActionManager.Instance();
+    return actions is not null && actions->GetActionStatus(ActionType.Item, ActionItemId(itemId, highQuality)) == 0;
+  }
+
+  public bool Eat(uint itemId, bool highQuality)
+  {
+    if (!CanEat(itemId, highQuality)) return false;
+
+    // 65535 is the extra parameter the game itself passes when an item is used
+    // from the inventory; the target is the default (self).
+    bool used = ActionManager.Instance()->UseAction(ActionType.Item, ActionItemId(itemId, highQuality), extraParam: 65535);
+    _logger.Debug($"[Food] Eat {itemId}{(highQuality ? " HQ" : "")}: {(used ? "used" : "refused")}.");
+    return used;
+  }
+
   /// <summary>The order /tm food lists the roles in.</summary>
   private static readonly string[] RoleOrder = ["DPS", "Healer", "Tank", "Crafter", "Gatherer"];
 
@@ -245,7 +282,8 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
 
           return best.Food.Item.RowId == 0
             ? new RolePick(role, null, false, null)
-            : new RolePick(role, best.Food.Item.Name.ToString(), best.Food.HighQuality, best.Food.Source);
+            : new RolePick(role, best.Food.Item.Name.ToString(), best.Food.HighQuality, best.Food.Source,
+              best.Food.Item.RowId);
         })
         .ToList();
     }

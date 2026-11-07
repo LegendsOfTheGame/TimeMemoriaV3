@@ -103,7 +103,9 @@ public class FoodWindow : Window
           else
           {
             ImGui.TextUnformatted(pick.HighQuality ? $"{pick.Name} (HQ)" : pick.Name);
-            RightAligned($"Found in {pick.Where}");
+
+            if (pick.InBags) EatButton(pick);
+            else RightAligned($"Found in {pick.Where}");
           }
 
           ImGui.Spacing();
@@ -193,6 +195,27 @@ public class FoodWindow : Window
     Vector4 colour = Sections.FirstOrDefault((s) => s.Role == meal.Role).Colour;
     if (meal.Role.Length == 0) RightAligned("No role");
     else RightAligned(meal.Role, colour);
+  }
+
+  /// <summary>
+  /// One click eats one of this meal. Bag food only; disabled whenever the game
+  /// would refuse (casting, a cutscene, an animation lock). Nothing here repeats.
+  /// </summary>
+  private void EatButton(RolePick pick)
+  {
+    const string label = "Eat";
+    float width = ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 2;
+    ImGui.SameLine(Math.Max(ImGui.GetCursorPosX(), ImGui.GetContentRegionMax().X - width));
+
+    bool ready = _food.CanEat(pick.ItemId, pick.HighQuality);
+
+    using (ImRaii.Disabled(!ready))
+    using (ImRaii.PushId($"eat{pick.Role}"))
+      if (ImGui.SmallButton(label))
+        _food.Eat(pick.ItemId, pick.HighQuality);
+
+    if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+      ImGui.SetTooltip(ready ? "In your inventory. Click to eat one." : "In your inventory. The game cannot use it now.");
   }
 
   /// <summary>Same line, pushed to the right edge, muted unless a colour is given.</summary>
