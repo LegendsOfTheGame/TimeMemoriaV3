@@ -204,7 +204,7 @@ public unsafe class MainAddon : NativeAddon
 
   /// <summary>
   /// Only the visible panel is refreshed; a hidden one has nothing worth
-  /// recomputing.
+  /// recomputing. OnUpdate runs every frame while the window exists.
   ///
   /// The recount is what keeps the totals moving while the window is open. It
   /// used to happen only as a side effect of the classic window's draw loop, so
@@ -215,8 +215,20 @@ public unsafe class MainAddon : NativeAddon
   {
     DataService.UpdateQuestData();
 
-    _active?.Refresh();
+    // Once per clock second, not once per frame. A panel rebuilds every row it
+    // shows, and the Bonuses tab measured 1.7 ms a frame doing it (13 Nov 2026)
+    // for figures that change no faster than a seconds display. Keyed to the
+    // second rather than an interval so a countdown ticks evenly. Show() still
+    // refreshes at once, so a tab never opens on stale rows.
+    long second = Environment.TickCount64 / 1000;
+    if (second != _refreshedSecond)
+    {
+      _refreshedSecond = second;
+      _active?.Refresh();
+    }
   }
+
+  private long _refreshedSecond;
 
   protected override void OnFinalize(AtkUnitBase* addon)
   {

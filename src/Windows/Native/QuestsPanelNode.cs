@@ -139,8 +139,6 @@ public class QuestsPanelNode : TabPanelNode
     _list.AttachNode(this);
   }
 
-  private DateTime _rowsRefreshedAt = DateTime.MinValue;
-
   /// <summary>
   /// Redraws the visible rows' titles about once a second, so a leve accepted,
   /// turned in, or crafted for while the window is open shows it without a
@@ -149,10 +147,8 @@ public class QuestsPanelNode : TabPanelNode
   /// </summary>
   public override void Refresh()
   {
-    DateTime now = DateTime.UtcNow;
-    if (now - _rowsRefreshedAt < TimeSpan.FromSeconds(1)) return;
-    _rowsRefreshedAt = now;
-
+    // MainAddon calls this once a second. This panel used to hold its own
+    // one-second limit; two limits in a row could skip a turn.
     _list.Update();
   }
 

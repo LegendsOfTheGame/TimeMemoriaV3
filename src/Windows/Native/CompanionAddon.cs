@@ -142,6 +142,11 @@ public unsafe class CompanionAddon : NativeAddon
     // full height. OnUpdate hides the spare ones and re-measures immediately
     // after; starting at the top means the clamp lands somewhere sensible.
     _scroll.ScrollToStart();
+
+    // The addon object outlives its window, so both are cleared for each open:
+    // the first OnUpdate must fill the rows and measure them.
+    _refreshedSecond = 0;
+    _lastRowCount = -1;
   }
 
   protected override void OnFinalize(AtkUnitBase* addon)
@@ -156,6 +161,16 @@ public unsafe class CompanionAddon : NativeAddon
   protected override void OnUpdate(AtkUnitBase* addon)
   {
     DataService.UpdateQuestData();
+
+    // Once per clock second, not once per frame: the rebuild below measured
+    // 1.2 ms a frame (13 Nov 2026), and nothing it shows changes faster than
+    // the seconds on "Time remaining". Keyed to the second rather than an
+    // interval so that countdown ticks evenly. OnSetup clears the key, so a
+    // newly opened window fills on its first frame.
+    long second = Environment.TickCount64 / 1000;
+    if (second == _refreshedSecond) return;
+
+    _refreshedSecond = second;
 
     int row = 0;
     _headingDrawn = false;
@@ -243,6 +258,8 @@ public unsafe class CompanionAddon : NativeAddon
     // children, so a container left visible around two hidden labels still
     // claims its full height — which is exactly how the scroll range came to
     // describe thirty-four rows when seventeen were in use.
+    int used = row;
+
     for (; row < _rows.Count; row++)
     {
       (HorizontalListNode container, TextNode label, TextNode value) = _rows[row];
@@ -255,9 +272,20 @@ public unsafe class CompanionAddon : NativeAddon
     // honest; without it the bar describes whatever the window last held. A
     // row that became a heading, or stopped being one, changed height, so the
     // list itself is laid out again first.
-    if (_relayout) _scroll?.ContentNode.RecalculateLayout();
-    _scroll?.RecalculateSizes();
+    //
+    // Guarded on the row count, as the main window's panels are: re-measuring
+    // walks the whole pool, and the range only goes wrong when a row appears,
+    // goes, or changes height.
+    if (used != _lastRowCount || _relayout)
+    {
+      _lastRowCount = used;
+      if (_relayout) _scroll?.ContentNode.RecalculateLayout();
+      _scroll?.RecalculateSizes();
+    }
   }
+
+  private long _refreshedSecond;
+  private int _lastRowCount = -1;
 
   /// <summary>
   /// Allowances, and only the societies worth acting on.
