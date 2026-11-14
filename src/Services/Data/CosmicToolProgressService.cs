@@ -146,8 +146,32 @@ public unsafe class CosmicToolProgressService(
     List<CosmicToolProgress> jobs = ReadAllClasses(research);
     if (jobs.Count == 0) return;
 
+    // Save only when the progress changes, not on every 5-second poll: a poll
+    // with identical numbers would otherwise rewrite the full config ~720 times
+    // an hour. TakenUtc is left as-is too, so it marks the last real change.
+    if (_current is not null && SameJobs(_current.Jobs, jobs)) return;
+
     _current = new CosmicToolReading { Jobs = jobs, TakenUtc = now };
     Persist();
+  }
+
+  /// <summary>Value comparison, in order, of every field of every job and type.</summary>
+  private static bool SameJobs(List<CosmicToolProgress> a, List<CosmicToolProgress> b)
+  {
+    if (a.Count != b.Count) return false;
+
+    for (int i = 0; i < a.Count; i++)
+    {
+      if (a[i].Job != b[i].Job || a[i].Types.Count != b[i].Types.Count) return false;
+
+      for (int j = 0; j < a[i].Types.Count; j++)
+      {
+        CosmicResearchProgress x = a[i].Types[j], y = b[i].Types[j];
+        if (x.Type != y.Type || x.Current != y.Current || x.Needed != y.Needed || x.Max != y.Max) return false;
+      }
+    }
+
+    return true;
   }
 
   private List<CosmicToolProgress> ReadAllClasses(WKSResearchModule* research)
