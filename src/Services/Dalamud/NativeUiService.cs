@@ -17,6 +17,9 @@ public interface INativeUiService : IAsyncDisposable
   /// <summary>Opens the native window (if closed) to the Settings tab.</summary>
   void OpenSettings();
 
+  /// <summary>Opens the native window (if closed) to the Bonuses tab.</summary>
+  void OpenBonuses();
+
   /// <summary>Shows or hides the small at-a-glance window.</summary>
   void ToggleCompanion();
 
@@ -249,6 +252,18 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
 
     Open();
     _window.OpenSettings();
+  }
+
+  public void OpenBonuses()
+  {
+    if (_window is null)
+    {
+      _logger.Error("[NativeUi] OpenBonuses called before the window was created.");
+      return;
+    }
+
+    Open();
+    _window.OpenBonuses();
   }
 
   public void ShowUnfinished(string title, List<Types.Quest> quests, string emptyMessage)

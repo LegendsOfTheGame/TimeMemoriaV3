@@ -47,8 +47,13 @@ public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantit
 /// name. Retainer copies are listed here only; <paramref name="Quantity"/>
 /// counts what is carried, in this row's quality.
 /// </param>
+/// <param name="ItemId">The base item id (no HQ offset), for the Eat button.</param>
+/// <param name="InBags">
+/// Whether this quality is in the main inventory. Saddlebag copies count in
+/// Quantity but the game will not use an item from there.
+/// </param>
 public record FoodStack(string Name, string Stats, FoodPursuit Pursuit, string Role, int Score, bool HighQuality,
-  bool IsActive, int Quantity, string Where = "");
+  bool IsActive, int Quantity, string Where = "", uint ItemId = 0, bool InBags = false);
 
 /// <summary>What kind of play a food's stats are for — the axis food actually splits on in this game.</summary>
 public enum FoodPursuit { Combat, Crafting, Gathering }
@@ -60,10 +65,34 @@ public enum FoodPursuit { Combat, Crafting, Gathering }
 /// <param name="Role">DPS, Healer, Tank, Crafter or Gatherer.</param>
 /// <param name="Where">"Inventory", "Saddlebag", or the retainer's name.</param>
 /// <param name="ItemId">The base item id (no HQ offset). Zero when Name is null.</param>
-public record RolePick(string Role, string? Name, bool HighQuality, string? Where, uint ItemId = 0)
+/// <param name="Options">
+/// How many different meals are held for this role, everywhere. NQ and HQ of
+/// one meal count once: HQ is strictly better, so that is not a choice.
+/// </param>
+public record RolePick(string Role, string? Name, bool HighQuality, string? Where, uint ItemId = 0, int Options = 0)
 {
   /// <summary>Only bag food can be eaten; the game will not use an item from a retainer or the saddlebag.</summary>
   public bool InBags => Where == "Inventory";
+
+  /// <summary>
+  /// The Eat button shows only when there is nothing to choose: one meal for
+  /// the role, and it is in the bags. PAC feedback, 7 Nov 2026 -- the plugin
+  /// must not pick between meals for the player.
+  /// </summary>
+  public bool Eatable => Options == 1 && InBags;
+}
+
+/// <summary>What <c>/tm eat</c> did.</summary>
+public enum EatResult
+{
+  /// <summary>One meal matched, it was in the bags, and the game used it.</summary>
+  Ate,
+
+  /// <summary>Nothing to eat without choosing: none, more than one, or not in the bags. Open the list.</summary>
+  Choose,
+
+  /// <summary>The one meal could not be used now (casting, cutscene, the 30 s lock). Do nothing.</summary>
+  NotNow
 }
 
 /// <summary>An accepted quest that rewards food, and what it gives.</summary>
@@ -107,6 +136,16 @@ public interface IFoodService
   /// PAC accepted the feature on that condition (7 Nov 2026).
   /// </summary>
   bool Eat(uint itemId, bool highQuality);
+
+  /// <summary>
+  /// <c>/tm eat &lt;kind&gt;</c>: dps, tank, healer, battle, craft, gather or
+  /// all. Eats only when exactly one meal of that kind is in the inventory
+  /// (NQ and HQ of it count once; HQ is eaten first). Anything else returns
+  /// <see cref="EatResult.Choose"/> so the caller opens the list. A 30 second
+  /// lock follows each eat, so a macro of several lines eats once.
+  /// Null when the kind is not one of those words.
+  /// </summary>
+  EatResult? EatOnly(string kind);
 }
 
 /// <summary>
@@ -245,6 +284,44 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     return used;
   }
 
+  /// <summary>After a command eats, it will not eat again for this long. Haven's figure, 7 Nov 2026.</summary>
+  private static readonly TimeSpan CommandLock = TimeSpan.FromSeconds(30);
+
+  private DateTime _commandAteAt = DateTime.MinValue;
+
+  public EatResult? EatOnly(string kind)
+  {
+    Func<(FoodPursuit Pursuit, string Role), bool>? matches = kind.ToLowerInvariant() switch
+    {
+      "dps" => (c) => c.Role == "DPS",
+      "tank" => (c) => c.Role == "Tank",
+      "healer" => (c) => c.Role == "Healer",
+      "battle" => (c) => c.Pursuit == FoodPursuit.Combat,
+      "craft" => (c) => c.Pursuit == FoodPursuit.Crafting,
+      "gather" => (c) => c.Pursuit == FoodPursuit.Gathering,
+      "all" => (_) => true,
+      _ => null
+    };
+
+    if (matches is null) return null;
+    if (!_clientState.IsLoggedIn) return EatResult.NotNow;
+
+    // Inventory only: the saddlebag is held but cannot be eaten from, and the
+    // rule is about what can be eaten without choosing.
+    List<Held> bags = ReadBags().Where((f) => f.Source == "Inventory").ToList();
+    List<Held> kindOf = bags.Where((f) => matches(Classify(FoodRow(f.Item)))).ToList();
+
+    if (kindOf.Select((f) => f.Item.RowId).Distinct().Count() != 1) return EatResult.Choose;
+
+    if (DateTime.UtcNow - _commandAteAt < CommandLock) return EatResult.NotNow;
+
+    Held meal = kindOf.OrderByDescending((f) => f.HighQuality).First();
+    if (!Eat(meal.Item.RowId, meal.HighQuality)) return EatResult.NotNow;
+
+    _commandAteAt = DateTime.UtcNow;
+    return EatResult.Ate;
+  }
+
   /// <summary>The order /tm food lists the roles in.</summary>
   private static readonly string[] RoleOrder = ["DPS", "Healer", "Tank", "Crafter", "Gatherer"];
 
@@ -280,10 +357,27 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
             .ThenBy((entry) => entry.Food.Item.Name.ToString(), StringComparer.Ordinal)
             .FirstOrDefault();
 
-          return best.Food.Item.RowId == 0
-            ? new RolePick(role, null, false, null)
-            : new RolePick(role, best.Food.Item.Name.ToString(), best.Food.HighQuality, best.Food.Source,
-              best.Food.Item.RowId);
+          int options = ranked
+            .Where((entry) => entry.Role == role)
+            .Select((entry) => entry.Food.Item.RowId)
+            .Distinct()
+            .Count();
+
+          if (best.Food.Item.RowId == 0) return new RolePick(role, null, false, null);
+
+          // With one meal, prefer an HQ copy that is in the bags over a better-ranked
+          // one somewhere else: the button can only use bag food.
+          if (options == 1)
+          {
+            var inBags = ranked
+              .Where((entry) => entry.Role == role && entry.Food.Source == "Inventory")
+              .OrderByDescending((entry) => entry.Food.HighQuality)
+              .FirstOrDefault();
+            if (inBags.Food.Item.RowId != 0) best = inBags;
+          }
+
+          return new RolePick(role, best.Food.Item.Name.ToString(), best.Food.HighQuality, best.Food.Source,
+            best.Food.Item.RowId, options);
         })
         .ToList();
     }
@@ -413,7 +507,9 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
           // Both qualities, as Allagan Tools lists them: the NQ row of a food
           // held HQ in the saddlebag otherwise looked like the saddlebag was empty.
           Where(first.Item.Name.ToString(),
-            held.Concat(elsewhere).Where((f) => f.Item.RowId == group.Key.RowId)));
+            held.Concat(elsewhere).Where((f) => f.Item.RowId == group.Key.RowId)),
+          first.Item.RowId,
+          group.Any((f) => f.Source == "Inventory"));
       })
       // What you're already eating leads its pursuit group -- you're benefiting
       // from it right now, whether or not it happens to be the top score.

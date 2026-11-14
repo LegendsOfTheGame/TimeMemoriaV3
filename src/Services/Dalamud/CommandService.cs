@@ -14,7 +14,7 @@ public interface ICommandService : IHostedService;
 /// </summary>
 public class CommandService(ILogger _logger, IDataService _dataService, IWindowService _windowService,
   INativeUiService _nativeUi, Configuration _configuration, ICommandManager _commandManager,
-  ILedgerExportService _ledgerExport, IFeatureService _features) : ICommandService
+  ILedgerExportService _ledgerExport, IFeatureService _features, IFoodService _food) : ICommandService
 {
   private const string MainCommand = "/timememoria";
   private const string MainAlias = "/tm";
@@ -146,6 +146,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         _logger.Chat($"  {MainCommand} collections — copy your collections to the clipboard");
         _logger.Chat($"  {MainCommand} full — copy progress and collections together");
         _logger.Chat($"  {MainCommand} food — the best meal you hold for each role, and where it is");
+        _logger.Chat($"  {MainCommand} eat dps | tank | healer | battle | craft | gather | all — eat your one meal of that kind, or open the Bonuses tab to choose");
         _logger.Chat($"  {MainCommand} reset — reset the quest tree");
         _logger.Chat($"  {MainCommand} arr | hw | sb/stb | shb | ew | dt | ec — open every unfinished quest in that expansion (Native UI)");
         foreach (Feature feature in _features.Features.Where((f) => f.CommandArgument is not null))
@@ -187,6 +188,16 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
 
       case "food":
         _windowService.ToggleFood();
+        break;
+
+      // Eats only when there is nothing to choose: exactly one meal of that kind
+      // in the inventory. Otherwise the Bonuses tab opens and the player picks.
+      // No chat line either way -- Well Fed appearing, or the window opening, is
+      // the answer. PAC feedback and Haven's rules, 7 Nov 2026.
+      case "eat":
+        EatResult? result = args.Length > 1 ? _food.EatOnly(args[1]) : null;
+        if (result is null) goto default;
+        if (result == EatResult.Choose) _nativeUi.OpenBonuses();
         break;
 
 #if DEBUG

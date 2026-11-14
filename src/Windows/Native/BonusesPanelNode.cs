@@ -12,7 +12,14 @@ public class BonusesPanelNode : TabPanelNode
 {
   private const float RowHeight = 20.0f;
   private const float NameWidth = 190.0f;
-  private const float StatsWidth = 600.0f;
+  private const float StatsWidth = 552.0f;
+
+  /// <summary>
+  /// The Eat button's slot at the end of each row. A fixed-width ResNode that
+  /// stays visible on every food row, so hiding the button inside it does not
+  /// shift the columns (HorizontalListNode skips hidden nodes).
+  /// </summary>
+  private const float EatWidth = 48.0f;
 
   /// <summary>
   /// Summary rows plus headroom for the held-food list, which grows with how
@@ -43,6 +50,13 @@ public class BonusesPanelNode : TabPanelNode
   private readonly ScrollingNode<VerticalListNode> _scroll;
   private readonly List<(HorizontalListNode Container, TextNode Label, TextNode Value)> _rows = [];
 
+  /// <summary>Per row: the Eat slot, its button, and the meal it eats (null: no button on this row).</summary>
+  private readonly List<(ResNode Slot, TextButtonNode Button)> _eat = [];
+  private readonly FoodStack?[] _eatTargets = new FoodStack?[MaxRows];
+
+  /// <summary>Last state written to each button, so nodes are only touched when it changes.</summary>
+  private readonly (bool Visible, bool Enabled)[] _eatState = new (bool, bool)[MaxRows];
+
   /// <summary>Rows drawn last time, so the scroll range is only re-measured when it moved.</summary>
   private int _lastRowCount = -1;
 
@@ -64,18 +78,33 @@ public class BonusesPanelNode : TabPanelNode
     {
       HorizontalListNode container = new()
       {
-        Size = new Vector2(NameWidth + StatsWidth, RowHeight),
+        Size = new Vector2(NameWidth + StatsWidth + EatWidth, RowHeight),
         IsVisible = true
       };
 
       TextNode label = MakeText(NameWidth, AlignmentType.Left);
       TextNode value = MakeText(StatsWidth, AlignmentType.Left);
 
+      ResNode slot = new() { Size = new Vector2(EatWidth, RowHeight), IsVisible = true };
+
+      int index = i;
+      TextButtonNode button = new()
+      {
+        Size = new Vector2(EatWidth, RowHeight),
+        String = "Eat",
+        TextTooltip = "Eat one of this meal. One click, one item.",
+        IsVisible = false,
+        OnClick = () => EatRow(index)
+      };
+      button.AttachNode(slot);
+
       container.AddNode(label);
       container.AddNode(value);
+      container.AddNode(slot);
 
       _scroll.ContentNode.AddNode(container);
       _rows.Add((container, label, value));
+      _eat.Add((slot, button));
     }
 
     _scroll.ScrollToStart();
@@ -129,9 +158,11 @@ public class BonusesPanelNode : TabPanelNode
       {
         SetHeading(ref row, $"{PursuitName(group.Key)} ({group.Count()})");
 
+        // Every row in the bags gets an Eat button: the player reads the whole
+        // list and picks, so the plugin decides nothing (PAC, 7 Nov 2026).
         foreach (FoodStack stack in group)
           Set(ref row, $"{stack.Quantity}x {stack.Name}", stack.Stats,
-            role: stack.Role.Length == 0 ? null : stack.Role, tooltip: stack.Where);
+            role: stack.Role.Length == 0 ? null : stack.Role, tooltip: stack.Where, eat: stack);
       }
     }
 
@@ -142,6 +173,7 @@ public class BonusesPanelNode : TabPanelNode
       (HorizontalListNode container, TextNode label, TextNode value) = _rows[row];
       container.IsVisible = label.IsVisible = value.IsVisible = false;
       SetTooltip(row, label, "");
+      SetEat(row, null);
     }
 
     // Guarded, since Refresh runs every frame and re-measuring walks the whole
@@ -182,6 +214,8 @@ public class BonusesPanelNode : TabPanelNode
     label.IsVisible = true;
     label.String = text;
     value.IsVisible = false;
+    _eat[row - 1].Slot.IsVisible = false;
+    SetEat(row - 1, null);
 
     _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: true, first: !_headingDrawn);
     _headingDrawn = true;
@@ -193,11 +227,14 @@ public class BonusesPanelNode : TabPanelNode
   /// so the role never rests on colour. Quality needs nothing extra: "(HQ)" is
   /// already in the name.
   /// </summary>
-  private void Set(ref int row, string name, string text, string? role = null, string tooltip = "")
+  private void Set(ref int row, string name, string text, string? role = null, string tooltip = "",
+    FoodStack? eat = null)
   {
     if (row >= _rows.Count) return;
 
     SetTooltip(row, _rows[row].Label, tooltip);
+    _eat[row].Slot.IsVisible = true;
+    SetEat(row, eat is { InBags: true } ? eat : null);
     (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
 
     container.IsVisible = label.IsVisible = value.IsVisible = true;
@@ -208,6 +245,31 @@ public class BonusesPanelNode : TabPanelNode
     value.TextColor = NativeTheme.Text;
 
     _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: false, first: false);
+  }
+
+  /// <summary>
+  /// Shows the row's Eat button for a meal in the bags, enabled only when the
+  /// game would accept it now. Null hides it. Refresh runs every frame, so the
+  /// nodes are only written when the state changes.
+  /// </summary>
+  private void SetEat(int row, FoodStack? stack)
+  {
+    _eatTargets[row] = stack;
+
+    bool visible = stack is not null;
+    bool enabled = visible && Food.CanEat(stack!.ItemId, stack.HighQuality);
+    if (_eatState[row] == (visible, enabled)) return;
+
+    _eatState[row] = (visible, enabled);
+    TextButtonNode button = _eat[row].Button;
+    button.IsVisible = visible;
+    button.IsEnabled = enabled;
+  }
+
+  /// <summary>One click, one item. Nothing repeats.</summary>
+  private void EatRow(int row)
+  {
+    if (_eatTargets[row] is { } stack) Food.Eat(stack.ItemId, stack.HighQuality);
   }
 
   /// <summary>Tooltip text each row last had. Rows are reused, so it follows the row.</summary>

@@ -104,8 +104,13 @@ public class FoodWindow : Window
           {
             ImGui.TextUnformatted(pick.HighQuality ? $"{pick.Name} (HQ)" : pick.Name);
 
-            if (pick.InBags) EatButton(pick);
+            if (pick.Eatable) EatButton(pick);
             else RightAligned($"Found in {pick.Where}");
+
+            // More than one meal is a choice, and the choice is the player's:
+            // no button here, just where to see them all.
+            if (pick.Options > 1)
+              ImGui.TextDisabled($"+{pick.Options - 1} more in the Bonuses tab");
           }
 
           ImGui.Spacing();
@@ -198,8 +203,10 @@ public class FoodWindow : Window
   }
 
   /// <summary>
-  /// One click eats one of this meal. Bag food only; disabled whenever the game
-  /// would refuse (casting, a cutscene, an animation lock). Nothing here repeats.
+  /// One click eats one of this meal. Shown only when it is the role's one meal
+  /// and it is in the bags (<see cref="RolePick.Eatable"/>); disabled whenever
+  /// the game would refuse (casting, a cutscene, an animation lock). Nothing
+  /// here repeats.
   /// </summary>
   private void EatButton(RolePick pick)
   {

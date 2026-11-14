@@ -55,6 +55,11 @@ public unsafe class MainAddon : NativeAddon
   /// </summary>
   private bool _pendingSettings;
 
+  /// <summary>The Bonuses tab asked for before <see cref="OnSetup"/> ran (<c>/tm eat</c>). Same race, same fix.</summary>
+  private bool _pendingBonuses;
+
+  private BonusesPanelNode? _bonusesPanel;
+
   /// <summary>
   /// A bundle asked for before the addon finished allocating. Native addon
   /// creation is not synchronous with <see cref="KamiToolKit.BaseTypes.NativeAddon.Open"/>
@@ -96,6 +101,7 @@ public unsafe class MainAddon : NativeAddon
 
     _questsPanel = quests;
     _settingsPanel = settings;
+    _bonusesPanel = bonuses;
 
     TabPanelNode[] panels = [overview, quests, news, bonuses, progression, settings, help, credits];
 
@@ -140,12 +146,19 @@ public unsafe class MainAddon : NativeAddon
     {
       _pendingUnfinished = null;
       _pendingSettings = false;
+      _pendingBonuses = false;
       ShowUnfinished(pending.Title, pending.Quests, pending.EmptyMessage);
     }
     else if (_pendingSettings)
     {
       _pendingSettings = false;
+      _pendingBonuses = false;
       OpenSettings();
+    }
+    else if (_pendingBonuses)
+    {
+      _pendingBonuses = false;
+      OpenBonuses();
     }
     else
     {
@@ -203,6 +216,22 @@ public unsafe class MainAddon : NativeAddon
   }
 
   /// <summary>
+  /// Switches to the Bonuses tab, for <c>/tm eat</c> when there is a choice to
+  /// make. Queued for <see cref="OnSetup"/> if the window was opened in this same call.
+  /// </summary>
+  public void OpenBonuses()
+  {
+    if (_bonusesPanel is null)
+    {
+      _pendingBonuses = true;
+      return;
+    }
+
+    Show(_bonusesPanel);
+    _tabs?.SelectTab("Bonuses");
+  }
+
+  /// <summary>
   /// Only the visible panel is refreshed; a hidden one has nothing worth
   /// recomputing. OnUpdate runs every frame while the window exists.
   ///
@@ -239,6 +268,7 @@ public unsafe class MainAddon : NativeAddon
     // Cleared so that a request made after the window closes is queued for the
     // next OnSetup, instead of acting on a panel that no longer exists.
     _settingsPanel = null;
+    _bonusesPanel = null;
 
     base.OnFinalize(addon);
   }
