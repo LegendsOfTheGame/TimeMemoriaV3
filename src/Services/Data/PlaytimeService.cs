@@ -135,6 +135,7 @@ public class PlaytimeService(
 
     Current.LifetimePlaytime = TimeSpan.FromDays(days) + TimeSpan.FromHours(hours) + TimeSpan.FromMinutes(minutes);
     Current.LifetimePlaytimeUpdatedUtc = DateTime.UtcNow;
+    Current.ObservedAtLifetimeReading = Current.ObservedPlaytime;
     Save();
 
     _logger.Debug($"[Playtime] Lifetime playtime updated to {Current.LifetimePlaytime}");

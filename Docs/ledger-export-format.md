@@ -271,7 +271,7 @@ Motivation) stays ungated rather than gated on an arbitrary one.
 | `server.ldc` | `World → WorldDCGroupType.Name` | **Built** |
 | `server.pdc` | `WorldDCGroupType → WorldRegionGroup.Name` | **Built** |
 | `comm` | `IPlayerState.PlayerCommendations` | **Built** |
-| `playtime` | Parsed from the `/playtime` system message | **Built.** Stale by nature — see below |
+| `playtime` | Parsed from the `/playtime` system message, plus observed time since | **Built.** Estimated to the export time when `est` is 1 — see below |
 | `msqBreakdown` | Filtered MSQ bucket counts per expansion | **Built.** ARR correctly reports 240, not the 289 raw rows, so starting-city and Grand Company filtering is applied |
 | `msqPatch` | `toc.json` patch bookends vs `QuestManager.IsQuestComplete` | **Built.** Feeds the MSQ Progress field — see section above. Pandora Lunar consumes `reached` |
 | `msqBreakdownTotals` | — | **Deliberately not sent.** Static reference data the ledger already holds, and ours understates Dawntrail |
@@ -313,6 +313,17 @@ Motivation) stays ungated rather than gated on an arbitrary one.
    when lifetime playtime was last refreshed, which only happens when the
    player runs `/playtime`. If `asOf` is missing but `days`/`hours` are
    present, the figure predates this version and its age is unknown.
+
+   **Estimated playtime.** When `playtime.est` is `1`, `days`/`hours` are the
+   last `/playtime` reply plus the logged-in time the plugin observed since.
+   Then `asOf` is the export time, and `readAt` is the time of the last
+   `/playtime` reply. The plugin never runs `/playtime` itself. MemoriaProbe
+   checked the estimate on 12 November 2026: three comparisons, one across a
+   full game exit, all within the one-minute truncation of `/playtime`. Time
+   played while the plugin is not loaded is missing until the player runs
+   `/playtime` again. Without `est`, the fields have the old meaning. A record
+   saved before this version sends no `est` until the player runs `/playtime`
+   once.
 
 6. **Job names are the English sheet names, title-cased**, matching the keys
    already used in `combat` / `craft` / `gather`.

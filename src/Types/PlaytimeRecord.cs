@@ -28,6 +28,31 @@ public class PlaytimeRecord
   /// <summary>Time observed by the plugin across every session it has watched.</summary>
   public TimeSpan ObservedPlaytime { get; set; } = TimeSpan.Zero;
 
+  /// <summary>
+  /// ObservedPlaytime at the moment of the last /playtime reply. Null on records
+  /// saved before this field existed, until the player runs /playtime again.
+  /// </summary>
+  public TimeSpan? ObservedAtLifetimeReading { get; set; }
+
+  /// <summary>
+  /// Whether <see cref="EstimateLifetime"/> adds observed time to the last reading.
+  /// Methods, not properties, so the config serializer does not write them.
+  /// </summary>
+  public bool CanEstimateLifetime() =>
+    LifetimePlaytime > TimeSpan.Zero && ObservedAtLifetimeReading is { } baseline && ObservedPlaytime >= baseline;
+
+  /// <summary>
+  /// The last /playtime figure plus the time observed since that reply.
+  ///
+  /// MemoriaProbe's playtime probe checked this against /playtime on 12 Nov 2026:
+  /// three comparisons, one across a full game exit, all within the one-minute
+  /// truncation of /playtime. The game counts only logged-in time, and so does
+  /// this. Time played while this plugin is not loaded is missing until the next
+  /// /playtime the player runs.
+  /// </summary>
+  public TimeSpan EstimateLifetime() =>
+    CanEstimateLifetime() ? LifetimePlaytime + (ObservedPlaytime - ObservedAtLifetimeReading!.Value) : LifetimePlaytime;
+
   [NonSerialized]
   public DateTime LastTickUtc = DateTime.UtcNow;
 }

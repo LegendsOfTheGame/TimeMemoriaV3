@@ -505,20 +505,38 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// Lifetime playtime with the age of the figure attached. Omitted entirely when
   /// the player has never run /playtime, since sending zeroes would overwrite a
   /// good value the ledger already holds.
+  ///
+  /// When the record has a baseline, the figure is the last /playtime reply plus
+  /// the time observed since, so it is current at export without the plugin
+  /// running /playtime. Then "asOf" is the export time, "readAt" is the last
+  /// /playtime reply, and "est" is 1. Without a baseline (a record from before
+  /// this version), the figure is the plain reading, as before.
   /// </summary>
   private JsonObject? BuildPlaytime()
   {
     PlaytimeRecord? record = _playtime.Current;
     if (record == null || record.LifetimePlaytime <= TimeSpan.Zero) return null;
 
+    bool estimated = record.CanEstimateLifetime();
+    TimeSpan total = record.EstimateLifetime();
+
     JsonObject playtime = new()
     {
-      ["days"] = (int)record.LifetimePlaytime.TotalDays,
-      ["hours"] = record.LifetimePlaytime.Hours
+      ["days"] = (int)total.TotalDays,
+      ["hours"] = total.Hours
     };
 
-    if (record.LifetimePlaytimeUpdatedUtc.HasValue)
+    if (estimated)
+    {
+      playtime["asOf"] = Stamp(DateTime.UtcNow);
+      if (record.LifetimePlaytimeUpdatedUtc.HasValue)
+        playtime["readAt"] = Stamp(record.LifetimePlaytimeUpdatedUtc.Value);
+      playtime["est"] = 1;
+    }
+    else if (record.LifetimePlaytimeUpdatedUtc.HasValue)
+    {
       playtime["asOf"] = Stamp(record.LifetimePlaytimeUpdatedUtc.Value);
+    }
 
     return playtime;
   }
