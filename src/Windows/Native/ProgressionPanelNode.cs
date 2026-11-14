@@ -145,6 +145,11 @@ public class ProgressionPanelNode : TabPanelNode
     if (unlocked.Count != _lastRowCount)
     {
       _lastRowCount = unlocked.Count;
+
+      // Layout first. RecalculateSizes measures the content before it lays it
+      // out, so without this the scroll range still counts the hidden rows and
+      // the list scrolls past its end.
+      _scroll.ContentNode.RecalculateLayout();
       _scroll.RecalculateSizes();
     }
   }

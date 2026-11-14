@@ -39,7 +39,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
       ["ew"] = (4, "Endwalker"),
       ["dt"] = (5, "Dawntrail"),
 
-      // Not released yet (due January 2027) — nothing under expansion id 6 will
+      // Not released yet (due 23 February 2027) — nothing under expansion id 6 will
       // match anything until then, so this just sits ready rather than needing
       // a same-day patch when it ships.
       ["ec"] = (6, "Evercold")
