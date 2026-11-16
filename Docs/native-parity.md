@@ -80,6 +80,8 @@ not carry over.
 - `Counting since 16:49` — says when the session clock started, which Classic
   does not.
 - Main Scenario pacing as its own row, rather than buried in Story Remaining.
+  Classic got the same row on 15 November 2026, when the figure began to stop
+  at the final Main Scenario quest.
 
 ## Why this matters more than it looks
 

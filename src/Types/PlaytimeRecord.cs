@@ -53,6 +53,21 @@ public class PlaytimeRecord
   public TimeSpan EstimateLifetime() =>
     CanEstimateLifetime() ? LifetimePlaytime + (ObservedPlaytime - ObservedAtLifetimeReading!.Value) : LifetimePlaytime;
 
+  /// <summary>
+  /// Lifetime playtime at the moment the plugin saw the last Main Scenario quest
+  /// finish. Null until the plugin sees that happen. A character that was
+  /// already complete when the plugin first saw it never gets a value, because
+  /// the playtime at that earlier moment cannot be found later.
+  /// </summary>
+  public TimeSpan? MsqCompletePlaytime { get; set; }
+
+  /// <summary>
+  /// The number of Main Scenario quests complete when <see cref="MsqCompletePlaytime"/>
+  /// was saved. A patch that adds quests changes the count, which makes the saved
+  /// value stale until the player finishes the new quests.
+  /// </summary>
+  public int? MsqCompleteCount { get; set; }
+
   [NonSerialized]
   public DateTime LastTickUtc = DateTime.UtcNow;
 }

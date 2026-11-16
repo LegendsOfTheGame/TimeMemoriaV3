@@ -1868,6 +1868,10 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     else
       ImGui.TextDisabled($"    across {_pacing.TotalComplete} completed quests");
 
+    // Same figure as the Native window's "Main Scenario" row, so the two windows match.
+    double? msq = _pacing.MsqMinutesPerQuest;
+    DrawLabelled("Main Scenario:", msq.HasValue ? PacingService.Format(msq.Value) : "—");
+
     ImGui.Spacing();
     ImGui.Spacing();
     DrawStoryEstimates();

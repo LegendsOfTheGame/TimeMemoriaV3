@@ -110,7 +110,13 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
     // and a tree walk every five seconds.
     if (_clientState.IsLoggedIn) _dataService.UpdateQuestData();
 
-    if (_sessionBaseline is not null || _anchorDueAt is null) return;
+    if (_sessionBaseline is not null)
+    {
+      WatchMsqCompletion();
+      return;
+    }
+
+    if (_anchorDueAt is null) return;
     if (!_clientState.IsLoggedIn || DateTime.UtcNow < _anchorDueAt.Value) return;
 
     // Forced: this runs once and sets the baseline every later figure is
@@ -146,6 +152,45 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
 
   private DateTime? _countingSince;
 
+  /// <summary>
+  /// True after the settled quest tree has shown at least one Main Scenario
+  /// quest left this session. Only a change from incomplete to complete that the
+  /// plugin sees gives the playtime of the final quest. A character that is
+  /// already complete at login never sets this.
+  /// </summary>
+  private bool _msqSeenIncomplete;
+
+  /// <summary>The completion total at the last check, so the MSQ is read only when it can have changed.</summary>
+  private int _msqCheckedAtTotal = -1;
+
+  /// <summary>
+  /// Saves the playtime at the moment the last Main Scenario quest finishes.
+  /// Runs only after the session anchor, so the tree is settled: a tree that is
+  /// still loading reads as incomplete and must not count as the player's state.
+  /// </summary>
+  private void WatchMsqCompletion()
+  {
+    int total = TotalComplete;
+    if (total == _msqCheckedAtTotal) return;
+    _msqCheckedAtTotal = total;
+
+    IReadOnlyList<ExpansionProgress> msq = _dataService.MsqProgress;
+    int done = msq.Sum((e) => e.NumComplete);
+    int all = msq.Sum((e) => e.Total);
+    if (all <= 0) return;
+
+    if (done < all)
+    {
+      _msqSeenIncomplete = true;
+      return;
+    }
+
+    if (!_msqSeenIncomplete) return;
+
+    _msqSeenIncomplete = false;
+    _playtime.RecordMsqComplete(done);
+  }
+
   public DateTime? CountingSince => _countingSince;
 
   public int TotalComplete => _dataService.ExpansionProgress.Sum((e) => e.NumComplete);
@@ -173,11 +218,25 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
   {
     get
     {
-      TimeSpan lifetime = _playtime.Current?.LifetimePlaytime ?? TimeSpan.Zero;
+      PlaytimeRecord? record = _playtime.Current;
+      TimeSpan lifetime = record?.LifetimePlaytime ?? TimeSpan.Zero;
       if (lifetime <= TimeSpan.Zero) return null;
 
-      int msq = _dataService.MsqProgress.Sum((e) => e.NumComplete);
+      IReadOnlyList<ExpansionProgress> progress = _dataService.MsqProgress;
+      int msq = progress.Sum((e) => e.NumComplete);
       if (msq <= 0) return null;
+
+      // After the final quest, playtime keeps rising but the quest count does
+      // not, so the live figure would grow with every hour of other play. Use
+      // the playtime saved when the last quest finished. With no saved value
+      // for this quest count, show nothing rather than a figure that drifts.
+      int all = progress.Sum((e) => e.Total);
+      if (msq >= all)
+      {
+        if (record!.MsqCompleteCount == msq && record.MsqCompletePlaytime is { } atComplete)
+          return atComplete.TotalMinutes / msq;
+        return null;
+      }
 
       return lifetime.TotalMinutes / msq;
     }
@@ -202,6 +261,8 @@ public class PacingService(ILogger _logger, IFramework _framework, IClientState 
   {
     _sessionBaseline = null;
     _countingSince = null;
+    _msqSeenIncomplete = false;
+    _msqCheckedAtTotal = -1;
 
     // Clear the settling state too, or the next anchor compares against the
     // previous character's total and settles instantly on a wrong figure.

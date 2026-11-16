@@ -3,6 +3,12 @@ namespace TimeMemoria.Services;
 public interface IPlaytimeService : IHostedService
 {
   PlaytimeRecord? Current { get; }
+
+  /// <summary>
+  /// Saves the lifetime playtime now as the moment the Main Scenario became
+  /// complete, with <paramref name="msqCount"/> quests done.
+  /// </summary>
+  void RecordMsqComplete(int msqCount);
 }
 
 /// <summary>
@@ -139,6 +145,19 @@ public class PlaytimeService(
     Save();
 
     _logger.Debug($"[Playtime] Lifetime playtime updated to {Current.LifetimePlaytime}");
+  }
+
+  public void RecordMsqComplete(int msqCount)
+  {
+    // Without a baseline the figure is the last /playtime reply alone, which is
+    // older than this moment and too low. No value is better than a wrong one.
+    if (Current == null || !Current.CanEstimateLifetime()) return;
+
+    Current.MsqCompletePlaytime = Current.EstimateLifetime();
+    Current.MsqCompleteCount = msqCount;
+    Save();
+
+    _logger.Debug($"[Playtime] Main Scenario complete at {Current.MsqCompletePlaytime} ({msqCount} quests)");
   }
 
   private void Save()
