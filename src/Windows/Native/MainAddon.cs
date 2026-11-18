@@ -33,6 +33,7 @@ public unsafe class MainAddon : NativeAddon
   public required IFoodService Food { get; init; }
   public required IAchievementService Achievements { get; init; }
   public required IFeatureService Features { get; init; }
+  public required IQuestJournalService Journal { get; init; }
   public required Configuration Config { get; init; }
   public required ILogger Logger { get; init; }
 
@@ -95,7 +96,8 @@ public unsafe class MainAddon : NativeAddon
     };
     BonusesPanelNode bonuses = new() { Food = Food };
     ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport, Achievements = Achievements };
-    SettingsPanelNode settings = new() { Config = Config, DataService = DataService, Features = Features };
+    // Journal before Features: Features' init builds the rows, and the order here is the order they are set.
+    SettingsPanelNode settings = new() { Config = Config, DataService = DataService, Journal = Journal, Features = Features };
     HelpPanelNode help = new();
     CreditsPanelNode credits = new();
 

@@ -1,3 +1,4 @@
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using KamiToolKit.Nodes;
 
 namespace TimeMemoria.Windows.Native;
@@ -20,6 +21,9 @@ public class SettingsPanelNode : TabPanelNode
   public required Configuration Config { get; init; }
   public required IDataService DataService { get; init; }
 
+  /// <summary>For the Journal section. Assigned before Features in the initializer, and used only from Refresh and clicks.</summary>
+  public required IQuestJournalService Journal { get; init; }
+
   /// <summary>
   /// The feature rows are built when this is assigned, not in the constructor:
   /// the object initializer sets it only after the constructor returns, and the
@@ -33,6 +37,7 @@ public class SettingsPanelNode : TabPanelNode
     {
       _features = value;
       AddFeatureRows();
+      AddJournalRows();
       AddFooter();
     }
   }
@@ -197,6 +202,145 @@ public class SettingsPanelNode : TabPanelNode
     }
   }
 
+  // ---- Journal re-baseline (parity with the Classic Settings tab) ----
+  //
+  // Same rule as MainWindow.DrawJournalSettings: pick a date after the current
+  // Pre-Plugin date; every completion dated before it is re-marked Pre-Plugin,
+  // nothing on or after it changes, and the journal is backed up first.
+  // Native windows have no modal, so the confirm is a second click on the same
+  // button within RebaselineArmTime.
+
+  private static readonly TimeSpan RebaselineArmTime = TimeSpan.FromSeconds(5);
+
+  private TextNode _journalStatus = null!;
+  private TextInputNode _rebaselineInput = null!;
+  private TextButtonNode _rebaselineButton = null!;
+  private TextNode _rebaselineInfo = null!;
+  private string _rebaselineDate = DateTime.Now.ToString("yyyy-MM-dd");
+  private DateTime _rebaselineArmedUntil = DateTime.MinValue;
+
+  private void AddJournalRows()
+  {
+    _scroll.ContentNode.AddNode(new TextNode
+    {
+      Size = new Vector2(360.0f, 22.0f),
+      FontSize = 14,
+      String = "Journal",
+      IsVisible = true
+    });
+
+    _journalStatus = new TextNode
+    {
+      Size = new Vector2(600.0f, 36.0f),
+      FontSize = 12,
+      TextColor = NativeTheme.Text,
+      TextFlags = TextFlags.WordWrap | TextFlags.MultiLine,
+      String = "",
+      IsVisible = true
+    };
+    _scroll.ContentNode.AddNode(_journalStatus);
+
+    HorizontalListNode row = new() { Size = new Vector2(400.0f, RowHeight), ItemSpacing = 8.0f, IsVisible = true };
+
+    // No TextTooltip on the input: a tooltip stops a TextInputNode receiving
+    // clicks (kamitoolkit-node-pitfalls). The callback is set last.
+    _rebaselineInput = new TextInputNode
+    {
+      Size = new Vector2(130.0f, RowHeight),
+      MaxCharacters = 10,
+      PlaceholderString = "YYYY-MM-DD",
+      String = _rebaselineDate,
+      IsVisible = true,
+      OnInputReceived = (text) => { _rebaselineDate = text.ToString().Trim(); _rebaselineArmedUntil = DateTime.MinValue; }
+    };
+    row.AddNode(_rebaselineInput);
+
+    _rebaselineButton = new TextButtonNode
+    {
+      Size = new Vector2(200.0f, RowHeight),
+      String = "Set Baseline",
+      IsVisible = true,
+      OnClick = OnRebaselineClick
+    };
+    row.AddNode(_rebaselineButton);
+    _scroll.ContentNode.AddNode(row);
+
+    _rebaselineInfo = new TextNode
+    {
+      Size = new Vector2(600.0f, 18.0f),
+      FontSize = 11,
+      TextColor = NativeTheme.Text,
+      String = "",
+      IsVisible = true
+    };
+    _scroll.ContentNode.AddNode(_rebaselineInfo);
+  }
+
+  /// <summary>The cutoff and how many records it moves, or null when the date cannot be used.</summary>
+  private (DateOnly Cutoff, int Affected)? RebaselineTarget(string priorDate)
+  {
+    if (!DateOnly.TryParseExact(_rebaselineDate, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateOnly cutoff))
+      return null;
+    if (string.CompareOrdinal(cutoff.ToString("yyyy-MM-dd"), priorDate) <= 0) return null;
+
+    int affected = Journal.CountBefore(cutoff);
+    return affected > 0 ? (cutoff, affected) : null;
+  }
+
+  private void OnRebaselineClick()
+  {
+    if (Journal.PriorDate is not { } prior || RebaselineTarget(prior) is not { } target) return;
+
+    if (DateTime.UtcNow > _rebaselineArmedUntil)
+    {
+      _rebaselineArmedUntil = DateTime.UtcNow + RebaselineArmTime;
+      return;
+    }
+
+    _rebaselineArmedUntil = DateTime.MinValue;
+    Journal.Rebaseline(target.Cutoff);
+  }
+
+  private void RefreshJournal()
+  {
+    string? prior = Journal.PriorDate;
+
+    if (prior is null)
+    {
+      Set(_journalStatus, "No journal loaded yet.");
+      Set(_rebaselineInfo, "");
+      _rebaselineButton.IsEnabled = false;
+      return;
+    }
+
+    Set(_journalStatus, $"Quests completed on {prior} or earlier are shown as Pre-Plugin. To correct wrong dates, enter a later date: " +
+      "everything completed before it is re-marked Pre-Plugin, and nothing on or after it changes. The journal is backed up first.");
+
+    (DateOnly Cutoff, int Affected)? target = RebaselineTarget(prior);
+    bool armed = target is not null && DateTime.UtcNow <= _rebaselineArmedUntil;
+
+    _rebaselineButton.IsEnabled = target is not null;
+    Set(_rebaselineButton, armed ? $"Confirm: mark {target!.Value.Affected}" : "Set Baseline");
+
+    bool validDate = DateOnly.TryParseExact(_rebaselineDate, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out _);
+    Set(_rebaselineInfo,
+      !validDate ? "Enter a date as YYYY-MM-DD."
+      : target is null ? $"Must be after {prior}, with completions before it."
+      : armed ? "Click again to confirm. This cannot be undone in the plugin; a backup file is written first."
+      : $"{target.Value.Affected} record(s) dated before {_rebaselineDate} will be marked Pre-Plugin.");
+  }
+
+  /// <summary>Writes a node's text only when it changed: Refresh runs often.</summary>
+  private static void Set(TextNode node, string text)
+  {
+    if (node.String.ToString() != text) node.String = text;
+  }
+
+  private static void Set(TextButtonNode node, string text)
+  {
+    if (node.String.ToString() != text) node.String = text;
+  }
+
   private void AddFooter()
   {
     // This window has no resize handle -- the toolkit does not provide one --
@@ -238,6 +382,7 @@ public class SettingsPanelNode : TabPanelNode
     Sync(_spoiler, Config.SpoilerMode);
     Sync(_freeTrial, Config.FreeTrialMode);
     Sync(_useNative, Config.UseNativeUi);
+    RefreshJournal();
 
     // A feature switched on or off in either window shows or hides its Open
     // button here; the list then closes the gap and the scroll range follows.
@@ -287,6 +432,8 @@ public class SettingsPanelNode : TabPanelNode
       box.Size = new Vector2(Width - 24.0f, RowHeight);
 
     _resizeHint.Size = new Vector2(Width - 24.0f, 18.0f);
+    _journalStatus.Size = new Vector2(Width - 24.0f, 36.0f);
+    _rebaselineInfo.Size = new Vector2(Width - 24.0f, 18.0f);
 
     // The content never changes height at run time, so one measure per resize
     // is enough to set the scroll range.
