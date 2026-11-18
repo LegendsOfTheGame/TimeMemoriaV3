@@ -64,12 +64,34 @@ than trusted:
 - Asserted a trial's boss from memory while a complete local copy of the wiki sat
   on disk, and had to be corrected.
 
-Each was caught by the human and corrected before it reached anyone.
+The human found each of the mistakes above and corrected it before it reached
+a published build.
 
-The pattern worth noting is that none of these were found by review. Every one
-was found by running the plugin in the game and looking at what it said — which
-is why the human's testing is the load-bearing part of this arrangement rather
-than a formality.
+The mistakes below reached a published build. Each one was found after the
+release and fixed in a later version:
+
+- Wrote one character's quest completions into another character's journal. A
+  sweep could run between Logout and Login, when the game reported the new
+  character but still held the old one's quest data. Released in builds before
+  3.3.1.15; fixed in 3.3.1.15.
+- Showed Allied Society quests at level 1, because the level was read without
+  the sheet's level offset. Fixed in 3.4.2.15.
+- Shipped a Classic "click the area to open the map" link that never worked in
+  any build. Fixed in 3.4.1.15.
+- Counted the Hall of the Novice exercises as duties in the export's
+  `dutiesDone`, because their clear flag is not reliable. Released in 3.8.0.15;
+  fixed in 3.10.0.15.
+- Copied Dalamud's own libraries into the release zip, which made it 12.7 MB
+  instead of 1.3 MB. Fixed in 3.11.0.15.
+- Disposed the quest turn-in window's eye button in the wrong order, so every
+  plugin unload failed in 3.11.0.15. Fixed in 3.11.1.15, one day later.
+- Refreshed the native windows on every frame instead of once a second, which
+  cost up to 1.7 ms per frame. Fixed in 3.13.0.15.
+
+Most of these were found by running the plugin in the game and looking at what
+it said. The human's testing is the load-bearing part of this arrangement, not
+a formality. One was found by a code review: the per-frame refresh, which
+caused no visible error.
 
 ## Assets
 
@@ -84,6 +106,10 @@ No asset here is AI-generated.
   this plugin running, captured by the maintainer. Unretouched. The set the
   repository shipped with previously showed the original QuestTracker and has
   been replaced.
+- `assets/d17/image1.png` to `image3.png` — crops of the maintainer's
+  screenshots, cut to 730x380 or smaller for the Dalamud plugin listing.
+  Unretouched. `assets/d17/icon.png` is the same hand-drawn icon at 512x512,
+  prepared for the listing.
 
 If any of this changes, this section changes with it — the policy asks for asset
 disclosure to be more visible than code disclosure, since assets are what users
@@ -94,19 +120,6 @@ actually see.
 Portions of `src/` descend from [QuestTracker](https://github.com/keifufu/QuestTracker)
 (isaiahcat, keifufu), used under AGPL-3.0 and predating any AI involvement here.
 See [NOTICE](NOTICE).
-
-## For the submission pull request
-
-The policy asks for the disclosure in the PR description. This paragraph carries
-it:
-
-> **AI disclosure:** Copilot level. AI wrote most of the C# under my direction; I
-> planned the architecture, tested every change in game, and reviewed and
-> corrected the output. No assets are AI-generated. Full declaration, including
-> the mistakes AI made and how they were caught, is in
-> [AI-DECLARATION.md](AI-DECLARATION.md) in the plugin repository.
-
-Update the asset sentence if that stops being true before submission.
 
 ## Standard the maintainer holds to
 
