@@ -31,6 +31,26 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     _selectSettingsTab = true;
   }
 
+  /// <summary>
+  /// The Ko-fi heart in the title bar, beside collapse and close, the way
+  /// AutoHook carries one. A link only: no counter, no popup, no reminder.
+  /// Added here because a primary-constructor class has no constructor body,
+  /// and PreDraw runs before the title bar is drawn, so it shows on the
+  /// first frame. The count check keeps it to one button.
+  /// </summary>
+  public override void PreDraw()
+  {
+    if (TitleBarButtons.Count > 0) return;
+
+    TitleBarButtons.Add(new TitleBarButton
+    {
+      Icon = FontAwesomeIcon.Heart,
+      IconOffset = new Vector2(2, 1),
+      ShowTooltip = () => ImGui.SetTooltip("Support Tales of Milestones"),
+      Click = (_) => Dalamud.Utility.Util.OpenLink(KofiUrl)
+    });
+  }
+
   public override void Draw()
   {
     _dataService.UpdateQuestData();
