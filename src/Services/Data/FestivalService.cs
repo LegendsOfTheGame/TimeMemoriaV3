@@ -117,6 +117,10 @@ public class FestivalService(
   private static readonly Dictionary<uint, string> LocalNames = new()
   {
     [257] = "Keybound Brawler",
+    // 147: the FFXVI crossover. Its quests are 4796 A Land on Fire, 4797 Pain
+    // to Recall and 4798 The Path Infernal (Quest.Festival, read 18 Nov 2026).
+    // Without a name it showed as "Festival #147" beside the feed's own row.
+    [147] = "The Path Infernal (FFXVI Crossover)",
   };
 
   private static Dictionary<uint, string> LoadNames(ILogger logger, IDalamudPluginInterface pluginInterface)

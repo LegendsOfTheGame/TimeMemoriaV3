@@ -57,12 +57,12 @@ public class NewsPanelNode : TabPanelNode
   private readonly List<(HorizontalListNode Container, TextNode Label, TextNode Value)> _rows = [];
 
   /// <summary>
-  /// The Lodestone link on Maintenance and Active Events rows (Classic's
-  /// "[read]"). A small button, like Eat on the Bonuses tab, rather than a
-  /// SelectableTextNode, which draws a full list-row hover bar. It sits in a
-  /// fixed slot at the end of the label column, so the value column does not
-  /// move and a long title cannot run over it. The slot stays visible on every
-  /// row; only the button inside it hides.
+  /// The Lodestone link on Maintenance and Active Events (Classic's "[read]").
+  /// A small button, like Eat on the Bonuses tab, rather than a
+  /// SelectableTextNode, which draws a full list-row hover bar. It follows the
+  /// end of the title text on the title row (see Set). Haven, 18 Nov 2026: a
+  /// slot between label and title, and a button over the detail line, both
+  /// looked wrong.
   /// </summary>
   private const float LinkWidth = 48.0f;
   private readonly List<TextButtonNode> _links = [];
@@ -101,23 +101,25 @@ public class NewsPanelNode : TabPanelNode
         IsVisible = true
       };
 
-      TextNode label = MakeText(LabelWidth - LinkWidth, AlignmentType.Left);
+      TextNode label = MakeText(LabelWidth, AlignmentType.Left);
       TextNode value = MakeText(ValueWidth, AlignmentType.Left);
 
-      ResNode slot = new() { Size = new Vector2(LinkWidth, RowHeight), IsVisible = true };
+      // Attached to the row, not added to its list, so it takes no place in the
+      // layout: it draws over the start of the label column. Only rows whose
+      // label is empty get a URL (the detail line under a title).
       int index = i;
       TextButtonNode link = new()
       {
-        Size = new Vector2(LinkWidth - 6.0f, RowHeight),
+        Size = new Vector2(LinkWidth, RowHeight),
+        Position = new Vector2(0.0f, 0.0f),
         String = "Read",
         IsVisible = false,
         OnClick = () => { if (_linkUrls[index] is { } url) Dalamud.Utility.Util.OpenLink(url); }
       };
-      link.AttachNode(slot);
 
       container.AddNode(label);
-      container.AddNode(slot);
       container.AddNode(value);
+      link.AttachNode(container);
 
       _scroll.ContentNode.AddNode(container);
       _rows.Add((container, label, value));
@@ -499,6 +501,16 @@ public class NewsPanelNode : TabPanelNode
     label.String = name;
     value.String = text;
     value.TextColor = NativeTheme.Text;
+
+    // The Read button goes straight after the title text, as Classic's
+    // "[read]" follows its title. Measured with the game's own text measure,
+    // so it follows the title at any width. Attached, not in the row's list,
+    // so the row's layout does not move it.
+    if (_linkUrls[row - 1] is not null)
+    {
+      float start = value.X > 0 ? value.X : LabelWidth;
+      _links[row - 1].Position = new Vector2(start + value.GetTextDrawSize(text).X + 8.0f, 0.0f);
+    }
 
     _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: false, first: false);
   }

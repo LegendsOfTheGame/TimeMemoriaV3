@@ -76,9 +76,10 @@ public static partial class EventsSummary
   private static readonly Dictionary<uint, string[]> FeedAliases = new()
   {
     // "FFXV Crossover (2019)". 2026 ran as "A Nocturne for Heroes"; the topic
-    // says "FINAL FANTASY XV Collaboration Event". "FINAL FANTASY XIV" does
-    // not contain "FINAL FANTASY XV", so this cannot match every title.
-    [84] = ["FINAL FANTASY XV", "Nocturne for Heroes"],
+    // says "FINAL FANTASY XV Collaboration Event". The trailing space matters:
+    // "FINAL FANTASY XVI" begins with "FINAL FANTASY XV", so without it the
+    // FFXVI crossover title (festival 147) matched this alias (18 Nov 2026).
+    [84] = ["FINAL FANTASY XV ", "Nocturne for Heroes"],
   };
 
   private static bool Matches(string feedTitle, ActiveFestival festival)

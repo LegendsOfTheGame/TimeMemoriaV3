@@ -65,8 +65,8 @@ holds the two formatters (`Span`, `UnixLocal`) both of those needed.
 
 Nothing known. The last item, the Lodestone `[read]` link on Maintenance and
 Active Events rows, was added on 18 November 2026 as a small **Read** button
-(a `TextButtonNode`, like Eat on the Bonuses tab) in a fixed slot at the end of
-the label column. `SelectableTextNode` was not used, because it draws a full
+(a `TextButtonNode`, like Eat on the Bonuses tab) straight after the title
+text, placed with the game's own text measure (`GetTextDrawSize`). `SelectableTextNode` was not used, because it draws a full
 list-row hover bar. The button's tooltip shows the URL, as Classic's does.
 
 ## Better in Native, keep
