@@ -22,6 +22,12 @@ public class BonusesPanelNode : TabPanelNode
   private const float EatWidth = 48.0f;
 
   /// <summary>
+  /// Where the food is ("B1, B4, S"), after the Eat button. A column of its
+  /// own: in the name the mark was cut off by the ellipsis on long names.
+  /// </summary>
+  private const float LocationWidth = 90.0f;
+
+  /// <summary>
   /// Summary rows plus headroom for the held-food list, which grows with how
   /// many distinct meals are in the bags — doubled wherever a food is held in
   /// both qualities, since NQ and HQ draw as separate rows. NewsPanelNode's own
@@ -54,6 +60,9 @@ public class BonusesPanelNode : TabPanelNode
   private readonly List<(ResNode Slot, TextButtonNode Button)> _eat = [];
   private readonly FoodStack?[] _eatTargets = new FoodStack?[MaxRows];
 
+  /// <summary>Per row: the location column.</summary>
+  private readonly List<TextNode> _location = [];
+
   /// <summary>Last state written to each button, so nodes are only touched when it changes.</summary>
   private readonly (bool Visible, bool Enabled)[] _eatState = new (bool, bool)[MaxRows];
 
@@ -78,7 +87,7 @@ public class BonusesPanelNode : TabPanelNode
     {
       HorizontalListNode container = new()
       {
-        Size = new Vector2(NameWidth + StatsWidth + EatWidth, RowHeight),
+        Size = new Vector2(NameWidth + StatsWidth + EatWidth + LocationWidth, RowHeight),
         IsVisible = true
       };
 
@@ -102,9 +111,14 @@ public class BonusesPanelNode : TabPanelNode
       container.AddNode(value);
       container.AddNode(slot);
 
+      TextNode location = MakeText(LocationWidth, AlignmentType.Left);
+      location.TextTooltip = "B1 to B4: the inventory block, as /isearch numbers it. S: the saddlebag.";
+      container.AddNode(location);
+
       _scroll.ContentNode.AddNode(container);
       _rows.Add((container, label, value));
       _eat.Add((slot, button));
+      _location.Add(location);
     }
 
     _scroll.ScrollToStart();
@@ -174,6 +188,7 @@ public class BonusesPanelNode : TabPanelNode
       container.IsVisible = label.IsVisible = value.IsVisible = false;
       SetTooltip(row, label, "");
       SetEat(row, null);
+      SetLocation(row, "");
     }
 
     // Guarded, since Refresh runs every frame and re-measuring walks the whole
@@ -216,6 +231,7 @@ public class BonusesPanelNode : TabPanelNode
     value.IsVisible = false;
     _eat[row - 1].Slot.IsVisible = false;
     SetEat(row - 1, null);
+    SetLocation(row - 1, "");
 
     _relayout |= NativeTheme.ShapeRow(container, label, RowHeight, heading: true, first: !_headingDrawn);
     _headingDrawn = true;
@@ -235,6 +251,7 @@ public class BonusesPanelNode : TabPanelNode
     SetTooltip(row, _rows[row].Label, tooltip);
     _eat[row].Slot.IsVisible = true;
     SetEat(row, eat is { InBags: true } ? eat : null);
+    SetLocation(row, eat?.Location ?? "");
     (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
 
     container.IsVisible = label.IsVisible = value.IsVisible = true;
@@ -264,6 +281,20 @@ public class BonusesPanelNode : TabPanelNode
     TextButtonNode button = _eat[row].Button;
     button.IsVisible = visible;
     button.IsEnabled = enabled;
+  }
+
+  /// <summary>Location text each row last had, so the node is only written when it changes.</summary>
+  private readonly string[] _locations = new string[MaxRows];
+
+  /// <summary>The location column. Empty text leaves the column in place, so the rows stay aligned.</summary>
+  private void SetLocation(int row, string text)
+  {
+    if ((_locations[row] ?? "") == text) return;
+
+    _locations[row] = text;
+    // Two spaces keep the text off the Eat button's edge.
+    _location[row].String = text.Length > 0 ? $"  {text}" : "";
+    _location[row].TextColor = NativeTheme.Text;
   }
 
   /// <summary>One click, one item. Nothing repeats.</summary>

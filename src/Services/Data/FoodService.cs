@@ -52,8 +52,13 @@ public record FoodChoice(uint ItemId, string Name, bool HighQuality, int Quantit
 /// Whether this quality is in the main inventory. Saddlebag copies count in
 /// Quantity but the game will not use an item from there.
 /// </param>
+/// <param name="Location">
+/// Where this row's copies are, for the row itself: "B1", "B2, S". B is the
+/// inventory block as /isearch numbers it; S is the saddlebag or premium
+/// saddlebag. Empty when no block could be read.
+/// </param>
 public record FoodStack(string Name, string Stats, FoodPursuit Pursuit, string Role, int Score, bool HighQuality,
-  bool IsActive, int Quantity, string Where = "", uint ItemId = 0, bool InBags = false);
+  bool IsActive, int Quantity, string Where = "", uint ItemId = 0, bool InBags = false, string Location = "");
 
 /// <summary>What kind of play a food's stats are for — the axis food actually splits on in this game.</summary>
 public enum FoodPursuit { Combat, Crafting, Gathering }
@@ -509,7 +514,10 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
           Where(first.Item.Name.ToString(),
             held.Concat(elsewhere).Where((f) => f.Item.RowId == group.Key.RowId)),
           first.Item.RowId,
-          group.Any((f) => f.Source == "Inventory"));
+          group.Any((f) => f.Source == "Inventory"),
+          // This row's quality only: the row counts that quality, so its
+          // marker says where those copies are.
+          Location(group));
       })
       // What you're already eating leads its pursuit group -- you're benefiting
       // from it right now, whether or not it happens to be the top score.
@@ -710,9 +718,11 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     InventoryManager* manager = InventoryManager.Instance();
     if (manager is null) return held;
 
-    foreach (InventoryType bag in Bags)
+    Dictionary<(int Page, int Slot), int> blocks = DisplayBlocks();
+
+    for (int page = 0; page < Bags.Length; page++)
     {
-      InventoryContainer* container = manager->GetInventoryContainer(bag);
+      InventoryContainer* container = manager->GetInventoryContainer(Bags[page]);
       if (container is null) continue;
 
       for (int index = 0; index < container->Size; index++)
@@ -727,12 +737,63 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
           item.Value,
           slot->Quantity,
           slot->Flags.HasFlag(InventoryItem.ItemFlags.HighQuality),
-          "Inventory"));
+          "Inventory",
+          blocks.GetValueOrDefault((page, index))));
       }
     }
 
     ReadSaddleBag(held);
     return held;
+  }
+
+  /// <summary>
+  /// The block each bag slot is shown in. The container (Inventory1-4) is not
+  /// what the player sees: the game keeps its own display order in
+  /// ItemOrderModule.InventorySorter. Each entry's position in that vector is
+  /// the display position, and the entry's Page/Slot is the container (0-based
+  /// Inventory1-4) and slot. So block = position / ItemsPerPage + 1.
+  /// MemoriaProbe foodorder checked this on 28 Sep 2026: 26 of 26 food stacks
+  /// matched a screenshot, and Miso Soup matched /isearch "Block: [4]".
+  /// An empty map, and so no block marks, when the sorter is not readable.
+  /// </summary>
+  private static Dictionary<(int Page, int Slot), int> DisplayBlocks()
+  {
+    Dictionary<(int Page, int Slot), int> blocks = [];
+
+    var order = FFXIVClientStructs.FFXIV.Client.UI.Misc.ItemOrderModule.Instance();
+    if (order is null) return blocks;
+
+    var sorter = order->InventorySorter;
+    if (sorter is null || sorter->ItemsPerPage <= 0) return blocks;
+
+    long count = sorter->Items.LongCount;
+    for (long i = 0; i < count; i++)
+    {
+      var entry = sorter->Items[i].Value;
+      if (entry is null) continue;
+      blocks.TryAdd((entry->Page, entry->Slot), (int)(i / sorter->ItemsPerPage) + 1);
+    }
+
+    return blocks;
+  }
+
+  /// <summary>
+  /// "B1, B4, S": every place a row's food is in, each one time. B is the
+  /// inventory block, S the saddlebag or premium saddlebag (the game does not
+  /// number saddlebag blocks). Blocks first, lowest first.
+  /// </summary>
+  private static string Location(IEnumerable<Held> copies)
+  {
+    List<string> marks = [.. copies
+      .Where((f) => f.Block > 0)
+      .Select((f) => f.Block)
+      .Distinct()
+      .Order()
+      .Select((b) => $"B{b}")];
+
+    if (copies.Any((f) => f.Source is "Saddlebag" or "Premium Saddlebag")) marks.Add("S");
+
+    return string.Join(", ", marks);
   }
 
   /// <summary>
@@ -948,5 +1009,10 @@ public unsafe class FoodService(ILogger _logger, IDataManager _dataManager, ICli
     return row == 0 ? null : _dataManager.GetExcelSheet<ItemFoodRow>().GetRowOrDefault(row);
   }
 
-  private readonly record struct Held(ItemRow Item, int Quantity, bool HighQuality, string Source);
+  /// <param name="Block">
+  /// The inventory block the stack is shown in, 1 to 4, the same number as
+  /// /isearch's "Block: [N]". Zero outside the main inventory, or when the
+  /// display order could not be read.
+  /// </param>
+  private readonly record struct Held(ItemRow Item, int Quantity, bool HighQuality, string Source, int Block = 0);
 }
