@@ -23,6 +23,10 @@ public class ProgressionPanelNode : TabPanelNode
 
   public required IClassJobProgressService ProgressService { get; init; }
   public required ILedgerExportService LedgerExport { get; init; }
+  public required IAchievementService Achievements { get; init; }
+
+  /// <summary>The one button that asks the game server for something; see AchievementService.</summary>
+  private readonly TextButtonNode _readHunts;
 
   private readonly TextButtonNode _copyLedger;
   private readonly TextButtonNode _openLedger;
@@ -60,6 +64,9 @@ public class ProgressionPanelNode : TabPanelNode
     // Both in one paste, for when the Ledger should take everything at once.
     _copyEverything = MakeButton("Copy everything",
       () => Copy(LedgerExport.BuildFullJson, "Copied progress and collections together."));
+
+    _readHunts = MakeButton("Read hunt counts", () => Achievements.RequestHuntGroups());
+    _readHunts.TextTooltip = "Asks the game for your count in each \"Mark of the ...\" achievement, one at a time (about 10 seconds). The export then carries them for the Ledger's Hunts tab.";
 #pragma warning restore CS8602
 
     _openLedger = MakeButton("Open the Ledger",
@@ -101,6 +108,12 @@ public class ProgressionPanelNode : TabPanelNode
       _copyFeedback.String = "Nothing is sent anywhere — the export stays on your clipboard.";
       _copyShownAt = DateTime.MinValue;
     }
+
+    // While hunt counts are read, the feedback line shows the progress.
+    if (_copyShownAt == DateTime.MinValue && Achievements.HuntRequestStatus.Length > 0
+        && _copyFeedback.String.ToString() != Achievements.HuntRequestStatus)
+      _copyFeedback.String = Achievements.HuntRequestStatus;
+    _readHunts.IsEnabled = !Achievements.HuntRequestRunning;
 
     List<ClassJobProgress> unlocked = [.. ProgressService.GetProgress().Where((p) => p.IsUnlocked)];
 
@@ -209,6 +222,9 @@ public class ProgressionPanelNode : TabPanelNode
 
     _copyEverything.Size = new Vector2(buttonWidth, buttonHeight);
     _copyEverything.Position = new Vector2(3 * (buttonWidth + gap), buttonsY);
+
+    _readHunts.Size = new Vector2(buttonWidth, buttonHeight);
+    _readHunts.Position = new Vector2(4 * (buttonWidth + gap), buttonsY);
 
     _copyFeedback.Size = new Vector2(Width, 18.0f);
     _copyFeedback.Position = new Vector2(0.0f, buttonsY - 20.0f);

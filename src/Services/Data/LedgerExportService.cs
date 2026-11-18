@@ -71,6 +71,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       JsonObject? duties = Reading(_achievements.Duties);
       if (duties != null) root["duties"] = duties;
 
+      JsonArray? huntGroups = BuildHuntGroups();
+      if (huntGroups != null) root["huntGroups"] = huntGroups;
+
       root["msqBreakdown"] = BuildMsqBreakdown();
 
       JsonObject? msqPatch = BuildMsqPatch();
@@ -600,6 +603,33 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     if (Reading(_achievements.Crafted) is { } crafted) collectables["crafted"] = crafted;
 
     return collectables.Count > 0 ? collectables : null;
+  }
+
+  /// <summary>
+  /// The game's count of unique A/S marks killed in each hunt group that has
+  /// been read, by achievement id, so the Ledger can set it beside its own
+  /// ticks. A group never read is left out, not sent
+  /// as zero. Null when none has been read.
+  /// </summary>
+  private JsonArray? BuildHuntGroups()
+  {
+    JsonArray groups = [];
+
+    foreach (HuntGroup group in _achievements.HuntGroupDefinitions)
+    {
+      if (!_achievements.HuntGroups.TryGetValue(group.AchievementId, out HuntGroupReading? reading)) continue;
+
+      groups.Add(new JsonObject
+      {
+        ["id"] = group.AchievementId,
+        ["name"] = group.Name,
+        ["count"] = reading.Count,
+        ["max"] = reading.Max,
+        ["asOf"] = Stamp(reading.TakenUtc)
+      });
+    }
+
+    return groups.Count > 0 ? groups : null;
   }
 
   /// <summary>

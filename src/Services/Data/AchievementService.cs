@@ -28,6 +28,22 @@ public record AchievementReading(int Value, bool IsExact, int Tier, int TierCoun
 /// <param name="TakenUtc">When the completion bitmap was last read.</param>
 public record AchievementTotals(int Complete, int Total, DateTime TakenUtc);
 
+/// <summary>
+/// One A or S rank hunt group achievement ("Mark of the Sea: A").
+/// </summary>
+/// <param name="Size">How many marks the group counts: the entries in the achievement's Data column.</param>
+public record HuntGroup(uint AchievementId, string Name, int Size);
+
+/// <summary>
+/// How many unique marks in one group the game counts as killed. The game's own
+/// total for the group only: it never says which marks.
+/// </summary>
+/// <param name="Exact">
+/// True when this is the game's figure. Completion alone gives Count = Max,
+/// which is also exact, because a finished group has every mark.
+/// </param>
+public record HuntGroupReading(int Count, int Max, bool Exact, DateTime TakenUtc);
+
 /// <summary>The three running counts read out of the achievement progress slot.</summary>
 public enum AchievementSeries { Gathered, Crafted, Duties }
 
@@ -62,6 +78,27 @@ public interface IAchievementService : IHostedService
   /// window open and the slot holding the commendations achievement.
   /// </summary>
   string SourceFor(AchievementSeries series);
+
+  /// <summary>The 16 A and S rank hunt group achievements, from the sheets.</summary>
+  IReadOnlyList<HuntGroup> HuntGroupDefinitions { get; }
+
+  /// <summary>
+  /// The groups read so far, by achievement id. Taken the same passive way as
+  /// the other readings: a finished group from the completion bitmap, a partial
+  /// one when the player looks at that achievement in the game's window.
+  /// </summary>
+  IReadOnlyDictionary<uint, HuntGroupReading> HuntGroups { get; }
+
+  /// <summary>
+  /// Asks the game for every group's count, one after another. Only from the
+  /// "Read hunt counts" button; the plugin never does this by itself.
+  /// </summary>
+  void RequestHuntGroups();
+
+  bool HuntRequestRunning { get; }
+
+  /// <summary>"Reading hunt counts: 5 of 16", then a final line. Empty before the first run.</summary>
+  string HuntRequestStatus { get; }
 }
 
 /// <summary>
@@ -103,6 +140,25 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
   ];
 
   private readonly Dictionary<uint, (int Tier, int Count, Series Series)> _tiers = [];
+
+  /// <summary>
+  /// The A and S rank "Mark of the ..." achievements for ARR, Heavensward and
+  /// Stormblood. These 16 are the only ones that count unique marks in a
+  /// group (Achievement.Type 5, Data = MobHuntTarget rows); Shadowbringers on
+  /// has counters only. Ids from MemoriaProbe markachv, 12 Sep 2026.
+  ///
+  /// Prime Directive: this is the game's own total per group, the same kind of
+  /// profile figure as the duty count. The plugin never records which mark was
+  /// killed or when; the Ledger's hand ticks stay the only per-mark record.
+  /// </summary>
+  private static readonly uint[] HuntGroupIds =
+    [969, 970, 971, 972, 974, 975, 976, 977, 1261, 1262, 1263, 1264, 1911, 1912, 1914, 1915];
+
+  private readonly List<HuntGroup> _huntGroups = [];
+  private Dictionary<uint, HuntGroupReading> _huntReadings = [];
+
+  public IReadOnlyList<HuntGroup> HuntGroupDefinitions => _huntGroups;
+  public IReadOnlyDictionary<uint, HuntGroupReading> HuntGroups => _huntReadings;
 
   /// <summary>
   /// How many each tier asks for. Not available as a number anywhere on the
@@ -198,6 +254,132 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
 
       _logger.Debug($"[Achievement] {series}: {ids.Count} tiers from {string.Join(", ", stems)}.");
     }
+
+    BuildHuntGroups();
+  }
+
+  /// <summary>
+  /// Each group's size, from the achievement's own Data column: one non-zero
+  /// MobHuntTarget row per mark. The marks themselves are not sent. Lumina
+  /// types MobHuntTarget.Name as a BNpcName, but its values are not the marks'
+  /// BNpcName ids (row 313 holds 3618, "lower skylord", where the mark is
+  /// Forneus, 2936; checked 18 Nov 2026). The Ledger maps the achievement id
+  /// to its own group instead.
+  /// </summary>
+  private void BuildHuntGroups()
+  {
+    _huntGroups.Clear();
+
+    var achievements = _dataManager.GetExcelSheet<AchievementRow>();
+
+    foreach (uint id in HuntGroupIds)
+    {
+      if (achievements.GetRowOrDefault(id) is not { } row) continue;
+
+      int size = row.Data.Count((d) => d.RowId != 0);
+      if (size > 0) _huntGroups.Add(new HuntGroup(id, row.Name.ToString(), size));
+    }
+
+    _logger.Debug($"[Achievement] Hunt groups: {_huntGroups.Count} of {HuntGroupIds.Length}.");
+  }
+
+  private unsafe void RecordHunt(AchievementState* state, HuntGroup group, uint value)
+  {
+    int max = group.Size;
+    // A finished achievement reports its own requirement, which for these is
+    // the group size; the completion bit is a second check when it is loaded.
+    bool complete = state->IsLoaded() && state->IsComplete((int)group.AchievementId);
+    int count = complete ? max : (int)Math.Min(value, (uint)max);
+
+    _huntReadings[group.AchievementId] = new HuntGroupReading(count, max, true, DateTime.UtcNow);
+    Persist();
+    _logger.Debug($"[Achievement] {group.Name}: {count} of {max}");
+  }
+
+  // ---- Reading every group on request ----
+  //
+  // Haven's decision, 18 Nov 2026: the plugin may ask the game for the hunt
+  // group counts, so the player does not open 16 achievements one by one. This
+  // is the one place the plugin asks the game server for anything, and only
+  // when the player presses "Read hunt counts" in a plugin window. Nothing runs
+  // by itself. The client keeps one progress slot and answers one request at a
+  // time, so the requests go one after another (MemoriaProbe, 13 Sep 2026:
+  // one pending, ~600 ms apart, up to 3 tries, all 24 groups in ~10 s; one per
+  // frame does not work, only the last answer survives).
+
+  private static readonly TimeSpan HuntRequestWait = TimeSpan.FromMilliseconds(600);
+  private const int HuntRequestTries = 3;
+
+  private readonly Queue<HuntGroup> _huntQueue = new();
+  private HuntGroup? _huntPending;
+  private DateTime _huntSentAt;
+  private int _huntTries;
+  private int _huntAnswered;
+  private int _huntAsked;
+
+  public string HuntRequestStatus { get; private set; } = "";
+
+  public bool HuntRequestRunning => _huntPending is not null || _huntQueue.Count > 0;
+
+  public void RequestHuntGroups()
+  {
+    if (HuntRequestRunning || !_clientState.IsLoggedIn) return;
+
+    foreach (HuntGroup group in _huntGroups) _huntQueue.Enqueue(group);
+    _huntAsked = _huntQueue.Count;
+    _huntAnswered = 0;
+    HuntRequestStatus = $"Reading hunt counts: 0 of {_huntAsked}";
+  }
+
+  private unsafe void PumpHuntRequests(AchievementState* state)
+  {
+    if (_huntPending is { } pending)
+    {
+      if (DateTime.UtcNow - _huntSentAt < HuntRequestWait) return;
+
+      if (state->ProgressAchievementId == pending.AchievementId)
+      {
+        RecordHunt(state, pending, state->ProgressCurrent);
+        _lastId = state->ProgressAchievementId;
+        _lastValue = state->ProgressCurrent;
+        _huntAnswered++;
+        _huntPending = null;
+      }
+      else if (_huntTries < HuntRequestTries)
+      {
+        Send(state, pending);
+        return;
+      }
+      else
+      {
+        _logger.Debug($"[Achievement] No answer for {pending.Name} after {HuntRequestTries} tries.");
+        _huntPending = null;
+      }
+    }
+
+    if (_huntQueue.Count > 0)
+    {
+      _huntTries = 0;
+      Send(state, _huntQueue.Dequeue());
+      HuntRequestStatus = $"Reading hunt counts: {_huntAnswered} of {_huntAsked}";
+      return;
+    }
+
+    if (_huntAsked > 0)
+    {
+      HuntRequestStatus = _huntAnswered == _huntAsked
+        ? $"Hunt counts read: {_huntAnswered} of {_huntAsked}."
+        : $"Hunt counts read: {_huntAnswered} of {_huntAsked}. Press again for the rest.";
+      _huntAsked = 0;
+    }
+  }
+
+  private unsafe void Send(AchievementState* state, HuntGroup group)
+  {
+    _huntPending = group;
+    _huntSentAt = DateTime.UtcNow;
+    _huntTries++;
+    state->RequestAchievementProgress(group.AchievementId);
   }
 
   private void OnLogin()
@@ -206,6 +388,11 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     Crafted = null;
     Duties = null;
     Totals = null;
+    _huntReadings = [];
+    _huntQueue.Clear();
+    _huntPending = null;
+    _huntAsked = 0;
+    HuntRequestStatus = "";
 
     _lastId = 0;
     _lastValue = 0;
@@ -305,6 +492,15 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
       found++;
     }
 
+    // A finished hunt group has every mark, so its count is known exactly
+    // from the bitmap alone. An unfinished one waits for the progress slot.
+    foreach (HuntGroup group in _huntGroups)
+    {
+      if (!state->IsComplete((int)group.AchievementId)) continue;
+      _huntReadings[group.AchievementId] = new HuntGroupReading(group.Size, group.Size, true, DateTime.UtcNow);
+      found++;
+    }
+
     if (found > 0) Persist();
 
     _logger.Debug($"[Achievement] Floors from {found} completed tier(s).");
@@ -348,7 +544,11 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
   private unsafe void OnFrameworkUpdate(IFramework framework)
   {
     AchievementState* state = AchievementState.Instance();
-    if (state is null || !state->IsLoaded()) return;
+    if (state is null) return;
+
+    PumpHuntRequests(state);
+
+    if (!state->IsLoaded()) return;
 
     if (!_floorsTaken)
     {
@@ -364,6 +564,12 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
 
     _lastId = id;
     _lastValue = value;
+
+    if (_huntGroups.Find((g) => g.AchievementId == id) is { } group)
+    {
+      RecordHunt(state, group, value);
+      return;
+    }
 
     if (!_tiers.TryGetValue(id, out (int Tier, int Count, Series Series) tier)) return;
 
@@ -418,6 +624,7 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     Crafted = stored.Crafted;
     Duties = stored.Duties;
     Totals = stored.Totals;
+    _huntReadings = stored.HuntGroups is null ? [] : new(stored.HuntGroups);
   }
 
   private void Persist()
@@ -425,7 +632,11 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     if (Key is not { } key) return;
 
     _configuration.AchievementReadings[key] =
-      new StoredReadings { Gathered = Gathered, Crafted = Crafted, Duties = Duties, Totals = Totals };
+      new StoredReadings
+      {
+        Gathered = Gathered, Crafted = Crafted, Duties = Duties, Totals = Totals,
+        HuntGroups = new(_huntReadings)
+      };
     _configuration.Save();
   }
 }
@@ -444,4 +655,5 @@ public class StoredReadings
   public AchievementReading? Crafted { get; set; }
   public AchievementReading? Duties { get; set; }
   public AchievementTotals? Totals { get; set; }
+  public Dictionary<uint, HuntGroupReading>? HuntGroups { get; set; }
 }

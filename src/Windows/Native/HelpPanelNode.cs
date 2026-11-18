@@ -39,7 +39,7 @@ public class HelpPanelNode : TextLinesPanelNode
     ]),
     ("Why do collectables say \"open Achievements once\"?",
     [
-      "The game does not keep a running count. The count exists only inside an achievement record. The game client downloads an achievement record only when you view that achievement. So the plugin waits until you open the Achievements window. The plugin cannot ask the game server directly.",
+      "The game does not keep a running count. The count exists only inside an achievement record. The game client downloads an achievement record only when you view that achievement. So the plugin waits until you open the Achievements window. The plugin does not ask the game server for this count. The only request the plugin sends to the game server is the \"Read hunt counts\" button, and only when you press it.",
       "A number with a plus sign is a minimum value, not your exact count. This happens on a tier you already completed: the plugin shows that tier's requirement instead of your real total. To see your exact count, open a later tier you have not completed yet."
     ]),
     ("The Wiki button beside the quest search",

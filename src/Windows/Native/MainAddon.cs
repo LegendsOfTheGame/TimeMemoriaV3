@@ -94,7 +94,7 @@ public unsafe class MainAddon : NativeAddon
       Logger = Logger
     };
     BonusesPanelNode bonuses = new() { Food = Food };
-    ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport };
+    ProgressionPanelNode progression = new() { ProgressService = ProgressService, LedgerExport = LedgerExport, Achievements = Achievements };
     SettingsPanelNode settings = new() { Config = Config, DataService = DataService, Features = Features };
     HelpPanelNode help = new();
     CreditsPanelNode credits = new();
