@@ -63,17 +63,11 @@ holds the two formatters (`Span`, `UnixLocal`) both of those needed.
 
 ## Still missing from Native
 
-**The Lodestone `[read]` link on Maintenance and Active Events rows.** Native
-has no link-with-tooltip node yet; `ProgressionPanelNode`'s Ledger button is
-the closest thing, and `SelectableTextNode` (`OnClick` + hover highlight, in
-`lib/KamiToolKit/Nodes/SelectableTextNode.cs`) is the likeliest fit, but it
-draws a full list-item hover bar rather than an inline underline — building
-one row type that reads as "clickable label" without that bar is real work,
-not a `Set(...)` call. Deliberately left out of pass 2 rather than shipping
-something that looks clickable and is not. The end date and the discrepancy
-explanation — the two things the old notes called "not decoration" — are both
-in now; the link is the one piece of Classic's Active Events that pass 2 did
-not carry over.
+Nothing known. The last item, the Lodestone `[read]` link on Maintenance and
+Active Events rows, was added on 18 November 2026 as a small **Read** button
+(a `TextButtonNode`, like Eat on the Bonuses tab) in a fixed slot at the end of
+the label column. `SelectableTextNode` was not used, because it draws a full
+list-row hover bar. The button's tooltip shows the URL, as Classic's does.
 
 ## Better in Native, keep
 

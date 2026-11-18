@@ -56,6 +56,18 @@ public class NewsPanelNode : TabPanelNode
   private readonly ScrollingNode<VerticalListNode> _scroll;
   private readonly List<(HorizontalListNode Container, TextNode Label, TextNode Value)> _rows = [];
 
+  /// <summary>
+  /// The Lodestone link on Maintenance and Active Events rows (Classic's
+  /// "[read]"). A small button, like Eat on the Bonuses tab, rather than a
+  /// SelectableTextNode, which draws a full list-row hover bar. It sits in a
+  /// fixed slot at the end of the label column, so the value column does not
+  /// move and a long title cannot run over it. The slot stays visible on every
+  /// row; only the button inside it hides.
+  /// </summary>
+  private const float LinkWidth = 48.0f;
+  private readonly List<TextButtonNode> _links = [];
+  private readonly string?[] _linkUrls = new string?[MaxRows];
+
   /// <summary>Rows drawn last time, so the scroll range is only re-measured when it moved.</summary>
   private int _lastRowCount = -1;
 
@@ -89,14 +101,27 @@ public class NewsPanelNode : TabPanelNode
         IsVisible = true
       };
 
-      TextNode label = MakeText(LabelWidth, AlignmentType.Left);
+      TextNode label = MakeText(LabelWidth - LinkWidth, AlignmentType.Left);
       TextNode value = MakeText(ValueWidth, AlignmentType.Left);
 
+      ResNode slot = new() { Size = new Vector2(LinkWidth, RowHeight), IsVisible = true };
+      int index = i;
+      TextButtonNode link = new()
+      {
+        Size = new Vector2(LinkWidth - 6.0f, RowHeight),
+        String = "Read",
+        IsVisible = false,
+        OnClick = () => { if (_linkUrls[index] is { } url) Dalamud.Utility.Util.OpenLink(url); }
+      };
+      link.AttachNode(slot);
+
       container.AddNode(label);
+      container.AddNode(slot);
       container.AddNode(value);
 
       _scroll.ContentNode.AddNode(container);
       _rows.Add((container, label, value));
+      _links.Add(link);
     }
 
     // Here rather than in OnShown, which would throw away the player's scroll
@@ -243,7 +268,7 @@ public class NewsPanelNode : TabPanelNode
           MaintenanceStatus.State.ServersDown => "[Servers down]",
           MaintenanceStatus.State.Upcoming => "[Upcoming]",
           _ => "[Completed]"
-        }, m.Title);
+        }, m.Title, m.Url);
 
         if (m.Remaining is not null) Set(ref row, "", m.Remaining);
         if (m.StartsAt is not null) Set(ref row, "", m.StartsAt);
@@ -252,7 +277,7 @@ public class NewsPanelNode : TabPanelNode
 
       if (maintenance.Last is not null)
       {
-        Set(ref row, "Last", maintenance.Last.Title);
+        Set(ref row, "Last", maintenance.Last.Title, maintenance.Last.Url);
         if (maintenance.Last.Ended is not null) Set(ref row, "", maintenance.Last.Ended);
       }
     }
@@ -289,15 +314,11 @@ public class NewsPanelNode : TabPanelNode
       {
         foreach (EventsSummary.Line line in summary.Lines)
         {
-          Set(ref row, line.State == EventsSummary.State.Active ? "[Active]" : "[Upcoming]", line.Title);
+          Set(ref row, line.State == EventsSummary.State.Active ? "[Active]" : "[Upcoming]", line.Title, line.Url);
           if (line.Timing is not null) Set(ref row, "", line.Timing);
         }
       }
 
-      // No link node here yet -- see Docs/native-parity.md. The end date and
-      // the discrepancy explanation below are the two things that made
-      // dropping this silently the worst of the three options; a Lodestone
-      // link is worth adding once a clickable text node exists to carry it.
       if (summary.Footer is not null)
       {
         Set(ref row, "", summary.Footer);
@@ -366,6 +387,7 @@ public class NewsPanelNode : TabPanelNode
     {
       (HorizontalListNode container, TextNode label, TextNode value) = _rows[row];
       container.IsVisible = label.IsVisible = value.IsVisible = false;
+      SetLink(row, null);
     }
 
     // Guarded on the count because Refresh runs every frame and re-measuring
@@ -401,10 +423,26 @@ public class NewsPanelNode : TabPanelNode
         != SeasonalAvailability.NotYetAvailable)];
   }
 
+  /// <summary>
+  /// Shows the row's Read button for a URL, or hides it. Written only when the
+  /// URL changes: Refresh runs often, and a tooltip change rebuilds the addon's
+  /// collision list.
+  /// </summary>
+  private void SetLink(int row, string? url)
+  {
+    if (string.IsNullOrWhiteSpace(url)) url = null;
+    if (_linkUrls[row] == url) return;
+
+    _linkUrls[row] = url;
+    _links[row].IsVisible = url is not null;
+    _links[row].TextTooltip = url ?? "";
+  }
+
   private void SetHeading(ref int row, string text)
   {
     if (Exhausted(row)) return;
 
+    SetLink(row, null);
     (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
 
     container.IsVisible = true;
@@ -432,6 +470,7 @@ public class NewsPanelNode : TabPanelNode
   {
     if (Exhausted(row)) return;
 
+    SetLink(row, null);
     (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
 
     container.IsVisible = true;
@@ -448,10 +487,11 @@ public class NewsPanelNode : TabPanelNode
   /// Every row in the theme's text colour. Secondary lines used to be grey, which
   /// fell below 4.5:1 on several themes; their wording already says what they are.
   /// </summary>
-  private void Set(ref int row, string name, string text)
+  private void Set(ref int row, string name, string text, string? url = null)
   {
     if (Exhausted(row)) return;
 
+    SetLink(row, url);
     (HorizontalListNode container, TextNode label, TextNode value) = _rows[row++];
 
     container.IsVisible = label.IsVisible = value.IsVisible = true;
