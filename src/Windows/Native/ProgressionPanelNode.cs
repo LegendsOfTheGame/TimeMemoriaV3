@@ -63,7 +63,7 @@ public class ProgressionPanelNode : TabPanelNode
 #pragma warning restore CS8602
 
     _openLedger = MakeButton("Open the Ledger",
-      () => Dalamud.Utility.Util.OpenLink(LedgerUrl));
+      () => Dalamud.Utility.Util.OpenLink(MainWindow.LedgerUrl));
 
     _copyFeedback = new TextNode
     {
@@ -154,8 +154,6 @@ public class ProgressionPanelNode : TabPanelNode
     }
   }
 
-  /// <summary>Where the ledger export is meant to be pasted.</summary>
-  private const string LedgerUrl = "https://legendsofthegame.github.io/pandora-lunar/";
 
   private TextButtonNode MakeButton(string label, System.Action onClick)
   {

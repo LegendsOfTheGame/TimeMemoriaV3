@@ -1092,8 +1092,14 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
   private const string IssuesUrl = RepoUrl + "/issues";
   private const string KofiUrl = "https://ko-fi.com/legendsofthegame";
 
-  /// <summary>Where the ledger export is meant to be pasted.</summary>
-  private const string LedgerUrl = "https://legendsofthegame.github.io/pandora-lunar/";
+  /// <summary>
+  /// Where the ledger export is meant to be pasted. Both windows read this one
+  /// constant. It is on our own domain, so a later move of the app is a
+  /// redirect on legendmemoria.org, not a plugin update: every shipped build
+  /// keeps this address for ever. The github.io copy still works today, but
+  /// its localStorage is separate, so new users should start here.
+  /// </summary>
+  internal const string LedgerUrl = "https://legendmemoria.org/lunar/";
 
   /// <summary>
   /// The things people ask about. Everything here is behaviour that is either
