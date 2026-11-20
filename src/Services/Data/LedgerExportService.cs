@@ -42,10 +42,14 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       // place of repeated keys, 1/0 for flags. The ledger and the Eorzea Line
       // convert it back to the fmt 1 shape on import; an export without "fmt"
       // is fmt 1.
+      //
+      // fmt 3 (20 Nov 2026) is fmt 2 with every id list written as runs; see
+      // Ranged. Measured on a full export from 20 Nov 2026, it is 52% smaller.
+      // Both readers accepted fmt 3 before this was written.
       JsonObject root = new()
       {
         ["source"] = "time-memoria",
-        ["fmt"] = 2,
+        ["fmt"] = 3,
         ["version"] = typeof(LedgerExportService).Assembly.GetName().Version?.ToString() ?? "unknown",
         ["exported"] = Stamp(DateTime.UtcNow),
         ["name"] = _playerState.IsLoaded ? _playerState.CharacterName : string.Empty,
@@ -138,7 +142,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       {
         ["source"] = "time-memoria",
         ["kind"] = "collections",
-        ["fmt"] = 2,
+        ["fmt"] = 3,
         ["version"] = typeof(LedgerExportService).Assembly.GetName().Version?.ToString() ?? "unknown",
         ["exported"] = Stamp(DateTime.UtcNow),
         ["name"] = _playerState.IsLoaded ? _playerState.CharacterName : string.Empty,
@@ -163,12 +167,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       root["accessories"] = Owned(Named(_dataManager.GetExcelSheet<Ornament>(), r => r.Singular), id => player->IsOrnamentUnlocked(id));
       root["curios"] = Owned(_dataManager.GetExcelSheet<McGuffin>().Where(r => r.RowId > 0).Select(r => r.RowId), id => player->IsMcGuffinUnlocked(id));
 
-      JsonArray styles = [];
-      foreach (uint style in _dataManager.GetExcelSheet<Glasses>()
-                 .Where(r => r.RowId > 0 && r.Style.RowId > 0 && player->IsGlassesUnlocked((ushort)r.RowId))
-                 .Select(r => r.Style.RowId).Distinct().Order())
-        styles.Add(style);
-      root["facewear"] = styles;
+      root["facewear"] = Ranged(_dataManager.GetExcelSheet<Glasses>()
+        .Where(r => r.RowId > 0 && r.Style.RowId > 0 && player->IsGlassesUnlocked((ushort)r.RowId))
+        .Select(r => r.Style.RowId));
 
       root["fish"] = OwnedUntilOutOfRange(_dataManager.GetExcelSheet<FishParameter>().Select(r => r.RowId), id => player->IsFishCaught(id));
       root["spearfish"] = OwnedUntilOutOfRange(_dataManager.GetExcelSheet<SpearfishingItem>().Select(r => r.RowId), id => player->IsSpearfishCaught(id));
@@ -191,7 +192,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       // job, and the bit is the GatheringSubCategory's Quest column (Coerthas is
       // bit 0). Confirmed 22 Oct 2026 by reading Yok Tural in game: Miner bit 9
       // flipped and nothing else moved (MemoriaProbe "folklore").
-      JsonArray folklore = [];
+      List<uint> folklore = [];
       foreach ((uint job, byte[] bits) in new[]
       {
         (16u, System.Runtime.InteropServices.MemoryMarshal.AsBytes(player->UnlockedMinerFolkloreTomes).ToArray()),
@@ -205,7 +206,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
                    .Select(r => r.Item.RowId).Distinct().Order())
           folklore.Add(tome);
       }
-      root["folklore"] = folklore;
+      root["folklore"] = Ranged(folklore);
 
       // World completion, checked with MemoriaProbe's WorldProbe (18 Oct 2026) and
       // PorterProbe (14 Oct 2026).
@@ -257,11 +258,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       // Hildibrand, Zodiac Weapons, Ishgardian Restoration, each seasonal event —
       // so a questline added in a patch needs no plugin change. Sorted, so two
       // exports diff cleanly.
-      JsonArray questsDone = [];
-      foreach (uint row in _dataManager.GetExcelSheet<Lumina.Excel.Sheets.Quest>()
-                 .Where(q => q.RowId > 0 && !q.Name.IsEmpty).Select(q => q.RowId).Order())
-        if (QuestManager.IsQuestComplete(row)) questsDone.Add(row & 0xFFFF);
-      root["questsDone"] = questsDone;
+      root["questsDone"] = Ranged(_dataManager.GetExcelSheet<Lumina.Excel.Sheets.Quest>()
+        .Where(q => q.RowId > 0 && !q.Name.IsEmpty).Select(q => q.RowId)
+        .Where(QuestManager.IsQuestComplete).Select(row => row & 0xFFFF));
 
       // Duty clears, by InstanceContent id (ContentFinderCondition.Content where
       // ContentLinkType is 1). Checked with MemoriaProbe's DutiesProbe, 18 Oct 2026:
@@ -274,14 +273,12 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       // gave Kaye 10, 2 and 0 of her 10 exercises across one day, unrelated to
       // job, relog or the Exercises window, and the 10 made one export read 202
       // duties where the true count was 192.
-      JsonArray dutiesDone = [];
-      foreach (uint content in _dataManager.GetExcelSheet<ContentFinderCondition>()
-                 .Where(r => r.ContentLinkType == 1 && r.Content.RowId > 0 && !r.Name.IsEmpty)
-                 .Select(r => r.Content.RowId)
-                 .Where(id => id / 1000 != 15)
-                 .Distinct().Order())
-        if (FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.IsInstanceContentCompleted(content)) dutiesDone.Add(content);
-      root["dutiesDone"] = dutiesDone;
+      root["dutiesDone"] = Ranged(_dataManager.GetExcelSheet<ContentFinderCondition>()
+        .Where(r => r.ContentLinkType == 1 && r.Content.RowId > 0 && !r.Name.IsEmpty)
+        .Select(r => r.Content.RowId)
+        .Where(id => id / 1000 != 15)
+        .Distinct()
+        .Where(FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.IsInstanceContentCompleted));
 
       root["relics"] = BuildRelics(inventory);
 
@@ -440,18 +437,41 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   private static unsafe bool SpeedUnlocked(FFXIVClientStructs.FFXIV.Client.Game.UI.UIState* ui, uint id) =>
     id >= 65536 ? QuestManager.IsQuestComplete(id) : ui->IsUnlockLinkUnlocked(id);
 
-  private static JsonArray Owned(IEnumerable<uint> ids, Func<uint, bool> isOwned)
+  private static JsonArray Owned(IEnumerable<uint> ids, Func<uint, bool> isOwned) =>
+    Ranged(ids.Where(isOwned));
+
+  /// <summary>
+  /// An id list in fmt 3 form: sorted, without repeats, and each run of three
+  /// or more consecutive ids written as an inclusive pair. [1, [5, 9], 12] is
+  /// 1, 5, 6, 7, 8, 9 and 12. A pair for a run of two would be no shorter than
+  /// the two ids, so those stay as single ids.
+  ///
+  /// Sorting changes the order of classQuests (journal order before) and
+  /// folklore (by job before). The readers use every list as a set, so the
+  /// order carries nothing. pandora-lunar's tmExpandRanges and the Eorzea
+  /// Line's normalizeExport read this form.
+  /// </summary>
+  private static JsonArray Ranged(IEnumerable<uint> ids)
   {
-    JsonArray owned = [];
-    foreach (uint id in ids)
-      if (isOwned(id)) owned.Add(id);
-    return owned;
+    JsonArray ranged = [];
+    uint[] sorted = ids.Distinct().Order().ToArray();
+    for (int i = 0; i < sorted.Length;)
+    {
+      int j = i;
+      while (j + 1 < sorted.Length && sorted[j + 1] == sorted[j] + 1) j++;
+
+      if (j - i >= 2) ranged.Add(new JsonArray(sorted[i], sorted[j]));
+      else for (int k = i; k <= j; k++) ranged.Add(sorted[k]);
+
+      i = j + 1;
+    }
+    return ranged;
   }
 
   /// <summary>As <see cref="Owned"/>, stopping at the first id the bit array cannot hold.</summary>
   private static JsonArray OwnedUntilOutOfRange(IEnumerable<uint> ids, Func<uint, bool> isOwned, bool allowZero = false)
   {
-    JsonArray owned = [];
+    List<uint> owned = [];
     foreach (uint id in ids)
     {
       // Row 0 is an empty slot in most sheets; an index of 0 (sightseeing) is a real entry.
@@ -465,7 +485,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
         break;
       }
     }
-    return owned;
+    return Ranged(owned);
   }
 
   /// <summary>
@@ -669,14 +689,14 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// </summary>
   private JsonArray BuildClassQuests()
   {
-    JsonArray done = [];
+    List<uint> done = [];
 
     foreach (QuestData expansion in _dataService.QuestData.Categories)
       foreach (QuestData category in expansion.Categories)
         if (category.EnglishTitle == "Class & Job Quests")
           CollectComplete(category, done);
 
-    return done;
+    return Ranged(done);
   }
 
   /// <summary>
@@ -693,7 +713,7 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
   /// start-city variants), the one completed is sent. The readers turn ids
   /// back into English titles from their own table.
   /// </remarks>
-  private void CollectComplete(QuestData node, JsonArray into)
+  private void CollectComplete(QuestData node, List<uint> into)
   {
     foreach (Types.Quest quest in node.Quests)
       if (_dataService.IsQuestComplete(quest))
