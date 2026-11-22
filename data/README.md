@@ -125,6 +125,35 @@ the other copy too. The zone name must be the same as a `PlaceName` in the
 The capture state is not in this file. The plugin reads it live from
 `XBMManager`.
 
+## `hunting-log.json` — 666 monster slots — **read by `HuntingLogFeature`**
+
+Where to find each Hunting Log monster. The key is the `MonsterNote` row id
+(class id × 10000, or Grand Company id × 1000000, plus rank × 10 plus task
+number). The value has one entry for each monster slot of that task, in the
+same order as `MonsterNote.MonsterNoteTarget`. Each slot is a list of
+locations:
+
+```json
+"30032": [[[153, 6, 0, 15, 29]], [[146, 23, 0, 20.5, 35]], [[137, 17, 0, 16.6, 26.1]]]
+```
+
+A location is `[TerritoryType, Map, duty TerritoryType, X, Y]`. The duty
+TerritoryType is 0 for an open-world location. When it is not 0, the monster
+is inside that duty.
+
+The game files give only a zone and a sub-area name for each monster
+(`MonsterNoteTarget.PlaceNameZone` / `PlaceNameLocation`), with no
+coordinates. This file was converted on 22 Nov 2026 from `Hunty/monsters.json`
+in the Hunty plugin ([Infiziert90/Hunty](https://github.com/Infiziert90/Hunty),
+commit `b3c9125`, MIT License). The conversion matched every Hunty task to a
+`MonsterNote` row by its name and covered all 666 slots. Six Hunty monster ids
+are a different `BNpcName` row with the same name (Russet Yarzon, Puk
+Hatchling). The plugin takes names from the sheet, so this has no effect.
+
+The monster names, the kill counts that a task needs, and the player's kills
+are not in this file. The plugin reads them from `MonsterNote` and from
+`MonsterNoteManager`.
+
 ## `quest_category_index.json` — 3,817 entries
 
 Maps quest id to a category path and a display order:

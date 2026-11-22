@@ -1,7 +1,7 @@
 Tales of Milestones (InternalName TimeMemoriaV3)
 Third-party software notices
 
-The release zip contains the third-party libraries below. Each one is under the
+The release zip contains the third-party libraries and data below. Each one is under the
 MIT License. The MIT License requires that its copyright notice and permission
 notice go with every copy, so they are given here.
 
@@ -24,6 +24,14 @@ KamiToolKit.Components
 Files: KamiToolKit.Components.dll
 Source: https://github.com/MidoriKami/KamiToolKit.Components
 Copyright (c) 2026 MidoriKami
+
+
+Hunty (data)
+============
+
+Files: data/hunting-log.json (monster locations, converted from monsters.json)
+Source: https://github.com/Infiziert90/Hunty
+Copyright (c) 2024 Infi
 
 
 Microsoft.Extensions libraries and System.Diagnostics.EventLog

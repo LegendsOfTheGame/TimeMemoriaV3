@@ -279,6 +279,37 @@ Motivation) stays ungated rather than gated on an arbitrary one.
 | `questTotals` | — | **Deliberately not sent.** Our denominators are character-filtered and would not match the ledger's static ones |
 | `huntGroups` | The 16 A/S "Mark of the ..." achievements (ARR, HW, SB): completion bitmap, or the progress slot when the player views one | **Built.** Array of `{id, name, count, max, asOf}`; `id` is the Achievement row id. The game's count per group only, never which marks. A group never read is left out |
 
+| `huntLog` | `MonsterNoteManager` (12 blocks: 8 classes, Rogue, 3 Grand Companies), saved per character by `HuntingLogService` | **Built 22 Nov 2026.** See the section below |
+
+### `huntLog` — the Hunting Log
+
+```json
+"huntLog": {
+  "asOf": "2026-11-22T18:40:00.0000000Z",
+  "logs": { "GLA": [1, 3,3,0,0, 3], "MRD": [3, 4,0,0,0, 4,3,0,0, 4], "gc1": [3] }
+}
+```
+
+- The key is the class's English abbreviation (`GLA`, `PGL`, `MRD`, `LNC`,
+  `ARC`, `CNJ`, `THM`, `ACN`, `ROG`) or `gc1`, `gc2`, `gc3` (Maelstrom, Twin
+  Adder, Immortal Flames).
+- The first number is the rank: the number of ranks complete, which is also
+  the 0-based current rank. Classes have 5 ranks and Grand Companies have 3.
+  A finished log is the rank alone (`[5]` or `[3]`).
+- The numbers after the rank are the kill counts of the current rank: 4 for
+  each of the 10 tasks, in task order, with the trailing zeros cut off. So
+  `"MRD": [3, 4,0,0,0, 4,3,...]` means rank 4, task 1 monster 1 has 4 kills,
+  task 2 monsters 1 and 2 have 4 and 3.
+- Ranks below the rank are complete. Ranks above it have no kills.
+- The monster names and the count each monster needs are not in the export.
+  They are in the `MonsterNote` sheet: row = class id × 10000 (Grand Company
+  id × 1000000) + rank × 10 + task number (1-10).
+- Only unlocked classes (level above 0) are sent. A Grand Company log with no
+  progress is left out. The whole block is left out when the plugin has never
+  read the log for this character.
+- The reading never goes down: a rank never falls, and a count never falls
+  inside the same rank. `asOf` is the time of the last change.
+
 ### Not available from the plugin
 
 `duty`, `tradeCollected`, `tradeMade`, `routines`, `notes`, `custom`,

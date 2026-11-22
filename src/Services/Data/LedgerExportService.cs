@@ -17,7 +17,7 @@ public interface ILedgerExportService
 /// to the export history on disk, nowhere else; the plugin makes no outbound
 /// requests.
 /// </summary>
-public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements, ICosmicToolProgressService _cosmicTools, IDataManager _dataManager, IExportHistoryService _history)
+public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerState, IClassJobProgressService _classJobProgress, IPlaytimeService _playtime, IDataService _dataService, ITocService _tocService, IAlliedSocietyService _societies, IAchievementService _achievements, ICosmicToolProgressService _cosmicTools, IHuntingLogService _huntingLog, IDataManager _dataManager, IExportHistoryService _history)
   : ILedgerExportService
 {
   /// <summary>Master books per crafter, built once: the sheets do not change in a session.</summary>
@@ -88,6 +88,9 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
 
       JsonObject? cosmicTools = BuildCosmicTools(progress);
       if (cosmicTools != null) root["cosmicTools"] = cosmicTools;
+
+      JsonObject? huntLog = BuildHuntLog();
+      if (huntLog != null) root["huntLog"] = huntLog;
 
       JsonObject? masterBooks = BuildMasterBooks();
       if (masterBooks != null) root["masterBooks"] = masterBooks;
@@ -872,6 +875,48 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
     }
 
     return new JsonObject { ["asOf"] = Stamp(takenUtc), ["jobs"] = jobs };
+  }
+
+  /// <summary>
+  /// The Hunting Log of every unlocked class and the Grand Companies, from
+  /// <see cref="HuntingLogService"/>'s saved reading.
+  ///
+  /// <c>{"asOf": ..., "logs": {"MRD": [3, 4,0,0,0, 4,3], "gc1": [3]}}</c>.
+  /// Each log is the rank (ranks complete, 0-based current rank) and then the
+  /// current rank's kill counts, 4 per task for 10 tasks, with trailing zeros
+  /// cut off. A finished log (rank 5, or 3 for a Grand Company) is the rank
+  /// alone. Ranks below the rank are complete; a reader takes the monster
+  /// names and the counts each task needs from the MonsterNote sheet (row =
+  /// class id x 10000, or Grand Company id x 1000000, + rank x 10 + task).
+  ///
+  /// A Grand Company log with no progress at all (rank 0, every count 0) is
+  /// left out: it says nothing. Omitted entirely when nothing was ever read,
+  /// so an empty object cannot overwrite what the ledger already holds.
+  /// </summary>
+  private JsonObject? BuildHuntLog()
+  {
+    if (_huntingLog.Current is not { } reading || reading.Logs.Count == 0) return null;
+
+    JsonObject logs = [];
+    foreach ((string key, List<int> values) in reading.Logs)
+    {
+      bool company = key.StartsWith("gc", StringComparison.Ordinal);
+      int rank = values[0];
+      int ranks = company ? HuntingLogService.CompanyRanks : HuntingLogService.ClassRanks;
+
+      int last = values.Count - 1;
+      while (last > 0 && values[last] == 0) last--;
+      if (company && rank == 0 && last == 0) continue;
+
+      JsonArray array = [rank];
+      if (rank < ranks)
+        for (int i = 1; i <= last; i++) array.Add(values[i]);
+
+      logs[key] = array;
+    }
+
+    if (logs.Count == 0) return null;
+    return new JsonObject { ["asOf"] = Stamp(reading.TakenUtc), ["logs"] = logs };
   }
 
   /// <summary>

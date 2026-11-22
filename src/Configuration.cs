@@ -71,6 +71,13 @@ public class Configuration : IPluginConfiguration
   public Dictionary<string, CosmicToolReading> CosmicToolReadings { get; set; } = [];
 
   /// <summary>
+  /// Hunting Log per character, keyed the same way playtime is. Persisted so
+  /// the export has it in the moment after login before the server's data
+  /// arrives; see HuntingLogService.
+  /// </summary>
+  public Dictionary<string, HuntLogReading> HuntLogReadings { get; set; } = [];
+
+  /// <summary>
   /// Every festival id this install has ever seen active. Global rather than
   /// per-character — see <see cref="TimeMemoria.Services.FestivalService"/>.
   ///

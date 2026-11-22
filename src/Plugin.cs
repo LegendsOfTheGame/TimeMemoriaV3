@@ -72,11 +72,13 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton<IFoodService, FoodService>();
         collection.AddSingleton<IAlliedSocietyService, AlliedSocietyService>();
         collection.AddSingleton<ICosmicToolProgressService, CosmicToolProgressService>();
+        collection.AddSingleton<IHuntingLogService, HuntingLogService>();
         collection.AddSingleton<IWindowService, WindowService>();
         collection.AddSingleton<ICommandService, CommandService>();
 
         // Optional features, listed in Settings. One line each.
         collection.AddSingleton<Feature, Features.Bestiary.BestiaryFeature>();
+        collection.AddSingleton<Feature, Features.HuntingLog.HuntingLogFeature>();
         collection.AddSingleton<IFeatureService, FeatureService>();
 
         // Not registered as a hosted service on purpose -- its disposal has to
@@ -96,6 +98,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddHostedService(sp => sp.GetRequiredService<IQuestPatchService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IAchievementService>());
         collection.AddHostedService(sp => sp.GetRequiredService<ICosmicToolProgressService>());
+        collection.AddHostedService(sp => sp.GetRequiredService<IHuntingLogService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IFestivalService>());
         collection.AddHostedService(sp => sp.GetRequiredService<IWindowService>());
         // After WindowService, so it stops first and removes its windows
