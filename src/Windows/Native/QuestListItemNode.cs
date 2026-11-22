@@ -89,21 +89,32 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
   /// </summary>
   public override void Update() => RefreshTitle();
 
+  /// <summary>Title tooltip the row last had. Rows are pooled, so it follows the row.</summary>
+  private string _titleTooltip = "";
+
   /// <summary>
   /// Title text and colour, the parts of a row that follow the game's state.
-  /// Leve state shows as prefixes: ">" for a held leve, a check for one whose
+  /// Leve state shows as prefixes: ">" for a held leve, "[R]" for one whose
   /// items are already in the bags. Text, not colour, so it reads the same to
-  /// everyone and survives the completed-grey title.
+  /// everyone and survives the completed-grey title. "[R]" replaced a check
+  /// mark, which the News panel uses for "complete" -- one symbol, two meanings.
   /// </summary>
   private void RefreshTitle()
   {
     if (_current is null) return;
 
     bool complete = DataService?.IsQuestComplete(_current) ?? false;
+    bool held = DataService?.IsLeveAccepted(_current) ?? false;
+    bool ready = DataService?.HasLeveItems(_current) ?? false;
 
     string prefix = "";
-    if (DataService?.IsLeveAccepted(_current) ?? false) prefix += "> ";
-    if (DataService?.HasLeveItems(_current) ?? false) prefix += "✓ ";
+    if (held) prefix += "> ";
+    if (ready) prefix += "[R] ";
+
+    List<string> notes = [];
+    if (held) notes.Add("> You hold this leve.");
+    if (ready) notes.Add("[R] Your bags and armoury chest hold the items for one turn-in.");
+    SetTitleTooltip(string.Join("\n", notes));
 
     // A finished quest is dimmed in the theme's own dimmed colour. Dimmed text
     // does not reach 4.5:1 on every theme, so this is not yet the AODA answer
@@ -111,6 +122,23 @@ public class QuestListItemNode : ListItemWithFocusNav<Types.Quest>, IListItemNod
     TitleNode.String = prefix + _current.Title;
     TitleNode.TextColor = complete ? NativeTheme.Dimmed : NativeTheme.Text;
     DetailNode.TextColor = NativeTheme.Text;
+  }
+
+  /// <summary>
+  /// The tooltip sits on the row, not the title. A tooltip on the title text
+  /// showed only on some rows, and never when registered in the constructor:
+  /// the row's own hover handling sits over it. On the row, the tooltip joins
+  /// the MouseOver event the row already has for its highlight.
+  ///
+  /// Only set when it changes: Update runs on every panel refresh, and each
+  /// change makes the addon rebuild its collision list.
+  /// </summary>
+  private void SetTitleTooltip(string text)
+  {
+    if (_titleTooltip == text) return;
+
+    _titleTooltip = text;
+    TextTooltip = text;
   }
 
   protected override void SetNodeData(Types.Quest itemData)
