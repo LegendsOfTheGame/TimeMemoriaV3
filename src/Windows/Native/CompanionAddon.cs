@@ -310,8 +310,10 @@ public unsafe class CompanionAddon : NativeAddon
       ? $"{Societies.Allowances}  ({held} held)"
       : $"{Societies.Allowances} / 12");
 
-    foreach (SocietyStanding standing in Societies.GetStandings().Where((s) => s.IsCapped || s.IsTerminal))
-      SetRow(ref row, standing.Name, standing.IsCapped ? "capped — main quest" : "maxed");
+    // Maxed societies are left out: nothing about them asks for a decision, and
+    // a long-time player's list of them only grows.
+    foreach (SocietyStanding standing in Societies.GetStandings().Where((s) => s.IsCapped))
+      SetRow(ref row, standing.Name, "capped — main quest");
   }
 
   /// <summary>
