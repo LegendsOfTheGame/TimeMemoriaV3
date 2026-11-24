@@ -154,7 +154,7 @@ public class SettingsPanelNode : TabPanelNode
 
     _turnInEye = AddCheckbox("Show an eye on the quest turn-in window that opens /tm food",
       (value) => { Config.TurnInFoodEye = value; Config.Save(); });
-    _turnInEye.TextTooltip = "Shown only when a reward is food. Takes effect at the next turn-in.";
+    _turnInEye.TextTooltip = "Shown only when a reward is food or an option is gear. Takes effect at the next turn-in.";
 
     _spoiler = AddCheckbox("Spoiler Mode (show expansions you have not reached)",
       (value) => { Config.SpoilerMode = value; Config.Save(); });

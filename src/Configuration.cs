@@ -93,8 +93,8 @@ public class Configuration : IPluginConfiguration
   public HashSet<string> EnabledFeatures { get; set; } = [];
 
   /// <summary>
-  /// The eye button on the quest turn-in window that opens /tm food. On by
-  /// default (Haven, 30 Oct 2026), so a saved config without the key reads as
+  /// The eye button on the quest turn-in window that opens /tm food, for
+  /// food rewards and (24 Nov 2026) gear options. On by default (Haven, 30 Oct 2026), so a saved config without the key reads as
   /// on too. Not a <see cref="Features.Feature"/>: features start off, and this
   /// one belongs to the native window's lifetime (see TurnInFoodEye).
   /// </summary>

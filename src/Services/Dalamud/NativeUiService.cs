@@ -60,7 +60,8 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
   IQuestSnapshotService _snapshot, IFestivalService _festivals, INewsService _news, IPlayerState _playerState,
   ILedgerExportService _ledgerExport, IAchievementService _achievements, IAlliedSocietyService _societies,
   IFoodService _food, IQuestMapService _questMap, IFramework _framework, IFeatureService _features,
-  ILanguageService _language, FoodWindow _foodWindow, IQuestJournalService _journal)
+  ILanguageService _language, FoodWindow _foodWindow, IQuestJournalService _journal,
+  IGearRewardService _gearRewards)
   : INativeUiService
 {
   private MainAddon? _window;
@@ -132,7 +133,7 @@ public class NativeUiService(ILogger _logger, IClassJobProgressService _classJob
     };
 
     // AddonController must be enabled on the main thread; Create may not be on it.
-    _turnInEye = new TurnInFoodEye(_configuration, _food, _foodWindow);
+    _turnInEye = new TurnInFoodEye(_configuration, _food, _gearRewards, _foodWindow);
     _framework.RunOnFrameworkThread(_turnInEye.Enable);
 
     _logger.Debug("[NativeUi] Window created.");

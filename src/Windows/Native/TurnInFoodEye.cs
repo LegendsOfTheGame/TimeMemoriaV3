@@ -9,9 +9,11 @@ namespace TimeMemoria.Windows.Native;
 /// An eye button on the quest turn-in window (JournalResult), just right of its
 /// "Reward" heading. A click opens /tm food, which lists the food your accepted
 /// quests give and the role each meal suits -- so the reward choice can be made
-/// with the role in view.
+/// with the role in view. When an option is gear, the same window compares the
+/// options with what is worn (see GearRewardService).
 ///
-/// This is the Prime Directive amendment of 30 Oct 2026, and nothing more: one
+/// This is the Prime Directive amendment of 30 Oct 2026, with the gear comparison
+/// added by the amendment of 24 Nov 2026, and nothing more: one
 /// button, one window, a manual click that opens the plugin's own window. It
 /// changes no game data and opens nothing by itself. The pattern is VanillaPlus's
 /// eye on the Cosmic Exploration HUD (CosmicExplorationProgressWindow, by
@@ -22,8 +24,8 @@ namespace TimeMemoria.Windows.Native;
 /// eye has to be gone before KamiToolKit's own cleanup, which NativeUiService's
 /// disposal already comes before.
 /// </summary>
-public unsafe class TurnInFoodEye(Configuration _configuration, IFoodService _food, FoodWindow _foodWindow)
-  : IDisposable
+public unsafe class TurnInFoodEye(Configuration _configuration, IFoodService _food, IGearRewardService _gearRewards,
+  FoodWindow _foodWindow) : IDisposable
 {
   /// <summary>
   /// Just right of "Reward", Haven's pick in game. JournalResult is 496x410 at
@@ -58,14 +60,14 @@ public unsafe class TurnInFoodEye(Configuration _configuration, IFoodService _fo
 
   /// <summary>
   /// The setting is read each time the window opens, so turning it off or on
-  /// takes effect at the next turn-in. A quest whose rewards hold no food gets
-  /// no eye.
+  /// takes effect at the next turn-in. A quest gets no eye when no
+  /// reward is food and no option is gear.
   /// </summary>
   private void Attach(AtkUnitBase* addon)
   {
     Detach(addon);
 
-    if (!_configuration.TurnInFoodEye || !RewardsFood(addon)) return;
+    if (!_configuration.TurnInFoodEye || !(RewardsFood(addon) || OffersGear(addon))) return;
 
     _eye = new CircleButtonNode
     {
@@ -73,7 +75,7 @@ public unsafe class TurnInFoodEye(Configuration _configuration, IFoodService _fo
       Size = new Vector2(28.0f),
       Position = EyePosition,
       OnClick = OpenFood,
-      TextTooltip = "Your food, and the role each meal suits (/tm food)"
+      TextTooltip = "Gear options against what you wear, and the role each meal suits (/tm food)"
     };
 
     _eye.AttachNode(addon);
@@ -96,6 +98,19 @@ public unsafe class TurnInFoodEye(Configuration _configuration, IFoodService _fo
     uint choices = values[OptionCount].Type == AtkValueType.UInt ? values[OptionCount].UInt : 0;
     for (int slot = 0; slot < Math.Min(choices, (uint)OptionSlots); slot++)
       if (IsMeal(values[OptionIds + slot])) return true;
+
+    return false;
+  }
+
+  /// <summary>Options only: gear in the base rewards comes whatever is chosen.</summary>
+  private bool OffersGear(AtkUnitBase* addon)
+  {
+    Span<AtkValue> values = new(addon->AtkValues, addon->AtkValuesCount);
+    if (values.Length < OptionIds + OptionSlots) return false;
+
+    uint choices = values[OptionCount].Type == AtkValueType.UInt ? values[OptionCount].UInt : 0;
+    for (int slot = 0; slot < Math.Min(choices, (uint)OptionSlots); slot++)
+      if (values[OptionIds + slot] is { Type: AtkValueType.UInt } id && _gearRewards.IsGear(id.UInt)) return true;
 
     return false;
   }

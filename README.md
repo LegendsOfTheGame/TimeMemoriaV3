@@ -160,9 +160,11 @@ It does **not**:
 - Automate any in-game interaction
 - Transmit your data anywhere — the clipboard export is local and user-initiated
 
-One button sits in a game window. When a quest reward is food, the quest
-turn-in window shows an eye beside "Reward". A click opens `/tm food`, which
-lists the food your accepted quests give and the role each meal suits. The eye
+One button sits in a game window. When a quest reward is food, or when
+a reward option is gear, the quest turn-in window shows an eye beside "Reward".
+A click opens `/tm food`, which lists the food your accepted quests give and the
+role each meal suits. For gear, it shows how each option changes the bonuses that
+your current class uses, and marks the largest total gain "Most improved". The eye
 opens nothing by itself and changes nothing in the game window, and it can be
 turned off in Settings.
 

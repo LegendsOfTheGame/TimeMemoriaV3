@@ -70,6 +70,7 @@ public sealed class Plugin : IAsyncDalamudPlugin
         collection.AddSingleton<IQuestMapService, QuestMapService>();
         collection.AddSingleton<IAchievementService, AchievementService>();
         collection.AddSingleton<IFoodService, FoodService>();
+        collection.AddSingleton<IGearRewardService, GearRewardService>();
         collection.AddSingleton<IAlliedSocietyService, AlliedSocietyService>();
         collection.AddSingleton<ICosmicToolProgressService, CosmicToolProgressService>();
         collection.AddSingleton<IHuntingLogService, HuntingLogService>();

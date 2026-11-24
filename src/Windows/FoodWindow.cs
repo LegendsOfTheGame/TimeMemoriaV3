@@ -4,7 +4,8 @@ namespace TimeMemoria.Windows;
 /// <c>/tm food</c>: for each role, the strongest meal you hold and where it is,
 /// then the food your accepted quests will give and the role it suits.
 /// The full list with every stat lives in the native window's Bonuses tab; this
-/// is the short answer to "what do I eat for this job".
+/// is the short answer to "what do I eat for this job". While a quest turn-in
+/// with gear options is open, those options come first.
 ///
 /// Always the classic window, like <c>/tmwiki</c>.
 /// </summary>
@@ -20,14 +21,19 @@ public class FoodWindow : Window
     ("Gatherer", "Gathering Bonus", new(0.88f, 0.72f, 0.38f, 1.0f))
   ];
 
+  private static readonly Vector4 MostImproved = new(0.45f, 0.85f, 0.45f, 1.0f);
+
   private readonly IFoodService _food;
+  private readonly IGearRewardService _gear;
 
   /// <summary>Set by WindowService: the same Settings the installer's button opens.</summary>
   public System.Action? OpenSettings { get; set; }
 
-  public FoodWindow(IFoodService food) : base("Food Bonuses — Tales of Milestones##TimeMemoriaFood")
+  public FoodWindow(IFoodService food, IGearRewardService gear)
+    : base("Food Bonuses — Tales of Milestones##TimeMemoriaFood")
   {
     _food = food;
+    _gear = gear;
 
     // The /tmmini and /tmwiki width, so the small windows match.
     Size = new Vector2(310, 400);
@@ -54,6 +60,7 @@ public class FoodWindow : Window
   private IReadOnlyList<RolePick> _picks = [];
   private FoodReading? _reading;
   private IReadOnlyList<QuestFood> _quests = [];
+  private IReadOnlyList<GearOption> _gearOptions = [];
   private DateTime _readAt = DateTime.MinValue;
 
   /// <summary>When the active food runs out, so the line can tick every frame between reads.</summary>
@@ -68,6 +75,7 @@ public class FoodWindow : Window
       _picks = _food.BestByRole();
       _reading = _food.Read();
       _quests = _food.FromAcceptedQuests();
+      _gearOptions = _gear.Read();
       _readAt = DateTime.UtcNow;
       _fedUntil = _reading.WellFed ? _readAt.AddSeconds(_reading.RemainingSeconds) : DateTime.MinValue;
     }
@@ -85,6 +93,7 @@ public class FoodWindow : Window
 
     using (ImRaii.ChildDisposable child = ImRaii.Child("##foodRoles", new Vector2(0, -footer), false))
     {
+      if (child.Success) DrawGear();
       if (child.Success) DrawActive();
 
       if (child.Success)
@@ -123,6 +132,74 @@ public class FoodWindow : Window
     // Bags read live; the saddlebag and retainers come from the game's Search
     // for Item cache, which follows every item move the client sees.
     ImGui.TextDisabled($"Inventory as of {DateTime.Now:d MMM yyyy}");
+  }
+
+  /// <summary>
+  /// The gear on the open quest turn-in, against what is worn. Nothing at all
+  /// when no turn-in with gear options is open. Stacked rather than a table: the
+  /// window is 310 wide, and five columns wrap every line.
+  /// </summary>
+  private void DrawGear()
+  {
+    if (_gearOptions.Count == 0) return;
+
+    ImGui.TextUnformatted("GEAR OPTIONS");
+
+    foreach (GearOption option in _gearOptions)
+    {
+      Vector4 colour = option.Marked ? MostImproved : ImGui.GetStyle().Colors[(int)ImGuiCol.Text];
+
+      using (ImRaii.PushColor(ImGuiCol.Text, colour)) ImGui.TextWrapped(option.Name);
+
+      using (ImRaii.PushIndent())
+      {
+        if (option.Note is not null)
+        {
+          Muted(option.Note);
+        }
+        else
+        {
+          if (option.Marked) ImGui.TextColored(MostImproved, "Most improved");
+          DrawChanges(option.Changes);
+          Muted($"Improves {option.Improved} of {option.Counted} bonuses, {option.Total:+0;-0;0} total");
+          Muted($"Replaces {option.Replaces}");
+        }
+      }
+
+      ImGui.Spacing();
+    }
+
+    ImGui.Separator();
+  }
+
+  /// <summary>
+  /// Wraps between changes only. TextWrapped breaks at any space, which put
+  /// "Direct Hit Rate" and its "+2" on different lines.
+  /// </summary>
+  private static void DrawChanges(IReadOnlyList<string> changes)
+  {
+    float right = ImGui.GetContentRegionMax().X;
+    float gap = ImGui.CalcTextSize(" ").X;
+
+    for (int i = 0; i < changes.Count; i++)
+    {
+      string text = i < changes.Count - 1 ? changes[i] + "," : changes[i];
+
+      if (i > 0)
+      {
+        ImGui.SameLine(0, gap);
+        if (ImGui.GetCursorPosX() + ImGui.CalcTextSize(text).X > right) ImGui.NewLine();
+      }
+
+      ImGui.TextUnformatted(text);
+    }
+  }
+
+  /// <summary>TextDisabled, but wrapped.</summary>
+  private static void Muted(string text)
+  {
+    using (ImRaii.PushColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]))
+      ImGui.TextWrapped(text);
   }
 
   /// <summary>
@@ -225,11 +302,19 @@ public class FoodWindow : Window
       ImGui.SetTooltip(ready ? "In your inventory. Click to eat one." : "In your inventory. The game cannot use it now.");
   }
 
-  /// <summary>Same line, pushed to the right edge, muted unless a colour is given.</summary>
+  /// <summary>
+  /// Pushed to the right edge, muted unless a colour is given. On the same line
+  /// when it fits beside the text before it, otherwise on the next line.
+  /// </summary>
   private static void RightAligned(string text, Vector4? colour = null)
   {
-    float width = ImGui.CalcTextSize(text).X;
-    ImGui.SameLine(Math.Max(ImGui.GetCursorPosX(), ImGui.GetContentRegionMax().X - width));
+    float start = ImGui.GetContentRegionMax().X - ImGui.CalcTextSize(text).X;
+
+    ImGui.SameLine();
+    bool fits = ImGui.GetCursorPosX() <= start;
+    if (!fits) ImGui.NewLine();
+    ImGui.SetCursorPosX(fits ? start : Math.Max(ImGui.GetCursorPosX(), start));
+
     if (colour is { } c) ImGui.TextColored(c, text);
     else ImGui.TextDisabled(text);
   }

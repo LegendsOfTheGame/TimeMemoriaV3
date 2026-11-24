@@ -1079,7 +1079,7 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
       _configuration.Save();
     }
 
-    ImGui.TextDisabled("  Shown only when a reward is food. Takes effect at the next turn-in.");
+    ImGui.TextDisabled("  Shown only when a reward is food or an option is gear. Takes effect at the next turn-in.");
 
     ImGui.Spacing();
 
@@ -1179,7 +1179,7 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     ImGui.Indent();
     DrawWrappedDisabled("This plugin only tracks quest progress. This plugin does not rank your performance. The maintainer declines any feature request that needs an action listed above.");
     ImGui.Spacing();
-    DrawWrappedDisabled("One button sits in a game window. When a quest reward is food, the quest turn-in window shows an eye beside \"Reward\". Click the eye to open /tm food. The eye opens nothing by itself, and it changes nothing in the game window. You can turn it off in Settings.");
+    DrawWrappedDisabled("One button sits in a game window. When a quest reward is food, or when a reward option is gear, the quest turn-in window shows an eye beside \"Reward\". Click the eye to open /tm food. For gear, that window shows how each option changes the bonuses that your current class uses. The option with the largest total gain is marked \"Most improved\". The eye opens nothing by itself, and it changes nothing in the game window. You can turn it off in Settings.");
     ImGui.Unindent();
 
     ImGui.Spacing();
