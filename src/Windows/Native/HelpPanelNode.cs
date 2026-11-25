@@ -37,10 +37,10 @@ public class HelpPanelNode : TextLinesPanelNode
     [
       "The plugin removes quests your character cannot take from the total. Examples: quests for a starting city you did not pick, quests for a class route you did not pick, and quests for a Grand Company you did not join. Because of this, two characters can correctly show different totals."
     ]),
-    ("Why do collectables say \"open Achievements once\"?",
+    ("Why do collectables say \"see I Collected That\"?",
     [
-      "The game does not keep a running count. The count exists only inside an achievement record. The game client downloads an achievement record only when you view that achievement. So the plugin waits until you open the Achievements window. The plugin does not ask the game server for this count. The only request the plugin sends to the game server is the \"Read hunt counts\" button, and only when you press it.",
-      "A number with a plus sign is a minimum value, not your exact count. This happens on a tier you already completed: the plugin shows that tier's requirement instead of your real total. To see your exact count, open a later tier you have not completed yet."
+      "The game does not keep a running count. The count exists only inside an achievement record. The game client downloads an achievement record only when you view that achievement. You can view that achievement in the Achievements window. You can also press \"Read achievement counts\" or \"Read counts, copy everything\" on the Progression tab. The plugin then asks the game server for 19 counts: gathered collectables, crafted collectables, duties, and the 16 A and S rank hunt groups. These two buttons send the only requests that the plugin sends to the game server, and only when you press one. The other copy buttons and the chat commands do not send requests.",
+      "A number with a plus sign is a minimum value, not your exact count. This happens on a tier you already completed: the plugin shows that tier's requirement instead of your real total. To see your exact count, press \"Read achievement counts\", or open a later tier that you have not completed."
     ]),
     ("The Wiki button beside the quest search",
     [

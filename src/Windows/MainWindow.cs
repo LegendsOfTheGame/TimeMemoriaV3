@@ -1128,9 +1128,9 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
       "The plugin removes quests your character cannot take from the total. Examples: quests for a starting city you did not pick, quests for a class route you did not pick, and quests for a Grand Company you did not join. Because of this, two characters can correctly show different totals.",
       "Settings also lets you remove Other Quests and Levequests from the total.");
 
-    DrawHelpEntry("Why do collectables say \"open Achievements once\"?",
-      "The game does not keep a running count. The count exists only inside an achievement record. The game client downloads an achievement record only when you view that achievement. So the plugin waits until you open the Achievements window. The plugin does not ask the game server for this count. The only request the plugin sends to the game server is the \"Read hunt counts\" button, and only when you press it.",
-      "A number with a plus sign is a minimum value, not your exact count. This happens on a tier you already completed: the plugin shows that tier's requirement instead of your real total. To see your exact count, open a later tier you have not completed yet.");
+    DrawHelpEntry("Why do collectables say \"see I Collected That\"?",
+      "The game does not keep a running count. The count exists only inside an achievement record. The game client downloads an achievement record only when you view that achievement. You can view that achievement in the Achievements window. You can also press \"Read achievement counts\" or \"Read counts, copy everything\" on the Progression tab. The plugin then asks the game server for 19 counts: gathered collectables, crafted collectables, duties, and the 16 A and S rank hunt groups. These two buttons send the only requests that the plugin sends to the game server, and only when you press one. The other copy buttons and the chat commands do not send requests.",
+      "A number with a plus sign is a minimum value, not your exact count. This happens on a tier you already completed: the plugin shows that tier's requirement instead of your real total. To see your exact count, press \"Read achievement counts\", or open a later tier that you have not completed.");
 
     DrawHelpEntry("The Wiki button beside the quest search",
       "This button sends your search text to the FFXIV wiki's search function. If the text matches a page title exactly, the wiki opens that page directly.",
@@ -1503,17 +1503,21 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
   private void DrawExportRow()
   {
     if (ImGui.Button("Copy for Adventurer's Ledger"))
-      CopyToClipboard(_ledgerExport.BuildLedgerJson, "Copied in ledger format.");
-
-    // Collections are a payload of their own, so pasting progress stays cheap.
-    ImGui.SameLine();
-    if (ImGui.Button("Copy collections"))
-      CopyToClipboard(_ledgerExport.BuildCollectionsJson, "Copied your collections.");
+      CopyToClipboard(_ledgerExport.BuildLedgerJson, $"Copied in ledger format. {_achievements.CountsAge}");
 
     // Both in one paste, for when the Ledger should take everything at once.
     ImGui.SameLine();
     if (ImGui.Button("Copy everything"))
-      CopyToClipboard(_ledgerExport.BuildFullJson, "Copied progress and collections together.");
+      CopyToClipboard(_ledgerExport.BuildFullJson, $"Copied progress and collections together. {_achievements.CountsAge}");
+
+    // Copies only when the read ends, so the paste never holds older counts.
+    ImGui.SameLine();
+    using (ImRaii.Disabled(_achievements.RequestRunning))
+      if (ImGui.Button("Read counts, copy everything"))
+        _achievements.RequestCounts(() => CopyToClipboard(_ledgerExport.BuildFullJson,
+          $"Copied progress and collections together. {_achievements.CountsAge}"));
+    if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+      ImGui.SetTooltip("Reads the achievement counts (about 12 seconds), then copies everything to your clipboard.");
 
     // Fade the confirmation rather than leaving it on screen forever.
     if (_copyFeedback.Length > 0 && DateTime.UtcNow - _copyShownAt < TimeSpan.FromSeconds(4))
@@ -1525,14 +1529,15 @@ public partial class MainWindow(Configuration _configuration, IDataService _data
     ImGui.TextDisabled("Nothing is sent anywhere — the export stays on your clipboard.");
     ImGui.Spacing();
 
-    // The one button that asks the game server for something: the count in
-    // each of the 16 A/S hunt group achievements, for the Ledger's Hunts tab.
-    using (ImRaii.Disabled(_achievements.HuntRequestRunning))
-      if (ImGui.Button("Read hunt counts")) _achievements.RequestHuntGroups();
+    // This and "Read counts, copy everything" are the only buttons that ask the
+    // game server for something: the three running counts and the 16 A/S hunt
+    // groups, for the Ledger.
+    using (ImRaii.Disabled(_achievements.RequestRunning))
+      if (ImGui.Button("Read achievement counts")) _achievements.RequestCounts();
     if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-      ImGui.SetTooltip("Asks the game for your count in each \"Mark of the ...\" achievement, one at a time (about 10 seconds).\nThe export then carries them for the Ledger's Hunts tab.");
+      ImGui.SetTooltip("Asks the game for your gathered, crafted and duty counts, and for your count in each \"Mark of the ...\" achievement, one at a time (about 12 seconds).\nThe export then carries them for the Ledger.");
     ImGui.SameLine();
-    ImGui.TextDisabled(_achievements.HuntRequestStatus);
+    ImGui.TextDisabled(_achievements.RequestStatus);
     ImGui.Spacing();
 
     // The ledger is where the second button's output is meant to go, so the

@@ -14,7 +14,8 @@ public interface ICommandService : IHostedService;
 /// </summary>
 public class CommandService(ILogger _logger, IDataService _dataService, IWindowService _windowService,
   INativeUiService _nativeUi, Configuration _configuration, ICommandManager _commandManager,
-  ILedgerExportService _ledgerExport, IFeatureService _features, IFoodService _food) : ICommandService
+  ILedgerExportService _ledgerExport, IFeatureService _features, IFoodService _food,
+  IAchievementService _achievements) : ICommandService
 {
   private const string MainCommand = "/timememoria";
   private const string MainAlias = "/tm";
@@ -165,7 +166,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
       // wanting the figures and having them.
       case "ledger":
       case "progress":
-        Copy(_ledgerExport.BuildLedgerJson, "Copied your progress in ledger format.");
+        Copy(_ledgerExport.BuildLedgerJson, $"Copied your progress in ledger format. {_achievements.CountsAge}");
         break;
 
       case "collections":
@@ -173,7 +174,7 @@ public class CommandService(ILogger _logger, IDataService _dataService, IWindowS
         break;
 
       case "full":
-        Copy(_ledgerExport.BuildFullJson, "Copied your progress and collections together.");
+        Copy(_ledgerExport.BuildFullJson, $"Copied your progress and collections together. {_achievements.CountsAge}");
         break;
 
       // Named explicitly so neither window can become unreachable. Choosing the

@@ -25,12 +25,21 @@ public class ProgressionPanelNode : TabPanelNode
   public required ILedgerExportService LedgerExport { get; init; }
   public required IAchievementService Achievements { get; init; }
 
-  /// <summary>The one button that asks the game server for something; see AchievementService.</summary>
-  private readonly TextButtonNode _readHunts;
+  /// <summary>The only buttons that ask the game server for something; see AchievementService.</summary>
+  private readonly TextButtonNode _readCounts;
+  private readonly TextButtonNode _readAndCopy;
+
+  /// <summary>
+  /// The result of a read-and-copy, shown on the next refresh. The run can end
+  /// after the window has closed and its nodes are gone, so the callback must
+  /// not touch a node.
+  /// </summary>
+  private string? _readAndCopyResult;
+  private string _countsTooltip = "";
+  private bool _countsRunning;
 
   private readonly TextButtonNode _copyLedger;
   private readonly TextButtonNode _openLedger;
-  private readonly TextButtonNode _copyCollections;
   private readonly TextButtonNode _copyEverything;
   private readonly TextNode _copyFeedback;
 
@@ -41,6 +50,8 @@ public class ProgressionPanelNode : TabPanelNode
 
   /// <summary>Unlocked-job count last time the scroll range was measured.</summary>
   private int _lastRowCount = -1;
+
+  private const string CountsHelp = "Asks the game for your gathered, crafted and duty counts, and for your count in each \"Mark of the ...\" achievement, one at a time (about 12 seconds). The export then carries them for the Ledger.";
 
   public ProgressionPanelNode()
   {
@@ -55,18 +66,28 @@ public class ProgressionPanelNode : TabPanelNode
     // the button only invokes this on a click, never during construction.
 #pragma warning disable CS8602
     _copyLedger = MakeButton("Copy for the Ledger",
-      () => Copy(LedgerExport.BuildLedgerJson, "Copied in ledger format."));
-
-    // Collections are a payload of their own, so pasting progress stays cheap.
-    _copyCollections = MakeButton("Copy collections",
-      () => Copy(LedgerExport.BuildCollectionsJson, "Copied your collections."));
+      () => Copy(LedgerExport.BuildLedgerJson, $"Copied in ledger format. {Achievements.CountsAge}"));
 
     // Both in one paste, for when the Ledger should take everything at once.
     _copyEverything = MakeButton("Copy everything",
-      () => Copy(LedgerExport.BuildFullJson, "Copied progress and collections together."));
+      () => Copy(LedgerExport.BuildFullJson, $"Copied progress and collections together. {Achievements.CountsAge}"));
 
-    _readHunts = MakeButton("Read hunt counts", () => Achievements.RequestHuntGroups());
-    _readHunts.TextTooltip = "Asks the game for your count in each \"Mark of the ...\" achievement, one at a time (about 10 seconds). The export then carries them for the Ledger's Hunts tab.";
+    _readCounts = MakeButton("Read achievement counts", () => Achievements.RequestCounts());
+
+    // Copies only when the read ends, so the paste never holds older counts.
+    _readAndCopy = MakeButton("Read counts, copy everything", () => Achievements.RequestCounts(() =>
+    {
+      try
+      {
+        ImGui.SetClipboardText(LedgerExport.BuildFullJson());
+        _readAndCopyResult = $"Copied progress and collections together. {Achievements.CountsAge}";
+      }
+      catch (Exception ex)
+      {
+        _readAndCopyResult = $"Copy failed: {ex.Message}";
+      }
+    }));
+    _readAndCopy.TextTooltip = "Reads the achievement counts (about 12 seconds), then copies everything to your clipboard.";
 #pragma warning restore CS8602
 
     _openLedger = MakeButton("Open the Ledger",
@@ -109,11 +130,40 @@ public class ProgressionPanelNode : TabPanelNode
       _copyShownAt = DateTime.MinValue;
     }
 
-    // While hunt counts are read, the feedback line shows the progress.
-    if (_copyShownAt == DateTime.MinValue && Achievements.HuntRequestStatus.Length > 0
-        && _copyFeedback.String.ToString() != Achievements.HuntRequestStatus)
-      _copyFeedback.String = Achievements.HuntRequestStatus;
-    _readHunts.IsEnabled = !Achievements.HuntRequestRunning;
+    string status = Achievements.RequestStatus;
+    bool running = Achievements.RequestRunning;
+
+    // The feedback line shows a run as it happens, then its result until the
+    // usual fade. The last read time stays in the button's tooltip.
+    if (running)
+    {
+      if (_copyFeedback.String.ToString() != status) _copyFeedback.String = status;
+    }
+    else
+    {
+      if (_readAndCopyResult is { } result)
+      {
+        _copyFeedback.String = result;
+        _copyShownAt = DateTime.UtcNow;
+        _readAndCopyResult = null;
+      }
+      else if (_countsRunning)
+      {
+        if (status.Length > 0) _copyFeedback.String = status;
+        _copyShownAt = DateTime.UtcNow;
+      }
+
+      string tooltip = status.Length > 0 ? $"{CountsHelp}\n{status}" : CountsHelp;
+      if (tooltip != _countsTooltip)
+      {
+        _countsTooltip = tooltip;
+        _readCounts.TextTooltip = tooltip;
+      }
+    }
+
+    _countsRunning = running;
+    _readCounts.IsEnabled = !running;
+    _readAndCopy.IsEnabled = !running;
 
     List<ClassJobProgress> unlocked = [.. ProgressService.GetProgress().Where((p) => p.IsUnlocked)];
 
@@ -217,14 +267,16 @@ public class ProgressionPanelNode : TabPanelNode
     _openLedger.Size = new Vector2(buttonWidth, buttonHeight);
     _openLedger.Position = new Vector2(buttonWidth + gap, buttonsY);
 
-    _copyCollections.Size = new Vector2(buttonWidth, buttonHeight);
-    _copyCollections.Position = new Vector2(2 * (buttonWidth + gap), buttonsY);
-
     _copyEverything.Size = new Vector2(buttonWidth, buttonHeight);
-    _copyEverything.Position = new Vector2(3 * (buttonWidth + gap), buttonsY);
+    _copyEverything.Position = new Vector2(2 * (buttonWidth + gap), buttonsY);
 
-    _readHunts.Size = new Vector2(buttonWidth, buttonHeight);
-    _readHunts.Position = new Vector2(4 * (buttonWidth + gap), buttonsY);
+    // The two longest labels, and the last in the row, so they can be wider.
+    const float readWidth = 190.0f;
+    _readCounts.Size = new Vector2(readWidth, buttonHeight);
+    _readCounts.Position = new Vector2(3 * (buttonWidth + gap), buttonsY);
+
+    _readAndCopy.Size = new Vector2(220.0f, buttonHeight);
+    _readAndCopy.Position = new Vector2(3 * (buttonWidth + gap) + readWidth + gap, buttonsY);
 
     _copyFeedback.Size = new Vector2(Width, 18.0f);
     _copyFeedback.Position = new Vector2(0.0f, buttonsY - 20.0f);

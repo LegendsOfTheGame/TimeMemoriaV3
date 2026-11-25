@@ -12,7 +12,7 @@ namespace TimeMemoria.Services;
 /// requirement rather than the running total.
 /// </param>
 /// <param name="IsExact">False when <paramref name="Value"/> is only a floor.</param>
-/// <param name="Tier">1-based position in the series, used to prefer later readings.</param>
+/// <param name="Tier">1-based position in the series. Does not rank readings.</param>
 /// <param name="TierCount">How many tiers the series has, so "5 of 7" can be said.</param>
 /// <param name="TakenUtc">When it was seen. The figure is exactly this old.</param>
 public record AchievementReading(int Value, bool IsExact, int Tier, int TierCount, DateTime TakenUtc);
@@ -43,6 +43,9 @@ public record HuntGroup(uint AchievementId, string Name, int Size);
 /// which is also exact, because a finished group has every mark.
 /// </param>
 public record HuntGroupReading(int Count, int Max, bool Exact, DateTime TakenUtc);
+
+/// <summary>The last finished run of the "Read achievement counts" button.</summary>
+public record CountRun(int Answered, int Asked, DateTime TakenUtc);
 
 /// <summary>The three running counts read out of the achievement progress slot.</summary>
 public enum AchievementSeries { Gathered, Crafted, Duties }
@@ -90,15 +93,27 @@ public interface IAchievementService : IHostedService
   IReadOnlyDictionary<uint, HuntGroupReading> HuntGroups { get; }
 
   /// <summary>
-  /// Asks the game for every group's count, one after another. Only from the
-  /// "Read hunt counts" button; the plugin never does this by itself.
+  /// Asks the game for every count the Ledger uses, one after another: the hunt
+  /// groups and the last tier of each series. Only from the "Read achievement
+  /// counts" and "Read counts, copy everything" buttons; the plugin never does
+  /// this by itself.
   /// </summary>
-  void RequestHuntGroups();
+  /// <param name="whenDone">Runs once when the run ends. Not called if a logout cancels it.</param>
+  void RequestCounts(System.Action? whenDone = null);
 
-  bool HuntRequestRunning { get; }
+  /// <summary>
+  /// "Achievement counts: 19 of 19, 3d ago.", for the copy confirmations. Falls
+  /// back to the oldest reading when the button has never been used.
+  /// </summary>
+  string CountsAge { get; }
 
-  /// <summary>"Reading hunt counts: 5 of 16", then a final line. Empty before the first run.</summary>
-  string HuntRequestStatus { get; }
+  bool RequestRunning { get; }
+
+  /// <summary>
+  /// "Reading achievement counts: 5 of 19" during a run, then the last run's
+  /// result with its age. Empty before this character's first run.
+  /// </summary>
+  string RequestStatus { get; }
 }
 
 /// <summary>
@@ -106,17 +121,15 @@ public interface IAchievementService : IHostedService
 ///
 /// The game holds no running counter for either — the count lives in an
 /// achievement, server-side, and the client fetches it only for whichever
-/// achievement you are looking at. There is a call that would request it, and
-/// this deliberately does not use it: the plugin does not talk to the game
-/// server on your behalf, for the same reason it will not run /playtime for you.
+/// achievement you are looking at.
 ///
-/// So this watches instead. Open the Achievements window, look at a tier, and
-/// the number lands in a slot this reads. Nothing is asked for; what the game
-/// fetched because you looked is simply not thrown away.
+/// By itself this only watches. Open the Achievements window, look at a tier,
+/// and the number lands in a slot this reads. The plugin sends a request only
+/// when the player presses a button that says so (see RequestCounts).
 ///
-/// The reading is kept from the highest tier seen, since later tiers count
-/// further. A tier already completed reports its own requirement rather than the
-/// real total, so those are recorded as a floor and said so.
+/// Every tier that is still open reports the same running total, so the tier a
+/// reading came from does not rank it. A tier already completed reports its own
+/// requirement instead, so those are recorded as a floor and said so.
 /// </summary>
 public class AchievementService(ILogger _logger, IFramework _framework, IDataManager _dataManager,
   IClientState _clientState, IPlayerState _playerState, Configuration _configuration) : IAchievementService
@@ -192,6 +205,13 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
 
   private uint _lastId;
   private uint _lastValue;
+
+  /// <summary>
+  /// True until the slot's contents at load or login are noted. Those can be old
+  /// (after a plugin reload the slot still holds its last answer), and a reading
+  /// taken from them would carry a new time for an old number.
+  /// </summary>
+  private bool _noteSlot = true;
 
 
   public AchievementReading? Gathered { get; private set; }
@@ -296,90 +316,210 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     _logger.Debug($"[Achievement] {group.Name}: {count} of {max}");
   }
 
-  // ---- Reading every group on request ----
+  // ---- Reading every count on request ----
   //
-  // Haven's decision, 18 Nov 2026: the plugin may ask the game for the hunt
-  // group counts, so the player does not open 16 achievements one by one. This
+  // Haven's decisions: 18 Nov 2026 for the hunt groups, 25 Nov 2026 for the
+  // three series, so the player does not open 19 achievements one by one. This
   // is the one place the plugin asks the game server for anything, and only
-  // when the player presses "Read hunt counts" in a plugin window. Nothing runs
-  // by itself. The client keeps one progress slot and answers one request at a
-  // time, so the requests go one after another (MemoriaProbe, 13 Sep 2026:
-  // one pending, ~600 ms apart, up to 3 tries, all 24 groups in ~10 s; one per
-  // frame does not work, only the last answer survives).
+  // when the player presses "Read achievement counts" or "Read counts, copy
+  // everything" in a plugin window. The other copy buttons and /tm full do not.
+  // Nothing runs by itself. The client keeps one progress slot, so the requests
+  // go one after another (one per frame does not work, only the last answer
+  // survives).
+  //
+  // MemoriaProbe achvtiers, 25 Nov 2026: answers take 120 to 463 ms, sending
+  // sets the slot to Requested and the answer sets it to Loaded, every open
+  // tier of a series gives the same total, and the Achievements window does not
+  // need to have been opened.
 
-  private static readonly TimeSpan HuntRequestWait = TimeSpan.FromMilliseconds(600);
-  private const int HuntRequestTries = 3;
+  private static readonly TimeSpan RequestGap = TimeSpan.FromMilliseconds(600);
+  private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(2);
+  private const int RequestTries = 3;
 
-  private readonly Queue<HuntGroup> _huntQueue = new();
-  private HuntGroup? _huntPending;
-  private DateTime _huntSentAt;
-  private int _huntTries;
-  private int _huntAnswered;
-  private int _huntAsked;
+  /// <summary>One achievement to ask for. Group is set for a hunt group and null for a series tier.</summary>
+  private record CountRequest(uint Id, HuntGroup? Group);
 
-  public string HuntRequestStatus { get; private set; } = "";
+  private readonly Queue<CountRequest> _requests = new();
+  private CountRequest? _pending;
+  private DateTime _sentAt;
+  private int _requestTries;
+  private int _answered;
+  private int _asked;
 
-  public bool HuntRequestRunning => _huntPending is not null || _huntQueue.Count > 0;
+  /// <summary>Kept per character, so the age is still there after a restart.</summary>
+  private CountRun? _lastRun;
 
-  public void RequestHuntGroups()
+  public string RequestStatus
   {
-    if (HuntRequestRunning || !_clientState.IsLoggedIn) return;
+    get
+    {
+      if (RequestRunning) return $"Reading achievement counts: {_answered} of {_asked}";
+      if (_lastRun is not { } run) return "";
 
-    foreach (HuntGroup group in _huntGroups) _huntQueue.Enqueue(group);
-    _huntAsked = _huntQueue.Count;
-    _huntAnswered = 0;
-    HuntRequestStatus = $"Reading hunt counts: 0 of {_huntAsked}";
+      string rest = run.Answered == run.Asked ? "" : " Press again for the rest.";
+      return $"Achievement counts read: {run.Answered} of {run.Asked}, {Age(DateTime.UtcNow - run.TakenUtc)} " +
+             $"({run.TakenUtc.ToLocalTime():d MMM HH:mm}).{rest}";
+    }
   }
 
-  private unsafe void PumpHuntRequests(AchievementState* state)
+  private static string Age(TimeSpan span)
   {
-    if (_huntPending is { } pending)
-    {
-      if (DateTime.UtcNow - _huntSentAt < HuntRequestWait) return;
+    if (span.TotalMinutes < 1) return "just now";
+    if (span.TotalHours < 1) return $"{(int)span.TotalMinutes}m ago";
+    if (span.TotalDays < 1) return $"{(int)span.TotalHours}h ago";
 
-      if (state->ProgressAchievementId == pending.AchievementId)
+    return $"{(int)span.TotalDays}d ago";
+  }
+
+  public bool RequestRunning => _pending is not null || _requests.Count > 0;
+
+  public string CountsAge
+  {
+    get
+    {
+      if (_lastRun is { } run)
+        return $"Achievement counts: {run.Answered} of {run.Asked}, {Age(DateTime.UtcNow - run.TakenUtc)}.";
+
+      List<DateTime> taken = [.. new[] { Gathered, Crafted, Duties }.OfType<AchievementReading>().Select((r) => r.TakenUtc)];
+
+      return taken.Count == 0
+        ? "Achievement counts: not read yet."
+        : $"Achievement counts: oldest {Age(DateTime.UtcNow - taken.Min())}.";
+    }
+  }
+
+  private System.Action? _whenDone;
+
+  public void RequestCounts(System.Action? whenDone = null)
+  {
+    if (RequestRunning || !_clientState.IsLoggedIn) return;
+
+    _whenDone = whenDone;
+
+    // The last tier is the one with the most room left, so it gives the exact
+    // total unless the whole series is finished.
+    foreach (var series in _tiers.GroupBy((t) => t.Value.Series))
+      _requests.Enqueue(new CountRequest(series.MaxBy((t) => t.Value.Tier).Key, null));
+
+    foreach (HuntGroup group in _huntGroups) _requests.Enqueue(new CountRequest(group.AchievementId, group));
+
+    _asked = _requests.Count;
+    _answered = 0;
+  }
+
+  private unsafe void PumpRequests(AchievementState* state)
+  {
+    if (!RequestRunning && _asked == 0) return;
+
+    // A request must not outlive the character it was made for.
+    if (!_clientState.IsLoggedIn)
+    {
+      ClearRequests();
+      return;
+    }
+
+    TimeSpan sinceSend = DateTime.UtcNow - _sentAt;
+
+    if (_pending is { } pending)
+    {
+      // Loaded as well as the id: another plugin or the game can use the slot,
+      // and a slot that already held this id is not an answer.
+      bool answered = state->ProgressAchievementId == pending.Id
+        && state->ProgressRequestState == AchievementState.AchievementState.Loaded;
+
+      if (answered)
       {
-        RecordHunt(state, pending, state->ProgressCurrent);
+        Record(state, pending);
         _lastId = state->ProgressAchievementId;
         _lastValue = state->ProgressCurrent;
-        _huntAnswered++;
-        _huntPending = null;
+        _answered++;
+        _pending = null;
       }
-      else if (_huntTries < HuntRequestTries)
+      else if (sinceSend < RequestTimeout)
+      {
+        return;
+      }
+      else if (_requestTries < RequestTries)
       {
         Send(state, pending);
         return;
       }
       else
       {
-        _logger.Debug($"[Achievement] No answer for {pending.Name} after {HuntRequestTries} tries.");
-        _huntPending = null;
+        _logger.Debug($"[Achievement] No answer for achievement {pending.Id} after {RequestTries} tries.");
+        _pending = null;
       }
     }
 
-    if (_huntQueue.Count > 0)
+    if (_requests.Count > 0)
     {
-      _huntTries = 0;
-      Send(state, _huntQueue.Dequeue());
-      HuntRequestStatus = $"Reading hunt counts: {_huntAnswered} of {_huntAsked}";
+      if (sinceSend < RequestGap) return;
+
+      _requestTries = 0;
+      Send(state, _requests.Dequeue());
       return;
     }
 
-    if (_huntAsked > 0)
+    // A run with no answer at all read nothing, so it has no time to show.
+    if (_answered > 0)
     {
-      HuntRequestStatus = _huntAnswered == _huntAsked
-        ? $"Hunt counts read: {_huntAnswered} of {_huntAsked}."
-        : $"Hunt counts read: {_huntAnswered} of {_huntAsked}. Press again for the rest.";
-      _huntAsked = 0;
+      _lastRun = new CountRun(_answered, _asked, DateTime.UtcNow);
+      Persist();
     }
+
+    _asked = 0;
+
+    System.Action? done = _whenDone;
+    _whenDone = null;
+    done?.Invoke();
   }
 
-  private unsafe void Send(AchievementState* state, HuntGroup group)
+  private unsafe void Send(AchievementState* state, CountRequest request)
   {
-    _huntPending = group;
-    _huntSentAt = DateTime.UtcNow;
-    _huntTries++;
-    state->RequestAchievementProgress(group.AchievementId);
+    _pending = request;
+    _sentAt = DateTime.UtcNow;
+    _requestTries++;
+    state->RequestAchievementProgress(request.Id);
+  }
+
+  private unsafe void Record(AchievementState* state, CountRequest request)
+  {
+    if (request.Group is { } group)
+    {
+      RecordHunt(state, group, state->ProgressCurrent);
+      return;
+    }
+
+    (int tier, int count, Series series) = _tiers[request.Id];
+
+    // Not the completion bit: that is not loaded until the Achievements window
+    // has been opened, and a request does not need the window.
+    bool complete = state->ProgressCurrent >= state->ProgressMax;
+    AchievementReading reading = new((int)state->ProgressCurrent, !complete, tier, count, DateTime.UtcNow);
+
+    // An exact answer is the game's total now, so it replaces whatever was kept.
+    Store(series, reading, replace: reading.IsExact);
+    Persist();
+
+    _logger.Debug($"[Achievement] {series} on request: {reading.Value:N0}{(complete ? " (floor)" : "")}");
+  }
+
+  private void ClearRequests()
+  {
+    _requests.Clear();
+    _pending = null;
+    _whenDone = null;
+    _asked = 0;
+  }
+
+  private void Store(Series series, AchievementReading reading, bool replace = false)
+  {
+    switch (series)
+    {
+      case Series.Gathered: Gathered = replace ? reading : Prefer(Gathered, reading); break;
+      case Series.Crafted: Crafted = replace ? reading : Prefer(Crafted, reading); break;
+      case Series.Duties: Duties = replace ? reading : Prefer(Duties, reading); break;
+    }
   }
 
   private void OnLogin()
@@ -389,13 +529,10 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     Duties = null;
     Totals = null;
     _huntReadings = [];
-    _huntQueue.Clear();
-    _huntPending = null;
-    _huntAsked = 0;
-    HuntRequestStatus = "";
+    ClearRequests();
+    _lastRun = null;
 
-    _lastId = 0;
-    _lastValue = 0;
+    _noteSlot = true;
 
     // The completion bitmap belongs to whichever character is now active, so
     // "taken already" from the character just left is not evidence anything has
@@ -482,12 +619,7 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
 
       AchievementReading floor = new(requirement, false, tier, count, DateTime.UtcNow);
 
-      switch (series)
-      {
-        case Series.Gathered: Gathered = Prefer(Gathered, floor); break;
-        case Series.Crafted: Crafted = Prefer(Crafted, floor); break;
-        case Series.Duties: Duties = Prefer(Duties, floor); break;
-      }
+      Store(series, floor);
 
       found++;
     }
@@ -546,7 +678,14 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     AchievementState* state = AchievementState.Instance();
     if (state is null) return;
 
-    PumpHuntRequests(state);
+    if (_noteSlot)
+    {
+      _noteSlot = false;
+      _lastId = state->ProgressAchievementId;
+      _lastValue = state->ProgressCurrent;
+    }
+
+    PumpRequests(state);
 
     if (!state->IsLoaded()) return;
 
@@ -580,12 +719,7 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
 
     AchievementReading reading = new((int)value, !complete, tier.Tier, tier.Count, DateTime.UtcNow);
 
-    switch (tier.Series)
-    {
-      case Series.Gathered: Gathered = Prefer(Gathered, reading); break;
-      case Series.Crafted: Crafted = Prefer(Crafted, reading); break;
-      case Series.Duties: Duties = Prefer(Duties, reading); break;
-    }
+    Store(tier.Series, reading);
 
     Persist();
 
@@ -594,14 +728,19 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
   }
 
   /// <summary>
-  /// Later tiers count further, so a reading from a higher tier replaces a
-  /// lower one. At the same tier the newer reading wins.
+  /// The counts only go up, so the higher one wins, whatever tier it came from.
+  /// Ranking by tier kept an old reading of a later tier over a newer reading of
+  /// an earlier one (a player's 164 over 245, 25 Nov 2026). At the same count an
+  /// exact reading beats a floor, and then the newer one wins.
   /// </summary>
   private static AchievementReading Prefer(AchievementReading? existing, AchievementReading candidate)
-    => existing is null || candidate.Tier > existing.Tier
-       || (candidate.Tier == existing.Tier && candidate.TakenUtc > existing.TakenUtc)
-      ? candidate
-      : existing;
+  {
+    if (existing is null) return candidate;
+    if (candidate.Value != existing.Value) return candidate.Value > existing.Value ? candidate : existing;
+    if (candidate.IsExact != existing.IsExact) return candidate.IsExact ? candidate : existing;
+
+    return candidate.TakenUtc > existing.TakenUtc ? candidate : existing;
+  }
 
   /// <summary>Keyed exactly as playtime is, so both follow the same character.</summary>
   private string? Key
@@ -625,6 +764,7 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
     Duties = stored.Duties;
     Totals = stored.Totals;
     _huntReadings = stored.HuntGroups is null ? [] : new(stored.HuntGroups);
+    _lastRun = stored.LastRun;
   }
 
   private void Persist()
@@ -635,7 +775,7 @@ public class AchievementService(ILogger _logger, IFramework _framework, IDataMan
       new StoredReadings
       {
         Gathered = Gathered, Crafted = Crafted, Duties = Duties, Totals = Totals,
-        HuntGroups = new(_huntReadings)
+        HuntGroups = new(_huntReadings), LastRun = _lastRun
       };
     _configuration.Save();
   }
@@ -656,4 +796,5 @@ public class StoredReadings
   public AchievementReading? Duties { get; set; }
   public AchievementTotals? Totals { get; set; }
   public Dictionary<uint, HuntGroupReading>? HuntGroups { get; set; }
+  public CountRun? LastRun { get; set; }
 }
