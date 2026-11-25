@@ -277,7 +277,7 @@ Motivation) stays ungated rather than gated on an arbitrary one.
 | `msqBreakdownTotals` | — | **Deliberately not sent.** Static reference data the ledger already holds, and ours understates Dawntrail |
 | `quests` | Top-level journal section completion | **Built.** Six sections plus `overall` — see section below |
 | `questTotals` | — | **Deliberately not sent.** Our denominators are character-filtered and would not match the ledger's static ones |
-| `huntGroups` | The 16 A/S "Mark of the ..." achievements (ARR, HW, SB): completion bitmap, or the progress slot when the player views one | **Built.** Array of `{id, name, count, max, asOf}`; `id` is the Achievement row id. The game's count per group only, never which marks. A group never read is left out |
+| `huntGroups` | The 16 A/S "Mark of the ..." achievements (ARR, HW, SB): completion bitmap, or the progress slot when the player views one or presses a read button | **Built.** Array of `{id, count, max, asOf}`; `id` is the Achievement row id. The game's count per group only, never which marks. A group never read is left out |
 
 | `huntLog` | `MonsterNoteManager` (12 blocks: 8 classes, Rogue, 3 Grand Companies), saved per character by `HuntingLogService` | **Built 22 Nov 2026.** See the section below |
 

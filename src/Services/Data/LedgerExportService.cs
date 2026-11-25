@@ -645,7 +645,6 @@ public class LedgerExportService(IPluginLog _pluginLog, IPlayerState _playerStat
       groups.Add(new JsonObject
       {
         ["id"] = group.AchievementId,
-        ["name"] = group.Name,
         ["count"] = reading.Count,
         ["max"] = reading.Max,
         ["asOf"] = Stamp(reading.TakenUtc)
